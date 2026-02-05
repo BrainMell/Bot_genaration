@@ -1,6 +1,7 @@
 package ttt
 
 import (
+	"fmt"  // ← ADDED
 	"image/color"
 
 	"image-service/pkg/utils"

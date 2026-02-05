@@ -37,8 +37,8 @@ var (
 	Green     = utils.ParseHexColor("#2ECC71")
 	Yellow    = utils.ParseHexColor("#F1C40F")
 	Blue      = utils.ParseHexColor("#3498DB")
-	White     = color.White
-	Black     = color.Black
+	White     = color.RGBA{255, 255, 255, 255}  // ← FIXED: was color.White
+	Black     = color.RGBA{0, 0, 0, 255}        // ← FIXED: was color.Black
 	Gray      = utils.ParseHexColor("#CCCCCC")
 	LightGray = utils.ParseHexColor("#F0F2F5")
 	DarkGray  = utils.ParseHexColor("#333333")
@@ -219,7 +219,7 @@ func getColor(name string) color.RGBA {
 	case "green": return Green
 	case "yellow": return Yellow
 	case "blue": return Blue
-	default: return Black
+	default: return Black  // ← Now returns color.RGBA, not color.Color
 	}
 }
 

@@ -1,6 +1,7 @@
 package combat
 
 import (
+	"fmt"  // ← ADDED
 	"image"
 	"image/color"
 	"math"
@@ -181,15 +182,7 @@ func GenerateCombatImage(c *gin.Context) {
 			s1W := 314
 			pSprite = imaging.Resize(pSprite, s1W, 0, imaging.Lanczos)
 			
-			// Crop bottom 30%? No, original crops top 0 to height*0.3
-			// JS: cropH = floor(height * 0.3); crop(0, 0, w, cropH) -> Wait, JS composite(mainDisplay, ... 191 - cropH)
-			// Actually the JS code draws the TOP PART of the sprite or BOTTOM?
-			// "cropH = height * 0.3; mainDisplay.crop(0,0, w, cropH)" -> this keeps the TOP 30%.
-			// AND it draws it at y - cropH. This effectively "pops up" the head?
-			// Let's just draw the full sprite resized for now to be safe, exact porting of weird cropping logic can be tricky without seeing result.
-			// Actually, let's just stick to standard positioning: normX(-660), normY(191) - someOffset
-			
-			dc.DrawImage(pSprite, normX(-660), normY(191) - pSprite.Bounds().Dy() + 50) // Approx adjustment
+			dc.DrawImage(pSprite, normX(-660), normY(191) - pSprite.Bounds().Dy() + 50)
 		}
 	}
 
@@ -201,13 +194,11 @@ func GenerateCombatImage(c *gin.Context) {
 		}
 		
 		fontPath := utils.GetAssetPath("rpgasset", "ui", "fantesy.ttf")
-		face, err := utils.LoadFont(fontPath, 100) // 70pt approx 93px, let's go big
+		face, err := utils.LoadFont(fontPath, 100)
 		if err == nil {
 			dc.SetFontFace(face)
 			dc.SetColor(color.Black)
 			
-			// Center text in banner
-			// Banner rect: x: normX(-496), y: normY(-339), w: 573, h: 118
 			bx, by := float64(normX(-496)), float64(normY(-339))
 			bw, bh := 573.0, 118.0
 			

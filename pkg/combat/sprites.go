@@ -1,9 +1,8 @@
 package combat
 
 import (
-	"fmt"
-	"math/rand"
 	"path/filepath"
+	// REMOVED: "fmt" and "math/rand" - not used in this file
 )
 
 var CharacterSprites = map[string][]string{
@@ -112,7 +111,6 @@ func GetEnemySpritePath(level int, index int, isBoss bool, assetsPath string) st
 		filename = list[index%len(list)]
 	}
 	
-	// If list was empty (fallback)
 	if filename == "" {
 		filename = "fire (5).png"
 	}
@@ -122,9 +120,6 @@ func GetEnemySpritePath(level int, index int, isBoss bool, assetsPath string) st
 
 func GetEnvironmentPath(bgName string, assetsPath string) string {
 	if bgName == "" {
-		// Random selection if empty
-		// In a real implementation we might list dir, but for speed we'll rely on client sending one
-		// or default to a safe one
 		bgName = "forest1.png" 
 	}
 	return filepath.Join(assetsPath, "rpgasset", "environment", bgName)
