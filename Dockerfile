@@ -1,41 +1,44 @@
 # Build Stage
 FROM golang:1.21-alpine AS builder
 
+# Install build dependencies
+RUN apk add --no-cache gcc musl-dev git
+
 WORKDIR /app
 
-# Install system dependencies for cgo (required for some image ops)
-RUN apk add --no-cache gcc musl-dev
-
-# Copy go mod and sum files
+# Copy only mod file first
 COPY go.mod ./
-# If you had a go.sum, you'd copy it here. 
-# Running go mod tidy will generate it if missing during build.
 
-# Copy source code
+# Force generate go.sum and download dependencies
+RUN go mod tidy
+RUN go mod download
+
+# Now copy the rest of the source
 COPY . .
 
-# Download dependencies and Build
-RUN go mod tidy
-RUN CGO_ENABLED=1 GOOS=linux go build -o main .
+# Build the binary
+# CGO_ENABLED=0 makes the build faster and lighter (pure Go)
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
 
 # Run Stage
 FROM alpine:latest
 
 WORKDIR /app
 
-# Install runtime dependencies
-# font-noto: standard fonts
-# ca-certificates: for HTTPS requests (scraping)
+# Install runtime dependencies for images and HTTPS
 RUN apk add --no-cache \
     ca-certificates \
     font-noto \
-    ttf-freefont
+    ttf-freefont \
+    libcommoncpp
 
 COPY --from=builder /app/main .
+COPY --from=builder /app/assets ./assets
 
-# Expose port
+# Set Production Environment
+ENV GIN_MODE=release
+ENV PORT=8080
+
 EXPOSE 8080
 
-# Run
 CMD ["./main"]
-

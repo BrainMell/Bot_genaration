@@ -65,7 +65,8 @@ func main() {
 	}
 
 	log.Printf("🚀 Go Service starting on port %s", port)
-	if err := r.Run(":" + port); err != nil {
+	// Bind to 0.0.0.0 explicitly for cloud platforms
+	if err := r.Run("0.0.0.0:" + port); err != nil {
 		log.Fatal("Failed to start server: ", err)
 	}
 }
