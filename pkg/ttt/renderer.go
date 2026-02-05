@@ -1,7 +1,6 @@
 package ttt
 
 import (
-	"fmt"
 	"image/color"
 
 	"image-service/pkg/utils"
@@ -11,18 +10,18 @@ import (
 )
 
 type TTTRequest struct {
-	Board         []string `json:"board"` // "X", "O", or null/empty
+	Board         []string `json:"board"`
 	GridSize      int      `json:"gridSize"`
 	LastMoveIndex int      `json:"lastMoveIndex"`
 	WinPattern    []int    `json:"winPattern"`
 }
 
 var (
-	BgColor    = utils.ParseHexColor("#ECF0F1")
-	GridColor  = utils.ParseHexColor("#34495E")
-	XColor     = utils.ParseHexColor("#E74C3C")
-	OColor     = utils.ParseHexColor("#3498DB")
-	Highlight  = utils.ParseHexColor("#F39C12")
+	BgColor   = utils.ParseHexColor("#ECF0F1")
+	GridColor = utils.ParseHexColor("#34495E")
+	XColor    = utils.ParseHexColor("#E74C3C")
+	OColor    = utils.ParseHexColor("#3498DB")
+	Highlight = utils.ParseHexColor("#F39C12")
 )
 
 func RenderBoard(c *gin.Context) {
@@ -32,47 +31,44 @@ func RenderBoard(c *gin.Context) {
 		return
 	}
 
-	size := 600
-	cellSize := float64(size) / float64(req.GridSize)
+	size := 600.0
+	grid := float64(req.GridSize)
+	cellSize := size / grid
 
-	dc := gg.NewContext(size, size)
+	dc := gg.NewContext(int(size), int(size))
 	dc.SetColor(BgColor)
 	dc.Clear()
 
-	// 1. Highlight Last Move
-	if req.LastMoveIndex >= 0 && req.LastMoveIndex < len(req.Board) {
-		row := req.LastMoveIndex / req.GridSize
-		col := req.LastMoveIndex % req.GridSize
-		dc.SetColor(Highlight)
-		dc.DrawRectangle(float64(col)*cellSize, float64(row)*cellSize, cellSize, cellSize)
-		dc.Fill() // Or stroke
-	}
-
-	// 2. Draw Grid
-	dc.SetColor(GridColor)
-	dc.SetLineWidth(4)
-	for i := 1; i < req.GridSize; i++ {
-		pos := float64(i) * cellSize
-		// Vert
-		dc.DrawLine(pos, 0, pos, float64(size))
-		// Horiz
-		dc.DrawLine(0, pos, float64(size), pos)
-	}
-	dc.Stroke()
-
-	// 3. Draw Symbols
+	// 1. Highlight Cells
 	for i, cell := range req.Board {
-		if cell == "" {
-			continue
-		}
-		
-		row := i / req.GridSize
-		col := i % req.GridSize
-		cx := float64(col)*cellSize + cellSize/2
-		cy := float64(row)*cellSize + cellSize/2
-		radius := cellSize * 0.35
+		row, col := i/req.GridSize, i%req.GridSize
+		x, y := float64(col)*cellSize, float64(row)*cellSize
 
-		dc.SetLineWidth(10)
+		// Win Pattern Highlight
+		isWinCell := false
+		for _, w := range req.WinPattern {
+			if w == i {
+				isWinCell = true
+				break
+			}
+		}
+
+		if isWinCell {
+			dc.SetColor(color.RGBA{Highlight.R, Highlight.G, Highlight.B, 50}) // 20% alpha
+			dc.DrawRectangle(x+2, y+2, cellSize-4, cellSize-4)
+			dc.Fill()
+		} else if i == req.LastMoveIndex {
+			// Last Move Highlight (Outline)
+			dc.SetColor(Highlight)
+			dc.SetLineWidth(3)
+			dc.DrawRectangle(x+10, y+10, cellSize-20, cellSize-20)
+			dc.Stroke()
+		}
+
+		// Symbols
+		cx, cy := x+cellSize/2, y+cellSize/2
+		radius := cellSize * 0.35
+		dc.SetLineWidth(gridLineWidth(req.GridSize))
 
 		if cell == "X" {
 			dc.SetColor(XColor)
@@ -84,25 +80,29 @@ func RenderBoard(c *gin.Context) {
 			dc.DrawCircle(cx, cy, radius)
 			dc.Stroke()
 		}
+
+		// Numbers for empty cells
+		if cell == "" {
+			fontPath := utils.GetAssetPath("rpgasset", "ui", "fantesy.ttf")
+			fontSize := fontSize(req.GridSize)
+			face, err := utils.LoadFont(fontPath, fontSize)
+			if err == nil {
+				dc.SetFontFace(face)
+				dc.SetColor(color.RGBA{0, 0, 0, 100})
+				dc.DrawStringAnchored(fmt.Sprintf("%d", i), cx, cy, 0.5, 0.5)
+			}
+		}
 	}
 
-	// 4. Win Line
-	if len(req.WinPattern) > 0 {
-		dc.SetColor(Highlight)
-		dc.SetLineWidth(15)
-		
-		// Draw line through start and end points
-		start := req.WinPattern[0]
-		end := req.WinPattern[len(req.WinPattern)-1]
-		
-		sx := (float64(start%req.GridSize) * cellSize) + cellSize/2
-		sy := (float64(start/req.GridSize) * cellSize) + cellSize/2
-		ex := (float64(end%req.GridSize) * cellSize) + cellSize/2
-		ey := (float64(end/req.GridSize) * cellSize) + cellSize/2
-		
-		dc.DrawLine(sx, sy, ex, ey)
-		dc.Stroke()
+	// 2. Grid Lines
+	dc.SetColor(GridColor)
+	dc.SetLineWidth(4)
+	for i := 1; i < req.GridSize; i++ {
+		pos := float64(i) * cellSize
+		dc.DrawLine(pos, 0, pos, size)
+		dc.DrawLine(0, pos, size, pos)
 	}
+	dc.Stroke()
 
 	buf, err := utils.EncodeImageToBuffer(dc.Image())
 	if err != nil {
@@ -112,8 +112,14 @@ func RenderBoard(c *gin.Context) {
 	c.Data(200, "image/png", buf)
 }
 
-func RenderLeaderboard(c *gin.Context) {
-    // Placeholder for leaderboard rendering
-    // Logic: Load background, draw text list
-    c.JSON(501, gin.H{"error": "Not implemented"})
+func gridLineWidth(grid int) float64 {
+	if grid <= 3 { return 10 }
+	if grid <= 8 { return 5 }
+	return 3
+}
+
+func fontSize(grid int) float64 {
+	if grid <= 3 { return 40 }
+	if grid <= 8 { return 20 }
+	return 12
 }

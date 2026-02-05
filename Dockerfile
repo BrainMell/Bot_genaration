@@ -1,8 +1,8 @@
 # Build Stage
 FROM golang:1.21-alpine AS builder
 
-# Install build dependencies
-RUN apk add --no-cache gcc musl-dev git
+# git is sometimes needed for go mod download
+RUN apk add --no-cache git
 
 WORKDIR /app
 
@@ -28,9 +28,8 @@ WORKDIR /app
 # Install runtime dependencies for images and HTTPS
 RUN apk add --no-cache \
     ca-certificates \
-    font-noto \
-    ttf-freefont \
-    libcommoncpp
+    font-dejavu \
+    ttf-opensans
 
 COPY --from=builder /app/main .
 COPY --from=builder /app/assets ./assets
