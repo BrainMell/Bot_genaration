@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
 	"image/png"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -21,7 +21,6 @@ import (
 // Asset Cache to avoid re-reading from disk
 var (
 	imageCache = make(map[string]image.Image)
-	fontCache  = make(map[string]*opentype.Font)
 	mutex      sync.RWMutex
 )
 
@@ -108,18 +107,48 @@ func DrawShadow(dc *gg.Context, x, y, radius float64, alpha float64) {
 }
 
 // TintImage adds a red overlay to an image (for dead units)
-func TintImage(img image.Image, c color.RGBA) image.Image {
+func TintImage(img image.Image, tint color.RGBA) image.Image {
 	bounds := img.Bounds()
-	dc := gg.NewContext(bounds.Dx(), bounds.Dy())
-	dc.DrawImage(img, 0, 0)
+	dst := image.NewRGBA(bounds)
 	
-	// Draw overlay
-	dc.SetColor(c)
-	dc.DrawRectangle(0, 0, float64(bounds.Dx()), float64(bounds.Dy()))
-	dc.SetOperator(gg.OperatorAtop) // Composite on top of source alpha
-	dc.Fill()
+	// Copy original image
+	draw.Draw(dst, bounds, img, bounds.Min, draw.Src)
 	
-	return dc.Image()
+	// Apply tint manually to non-transparent pixels
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			originalColor := dst.At(x, y)
+			_, _, _, a := originalColor.RGBA()
+			
+			if a > 0 {
+				// Blend the tint color
+				blended := Blend(originalColor, tint)
+				dst.Set(x, y, blended)
+			}
+		}
+	}
+	
+	return dst
+}
+
+// Blend blends two colors (simplified for red tint)
+func Blend(base color.Color, tint color.RGBA) color.Color {
+	r1, g1, b1, a1 := base.RGBA()
+	
+	// Convert to 8-bit
+	r1 >>= 8
+	g1 >>= 8
+	b1 >>= 8
+	a1 >>= 8
+	
+	// Blend logic: increase red, decrease others based on tint alpha
+	alpha := float64(tint.A) / 255.0
+	
+	r := uint8(float64(r1)*(1-alpha) + float64(tint.R)*alpha)
+	g := uint8(float64(g1)*(1-alpha) + float64(tint.G)*alpha)
+	b := uint8(float64(b1)*(1-alpha) + float64(tint.B)*alpha)
+	
+	return color.RGBA{r, g, b, uint8(a1)}
 }
 
 // EncodeImageToBuffer returns PNG bytes
