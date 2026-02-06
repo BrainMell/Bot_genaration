@@ -89,64 +89,88 @@ func GenerateCombatImage(c *gin.Context) {
 		avgLevel = sum / len(req.Players)
 	}
 
-	type RenderItem struct {
-		img image.Image
-		x, y float64
-	}
-	var mobQueue []RenderItem
-
-	for i, enemy := range req.Enemies {
-		if enemy.CurrentHP <= 0 && !enemy.JustDied {
-			continue
-		}
-
-		spritePath := GetEnemySpritePath(avgLevel, i, enemy.IsBoss, assetsPath)
-		eSprite, err := utils.LoadImage(spritePath)
-		if err != nil {
-			continue
-		}
-
-		// Resize
-		eW := enemySpriteSize
-		if enemy.IsBoss {
-			eW = enemySpriteSize * 1.5
-		}
-		eSprite = imaging.Resize(eSprite, int(eW), 0, imaging.Lanczos)
-
-		// Tint Red if dead
-		if enemy.CurrentHP <= 0 {
-			eSprite = utils.TintImage(eSprite, color.RGBA{255, 0, 0, 100})
-		}
-
-		// Calculate Position
-		ex, ey := startX, startY
-		sub := i % 4
-		if sub == 1 || sub == 2 {
-			ex -= spX
-		} else if sub == 3 {
-			ex -= spX * 2
-		}
-		if sub == 1 || sub == 3 {
-			ey += spY
-		}
-		ex += float64(i/4) * -250.0
-
-		mobQueue = append(mobQueue, RenderItem{eSprite, ex, ey})
-	}
-
+	        type RenderItem struct {
+	                img image.Image
+	                x, y float64
+	                hpPercent float64
+	        }
+	        var mobQueue []RenderItem
+	
+	        for i, enemy := range req.Enemies {
+	                if enemy.CurrentHP <= 0 && !enemy.JustDied {
+	                        continue
+	                }
+	
+	                spritePath := GetEnemySpritePath(avgLevel, i, enemy.IsBoss, assetsPath)
+	                eSprite, err := utils.LoadImage(spritePath)
+	                if err != nil {
+	                        continue
+	                }
+	
+	                // Resize
+	                eW := enemySpriteSize
+	                if enemy.IsBoss {
+	                        eW = enemySpriteSize * 1.5
+	                }
+	                eSprite = imaging.Resize(eSprite, int(eW), 0, imaging.Lanczos)
+	
+	                // Tint Red if dead
+	                if enemy.CurrentHP <= 0 {
+	                        eSprite = utils.TintImage(eSprite, color.RGBA{255, 0, 0, 100})
+	                }
+	
+	                // Calculate Position
+	                ex, ey := startX, startY
+	                sub := i % 4
+	                if sub == 1 || sub == 2 {
+	                        ex -= spX
+	                } else if sub == 3 {
+	                        ex -= spX * 2
+	                }
+	                if sub == 1 || sub == 3 {
+	                        ey += spY
+	                }
+	                ex += float64(i/4) * -250.0
+	
+	                                        hpPerc := 0.0
+	                                        if enemy.MaxHP > 0 {
+	                                                hpPerc = float64(enemy.CurrentHP) / float64(enemy.MaxHP)
+	                                        }	
+	                mobQueue = append(mobQueue, RenderItem{eSprite, ex, ey, hpPerc})
+	        }
 	// Sort by Y (Painter's Algorithm)
 	sort.Slice(mobQueue, func(i, j int) bool {
 		return mobQueue[i].y < mobQueue[j].y
 	})
 
-	// Draw Mobs
-	for _, mob := range mobQueue {
-		// Shadow
-		utils.DrawShadow(dc, mob.x + float64(mob.img.Bounds().Dx())/2, mob.y + float64(mob.img.Bounds().Dy()) - 10, float64(mob.img.Bounds().Dx())*0.4, 0.6)
-		// Sprite
-		dc.DrawImage(mob.img, int(mob.x), int(mob.y))
-	}
-
+	        // Draw Mobs
+	        for _, mob := range mobQueue {
+	                // Shadow
+	                utils.DrawShadow(dc, mob.x + float64(mob.img.Bounds().Dx())/2, mob.y + float64(mob.img.Bounds().Dy()) - 10, float64(mob.img.Bounds().Dx())*0.4, 0.6)
+	                // Sprite
+	                dc.DrawImage(mob.img, int(mob.x), int(mob.y))
+	
+	                // ENEMY HP BAR - Stretched hp5.png
+	                if mob.hpPercent > 0 {
+	                        uiPath := func(f string) string { return filepath.Join(assetsPath, "rpgasset", "ui", f) }
+	                        hpBarImg, err := utils.LoadImage(uiPath("hp5.png"))
+	                        if err == nil {
+	                                barW := 100.0
+	                                barH := 12.0
+	                                // Stretch hp5.png to current HP width
+	                                currentBarW := int(barW * mob.hpPercent)
+	                                if currentBarW < 1 {
+	                                        currentBarW = 1
+	                                }
+	                                hpBarImg = imaging.Resize(hpBarImg, currentBarW, int(barH), imaging.NearestNeighbor)
+	
+	                                // Position above head
+	                                bx := mob.x + (float64(mob.img.Bounds().Dx())-barW)/2
+	                                by := mob.y - 15
+	                                dc.DrawImage(hpBarImg, int(bx), int(by))
+	                        }
+	                }
+	        }
 	// 3. UI Base Layer
 	uiPath := func(f string) string { return filepath.Join(assetsPath, "rpgasset", "ui", f) }
 	
@@ -244,13 +268,12 @@ func GenerateCombatImage(c *gin.Context) {
 			dc.SetFontFace(face)
 			dc.SetColor(color.RGBA{0, 0, 0, 255}) // Black
 			
-			// Center text in banner at normX(-496), normY(-339)
-			bx, by := float64(normX(-496)), float64(normY(-339))
-			bw, bh := 573.0, 118.0
+			                        // Center text in banner at normX(-496), normY(-339)
+			                        bx, by := float64(normX(-496)), float64(normY(-339))
+			                        bw, bh := 573.0, 118.0
 			
-			// Draw centered, slightly up (like original: y - 15)
-			dc.DrawStringAnchored(text, bx + bw/2, by + bh/2 - 15, 0.5, 0.5)
-		}
+			                        // Draw centered, moved UP more (y - 30) to fix misalignment
+			                        dc.DrawStringAnchored(text, bx + bw/2, by + bh/2 - 30, 0.5, 0.5)		}
 	}
 
 	// Encode
