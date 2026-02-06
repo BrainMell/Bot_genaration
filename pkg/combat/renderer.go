@@ -1,10 +1,13 @@
 package combat
 
 import (
-	"fmt"  // ← ADDED
+	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
 	"math"
+	"os"
+	"path/filepath"
 	"sort"
 
 	"image-service/pkg/utils"
@@ -31,28 +34,44 @@ func GenerateCombatImage(c *gin.Context) {
 	// Create Canvas
 	dc := gg.NewContext(CANVAS_W, CANVAS_H)
 	
-	// 1. Background
-	// Assume assets are in ./assets
-	assetsPath := "assets" 
+	// 1. Background - FIXED
+	assetsPath := "assets"
 	
-	bgPath := utils.GetAssetPath("rpgasset", "environment", req.Background)
-	if req.Background == "" {
-		// Fallback if empty
-		bgPath = utils.GetAssetPath("rpgasset", "environment", "forest.jpg") // Example default
+	// Try to load background
+	var bgPath string
+	if req.Background != "" {
+		// Check if it's a full path or just filename
+		if filepath.IsAbs(req.Background) || fileExists(req.Background) {
+			bgPath = req.Background
+		} else {
+			bgPath = filepath.Join(assetsPath, "rpgasset", "environment", req.Background)
+		}
+	}
+	
+	// If no background specified or doesn't exist, get random one
+	if bgPath == "" || !fileExists(bgPath) {
+		bgPath = getRandomEnvironment(assetsPath)
 	}
 
-	bgImg, err := utils.LoadImage(bgPath)
-	if err == nil {
-		bgImg = imaging.Fill(bgImg, CANVAS_W, CANVAS_H, imaging.Center, imaging.Lanczos)
-		dc.DrawImage(bgImg, 0, 0)
+	// Load and composite background
+	if bgPath != "" && fileExists(bgPath) {
+		bgImg, err := utils.LoadImage(bgPath)
+		if err == nil {
+			bgImg = imaging.Fill(bgImg, CANVAS_W, CANVAS_H, imaging.Center, imaging.Lanczos)
+			dc.DrawImage(bgImg, 0, 0)
+		} else {
+			// Fallback color
+			dc.SetHexColor("#1a1a1a")
+			dc.Clear()
+		}
 	} else {
-		// Fallback color
+		// Fallback color if no background found
 		dc.SetHexColor("#1a1a1a")
 		dc.Clear()
 	}
 
-	// Dark Overlay
-	dc.SetColor(color.RGBA{0, 0, 0, 100}) // 0x00000066 -> 102 (40%)
+	// Dark Overlay (40% black)
+	dc.SetColor(color.RGBA{0, 0, 0, 102})
 	dc.DrawRectangle(0, 0, CANVAS_W, CANVAS_H)
 	dc.Fill()
 
@@ -129,8 +148,8 @@ func GenerateCombatImage(c *gin.Context) {
 		dc.DrawImage(mob.img, int(mob.x), int(mob.y))
 	}
 
-	// 3. UI Layer
-	uiPath := func(f string) string { return utils.GetAssetPath("rpgasset", "ui", f) }
+	// 3. UI Base Layer
+	uiPath := func(f string) string { return filepath.Join(assetsPath, "rpgasset", "ui", f) }
 	
 	drawImage := func(path string, x, y, w, h int) {
 		img, err := utils.LoadImage(path)
@@ -142,22 +161,18 @@ func GenerateCombatImage(c *gin.Context) {
 		}
 	}
 
-	// player_state.png -716, 113
+	// UI elements
 	drawImage(uiPath("player_state.png"), -716, 113, 453, 244)
-	// heart.png -678, 209
 	drawImage(uiPath("heart.png"), -678, 209, 38, 47)
-	// mana.png -673, 256
 	drawImage(uiPath("mana.png"), -673, 256, 29, 44)
-	// Options_menu.png -97, 99
 	drawImage(uiPath("Options_menu.png"), -97, 99, 443, 258)
-	// banner.png -496, -339
 	drawImage(uiPath("banner.png"), -496, -339, 573, 118)
 
-	// 4. Bars & Player Sprite
+	// 4. UI Bars (Main Player)
 	if len(req.Players) > 0 {
 		p := req.Players[0]
 		
-		// Draw Bars
+		// Draw HP and Energy Bars
 		hpCoords := []int{-640, -550, -459}
 		enCoords := []int{-644, -555, -465}
 		hpSeg := float64(p.MaxHP) / 3.0
@@ -171,7 +186,7 @@ func GenerateCombatImage(c *gin.Context) {
 			drawBar(dc, uiPath, normX(enCoords[i]), normY(256), eCur, enSeg, "mana", 119, 42)
 		}
 
-		// Draw Player Sprite
+		// 5. Player Sprite (Main - CROPPED TOP 30%)
 		spritePath := GetCharacterSpritePath(p.Class, p.SpriteIndex, assetsPath)
 		pSprite, err := utils.LoadImage(spritePath)
 		if err == nil {
@@ -179,34 +194,97 @@ func GenerateCombatImage(c *gin.Context) {
 				pSprite = utils.TintImage(pSprite, color.RGBA{255, 0, 0, 100})
 			}
 			
+			// Resize to 314px width
 			s1W := 314
 			pSprite = imaging.Resize(pSprite, s1W, 0, imaging.Lanczos)
 			
-			dc.DrawImage(pSprite, normX(-660), normY(191) - pSprite.Bounds().Dy() + 50)
+			// Crop TOP 30% - CRITICAL FIX
+			bounds := pSprite.Bounds()
+			cropH := int(float64(bounds.Dy()) * 0.3)
+			croppedSprite := imaging.Crop(pSprite, image.Rect(0, 0, bounds.Dx(), cropH))
+			
+			// Position at normX(-660), normY(191) - cropH
+			dc.DrawImage(croppedSprite, normX(-660), normY(191)-cropH)
+			
+			// 6. Second Sprite (Small full-body on battlefield) - PvE only
+			if req.CombatType != "PVP" {
+				s2Size := 122
+				smallSprite := imaging.Resize(pSprite, s2Size, 0, imaging.Lanczos)
+				
+				// Position: startX - 500, startY + 10
+				s2X := int(startX - 500)
+				s2Y := int(startY + 10)
+				
+				// Shadow
+				utils.DrawShadow(dc, float64(s2X)+float64(s2Size)/2, float64(s2Y)+float64(smallSprite.Bounds().Dy()), 150, 0.6)
+				
+				// Draw sprite
+				dc.DrawImage(smallSprite, s2X, s2Y)
+			}
 		}
 	}
 
-	// 5. Rank Text
-	if req.Rank != "" {
-		text := req.Rank + " RANK"
+	// 7. Banner Text (Overlaid ON the banner) - FIXED
+	if req.Rank != "" || len(req.Players) > 0 {
+		text := req.Rank
+		if text == "" && len(req.Players) > 0 {
+			text = req.Players[0].AdventurerRank
+		}
+		if text == "" {
+			text = "F"
+		}
+		text = text + " RANK"
+		
 		if req.CombatType == "PVP" {
 			text = "PVP MATCH"
 		}
 		
-		fontPath := utils.GetAssetPath("rpgasset", "ui", "fantesy.ttf")
-		face, err := utils.LoadFont(fontPath, 100)
+		fontPath := filepath.Join(assetsPath, "rpgasset", "ui", "fantesy.ttf")
+		face, err := utils.LoadFont(fontPath, 70) // 70pt like original
 		if err == nil {
 			dc.SetFontFace(face)
-			dc.SetColor(color.Black)
+			dc.SetColor(color.RGBA{0, 0, 0, 255}) // Black
 			
+			// Center text in banner at normX(-496), normY(-339)
 			bx, by := float64(normX(-496)), float64(normY(-339))
 			bw, bh := 573.0, 118.0
 			
-			dc.DrawStringAnchored(text, bx + bw/2, by + bh/2 - 10, 0.5, 0.5)
+			// Draw centered, slightly up (like original: y - 15)
+			dc.DrawStringAnchored(text, bx + bw/2, by + bh/2 - 15, 0.5, 0.5)
 		}
 	}
 
 	// Encode
+	buf, err := utils.EncodeImageToBuffer(dc.Image())
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to encode image"})
+		return
+	}
+
+	c.Data(200, "image/png", buf)
+}
+
+func GenerateEndScreen(c *gin.Context) {
+	var req struct {
+		Text string `json:"text"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	dc := gg.NewContext(CANVAS_W, CANVAS_H)
+	dc.SetRGB(1, 1, 1) // Pure White
+	dc.Clear()
+
+	fontPath := utils.GetAssetPath("rpgasset", "ui", "fantesy.ttf")
+	face, err := utils.LoadFont(fontPath, 120) // 80pt approx 106px, let's go big
+	if err == nil {
+		dc.SetFontFace(face)
+		dc.SetColor(color.Black)
+		dc.DrawStringAnchored(req.Text, CANVAS_W/2, CANVAS_H/2, 0.5, 0.5)
+	}
+
 	buf, err := utils.EncodeImageToBuffer(dc.Image())
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to encode image"})
@@ -230,4 +308,36 @@ func drawBar(dc *gg.Context, uiPath func(string)string, x, y int, current, max f
 		img = imaging.Resize(img, w, h, imaging.NearestNeighbor)
 		dc.DrawImage(img, x, y)
 	}
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func getRandomEnvironment(assetsPath string) string {
+	envPath := filepath.Join(assetsPath, "rpgasset", "environment")
+	
+	entries, err := os.ReadDir(envPath)
+	if err != nil {
+		return ""
+	}
+	
+	var files []string
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			name := entry.Name()
+			ext := filepath.Ext(name)
+			if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
+				files = append(files, filepath.Join(envPath, name))
+			}
+		}
+	}
+	
+	if len(files) == 0 {
+		return ""
+	}
+	
+	// Return first one (or could randomize)
+	return files[0]
 }

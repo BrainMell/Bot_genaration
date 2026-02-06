@@ -49,16 +49,18 @@ func main() {
 	{
 		// Combat
 		api.POST("/combat", combat.GenerateCombatImage)
+		api.POST("/combat/endscreen", combat.GenerateEndScreen)
 
 		// Games
 		api.POST("/ludo", ludo.RenderBoard)
 		api.POST("/ttt", ttt.RenderBoard)
+		api.POST("/ttt/leaderboard", ttt.RenderLeaderboard)
 
 		// Scrapers
 		scrape := api.Group("/scrape")
 		{
 			scrape.GET("/pinterest", scraper.SearchPinterest)
-			scrape.GET("/rule34", scraper.SearchRule34) // NEW: Rule34
+			scrape.GET("/rule34", scraper.SearchRule34)
 			scrape.GET("/vsbattles/search", scraper.SearchVSBattles)
 			scrape.GET("/vsbattles/detail", scraper.GetVSBattlesDetail)
 		}

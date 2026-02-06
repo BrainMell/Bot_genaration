@@ -1,11 +1,13 @@
 package ttt
 
 import (
-	"fmt"  // ← ADDED
+	"fmt"
 	"image/color"
+	"strings"
 
 	"image-service/pkg/utils"
 
+	"github.com/disintegration/imaging"
 	"github.com/fogleman/gg"
 	"github.com/gin-gonic/gin"
 )
@@ -110,6 +112,88 @@ func RenderBoard(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Encode failed"})
 		return
 	}
+	c.Data(200, "image/png", buf)
+}
+
+func RenderLeaderboard(c *gin.Context) {
+	var req struct {
+		Scores []struct {
+			Name  string `json:"name"`
+			Score int    `json:"score"`
+			JID   string `json:"jid"`
+		} `json:"scores"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	width, height := 800, 1000
+	dc := gg.NewContext(width, height)
+
+	// Background
+	bgPath := utils.GetAssetPath("Ldatabase", "scores.png")
+	bgImg, err := utils.LoadImage(bgPath)
+	if err == nil {
+		bgImg = imaging.Fill(bgImg, width, height, imaging.Center, imaging.Lanczos)
+		dc.DrawImage(bgImg, 0, 0)
+	} else {
+		dc.SetHexColor("#1a1a2e")
+		dc.Clear()
+	}
+
+	fontPath := utils.GetAssetPath("rpgasset", "ui", "fantesy.ttf")
+	
+	// Title
+	titleFace, err := utils.LoadFont(fontPath, 60)
+	if err == nil {
+		dc.SetFontFace(titleFace)
+		dc.SetColor(color.White)
+		dc.DrawStringAnchored("LEADERBOARD", float64(width)/2, 100, 0.5, 0.5)
+	}
+
+	// Scores
+	scoreFace, err := utils.LoadFont(fontPath, 40)
+	if err == nil {
+		dc.SetFontFace(scoreFace)
+		startY := 250.0
+		for i, entry := range req.Scores {
+			if i >= 10 {
+				break
+			}
+			y := startY + float64(i)*70
+			
+			// Medal/Rank
+			rankStr := fmt.Sprintf("%d.", i+1)
+			if i == 0 { rankStr = "🥇" }
+			if i == 1 { rankStr = "🥈" }
+			if i == 2 { rankStr = "🥉" }
+			
+			dc.SetColor(color.White)
+			dc.DrawString(rankStr, 100, y)
+			
+			// Name (clean JID)
+			name := entry.Name
+			if name == "" || name == "User" || name == "Player" {
+				name = entry.JID
+				if idx := strings.Index(name, "@"); idx != -1 {
+					name = "@" + name[:idx]
+				}
+			}
+			dc.DrawString(name, 200, y)
+			
+			// Score
+			scoreStr := fmt.Sprintf("%d pts", entry.Score)
+			dc.DrawStringAnchored(scoreStr, 700, y, 1, 0)
+		}
+	}
+
+	buf, err := utils.EncodeImageToBuffer(dc.Image())
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to encode image"})
+		return
+	}
+
 	c.Data(200, "image/png", buf)
 }
 
