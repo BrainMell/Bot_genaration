@@ -151,7 +151,7 @@ func GetVSBattlesDetail(c *gin.Context) {
 
 	var htmlContent string
 	var imageURL string
-	var imageWidth, imageHeight int64
+	var imageWidth, imageHeight int
 
 	// Run Chrome automation (EXACTLY like Puppeteer logic)
 	err := chromedp.Run(ctx,
@@ -165,13 +165,21 @@ func GetVSBattlesDetail(c *gin.Context) {
 			minImageSize := 100
 
 			for i := 0; i < maxRetries; i++ {
-				// Try to get image attributes
-				var dataSrc, src string
+				// Try to get image attributes (HTML attributes are always strings)
+				var dataSrc, src, widthStr, heightStr string
 
 				chromedp.AttributeValue(`img.pi-image-thumbnail`, "data-src", &dataSrc, nil).Do(ctx)
 				chromedp.AttributeValue(`img.pi-image-thumbnail`, "src", &src, nil).Do(ctx)
-				chromedp.AttributeValue(`img.pi-image-thumbnail`, "data-image-width", &imageWidth, nil).Do(ctx)
-				chromedp.AttributeValue(`img.pi-image-thumbnail`, "data-image-height", &imageHeight, nil).Do(ctx)
+				chromedp.AttributeValue(`img.pi-image-thumbnail`, "data-image-width", &widthStr, nil).Do(ctx)
+				chromedp.AttributeValue(`img.pi-image-thumbnail`, "data-image-height", &heightStr, nil).Do(ctx)
+
+				// Convert string dimensions to int
+				if widthStr != "" {
+					fmt.Sscanf(widthStr, "%d", &imageWidth)
+				}
+				if heightStr != "" {
+					fmt.Sscanf(heightStr, "%d", &imageHeight)
+				}
 
 				// Use data-src if available, fallback to src
 				rawURL := dataSrc
@@ -181,7 +189,7 @@ func GetVSBattlesDetail(c *gin.Context) {
 
 				// Check if we have a valid image
 				if rawURL != "" && !strings.HasPrefix(rawURL, "data:") &&
-					imageWidth >= int64(minImageSize) && imageHeight >= int64(minImageSize) {
+					imageWidth >= minImageSize && imageHeight >= minImageSize {
 					imageURL = rawURL
 					break
 				}
@@ -209,8 +217,8 @@ func GetVSBattlesDetail(c *gin.Context) {
 	}
 
 	detail.ImageURL = imageURL
-	detail.ImageWidth = int(imageWidth)
-	detail.ImageHeight = int(imageHeight)
+	detail.ImageWidth = imageWidth
+	detail.ImageHeight = imageHeight
 
 	// Extract stats from HTML
 	extractVSBStats(&detail, htmlContent)
