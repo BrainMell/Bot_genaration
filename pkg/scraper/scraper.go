@@ -5,6 +5,7 @@ import (
         "fmt"
         "net/http"
         "net/url"
+        "os"
         "regexp"
         "strings"
         "sync"
@@ -31,13 +32,33 @@ func InitBrowser() {
         browserOnce.Do(func() {
                 fmt.Println("🚀 Starting shared browser instance...")
 
+                // Check for system-installed Chromium first
+                chromiumPath := os.Getenv("CHROMIUM_PATH")
+                if chromiumPath == "" {
+                        chromiumPath = os.Getenv("CHROME_PATH")
+                }
+                if chromiumPath == "" {
+                        chromiumPath = "/usr/bin/chromium-browser"
+                }
+
                 l := launcher.New().
+                        Bin(chromiumPath).  // Use system Chromium
                         Headless(true).
-                        NoSandbox(true). // Required for servers/Docker
-                        MustLaunch()
+                        NoSandbox(true).    // Required for Docker
+                        Devtools(false).
+                        Set("disable-gpu"). // Better for headless
+                        Set("disable-dev-shm-usage"). // Prevent shared memory issues
+                        Set("disable-setuid-sandbox").
+                        Set("no-first-run").
+                        Set("no-default-browser-check")
+
+                controlURL, err := l.Launch()
+                if err != nil {
+                        panic(fmt.Sprintf("Failed to launch browser: %v", err))
+                }
 
                 browser = rod.New().
-                        ControlURL(l).
+                        ControlURL(controlURL).
                         MustConnect()
 
                 fmt.Println("✅ Browser ready!")
@@ -246,45 +267,60 @@ func extractVSBStats(detail *VSBDetailResponse, html string) {
                 detail.Name = strings.TrimSpace(matches[1])
         }
 
-        summaryRe := regexp.MustCompile(`<div[^>]*class="mw-parser-output"[^>]*>.*?<p>([^<]{50,}?)</p>`)
+        summaryRe := regexp.MustCompile(`(?s)<aside[^>]*>.*?<p>(.*?)</p>`)
         if matches := summaryRe.FindStringSubmatch(html); len(matches) > 1 {
-                text := stripHTML(matches[1])
-                if !strings.Contains(text, ":") && len(text) > 50 {
-                        detail.Summary = text
+                detail.Summary = stripHTML(matches[1])
+        }
+
+        tierRe := regexp.MustCompile(`(?s)<h3[^>]*>\s*<span[^>]*>Tier[^<]*</span>\s*</h3>\s*<div[^>]*>(.*?)</div>`)
+        if matches := tierRe.FindStringSubmatch(html); len(matches) > 1 {
+                detail.Tier = stripHTML(matches[1])
+        }
+
+        statRegex := regexp.MustCompile(`(?s)<h3[^>]*>\s*<span[^>]*>([^<]+)</span>\s*</h3>\s*<div[^>]*>(.*?)</div>`)
+        statMatches := statRegex.FindAllStringSubmatch(html, -1)
+
+        for _, match := range statMatches {
+                if len(match) < 3 {
+                        continue
                 }
-        }
 
-        statPatterns := map[string]*string{
-                "Tier":           &detail.Tier,
-                "Attack Potency": &detail.AttackPotency,
-                "Speed":          &detail.Speed,
-                "Durability":     &detail.Durability,
-                "Stamina":        &detail.Stamina,
-                "Range":          &detail.Range,
-        }
+                key := strings.TrimSpace(match[1])
+                value := stripHTML(match[2])
+                value = strings.TrimSpace(value)
 
-        for statName, statPtr := range statPatterns {
-                pattern := fmt.Sprintf(`(?i)%s\s*:\s*<[^>]+>(.*?)(?:<br|</div|</p|$)`, regexp.QuoteMeta(statName))
-                re := regexp.MustCompile(pattern)
-
-                if matches := re.FindStringSubmatch(html); len(matches) > 1 {
-                        value := stripHTML(matches[1])
-                        value = cleanVSBText(value)
-                        *statPtr = value
-                        detail.Stats[statName] = value
+                switch key {
+                case "Attack Potency":
+                        detail.AttackPotency = value
+                case "Speed":
+                        detail.Speed = value
+                case "Lifting Strength":
+                        detail.Stats["Lifting Strength"] = value
+                case "Striking Strength":
+                        detail.Stats["Striking Strength"] = value
+                case "Durability":
+                        detail.Durability = value
+                case "Stamina":
+                        detail.Stamina = value
+                case "Range":
+                        detail.Range = value
+                case "Intelligence":
+                        detail.Stats["Intelligence"] = value
+                default:
+                        detail.Stats[key] = value
                 }
         }
 }
 
 // =============================================================================
-// PINTEREST SCRAPER (HTTP FIRST, THEN BROWSER)
+// PINTEREST SCRAPER (COLLY FIRST - BROWSER FALLBACK)
 // =============================================================================
 
 type PinterestResponse struct {
         Images []string `json:"images"`
 }
 
-// SearchPinterest uses static scraping first, then browser fallback
+// SearchPinterest searches Pinterest for images
 func SearchPinterest(c *gin.Context) {
         query := c.Query("query")
         if query == "" {
@@ -293,17 +329,17 @@ func SearchPinterest(c *gin.Context) {
         }
 
         maxResults := 10
-        if countStr := c.Query("count"); countStr != "" {
-                fmt.Sscanf(countStr, "%d", &maxResults)
+        if maxStr := c.Query("maxResults"); maxStr != "" {
+                fmt.Sscanf(maxStr, "%d", &maxResults)
                 if maxResults > 50 {
                         maxResults = 50
                 }
         }
 
-        // Try static scraping first (faster, less RAM)
-        images := tryPinterestStatic(query, maxResults)
+        // Try Colly first
+        images := tryPinterestColly(query, maxResults)
 
-        // Fallback to browser if needed
+        // Fallback to browser
         if len(images) == 0 {
                 images = tryPinterestBrowser(query, maxResults)
         }
@@ -311,27 +347,26 @@ func SearchPinterest(c *gin.Context) {
         c.JSON(200, PinterestResponse{Images: images})
 }
 
-// tryPinterestStatic attempts static scraping (fast)
-func tryPinterestStatic(query string, maxResults int) []string {
+// tryPinterestColly uses Colly for Pinterest (fast)
+func tryPinterestColly(query string, maxResults int) []string {
         collector := colly.NewCollector(
-                colly.UserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
+                colly.UserAgent("Mozilla/5.0"),
         )
 
         var images []string
-        var mu sync.Mutex
 
-        collector.OnHTML("img[src]", func(e *colly.HTMLElement) {
+        collector.OnHTML("img[src*='pinimg.com']", func(e *colly.HTMLElement) {
                 src := e.Attr("src")
-                if strings.Contains(src, "pinimg.com") && !strings.Contains(src, "75x75") {
-                        mu.Lock()
-                        defer mu.Unlock()
 
-                        highRes := strings.ReplaceAll(src, "236x", "736x")
-                        highRes = strings.ReplaceAll(highRes, "474x", "736x")
+                if strings.Contains(src, "75x75") || strings.Contains(src, "avatar") {
+                        return
+                }
 
-                        if len(images) < maxResults {
-                                images = append(images, highRes)
-                        }
+                highRes := strings.ReplaceAll(src, "236x", "736x")
+                highRes = strings.ReplaceAll(highRes, "474x", "736x")
+
+                if len(images) < maxResults {
+                        images = append(images, highRes)
                 }
         })
 
