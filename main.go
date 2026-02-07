@@ -1,22 +1,33 @@
 package main
 
 import (
-	"log"
-	"net/http"
-	"os"
+        "flag"
+        "fmt"
+        "log"
+        "net/http"
+        "os"
 
-	"github.com/gin-gonic/gin"
+        "github.com/gin-gonic/gin"
 
-	"image-service/pkg/combat"
-	"image-service/pkg/ludo"
-	"image-service/pkg/scraper"
-	"image-service/pkg/ttt"
+        "image-service/pkg/combat"
+        "image-service/pkg/ludo"
+        "image-service/pkg/scraper"
+        "image-service/pkg/ttt"
 )
 
 func main() {
-	// Set Gin to release mode for production
-	gin.SetMode(gin.ReleaseMode)
+        prepareOnly := flag.Bool("prepare", false, "Download Chromium and exit (useful for deployment)")
+        flag.Parse()
 
+        if *prepareOnly {
+                fmt.Println("📦 Deployment Mode: Downloading/Checking Chromium...")
+                scraper.InitBrowser()
+                fmt.Println("✨ Chromium is ready for use!")
+                return
+        }
+
+        // Set Gin to release mode for production
+        gin.SetMode(gin.ReleaseMode)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
