@@ -187,13 +187,12 @@ func GenerateCombatImage(c *gin.Context) {
 	// UI elements
 	drawImage(uiPath("player_state.png"), -716, 113, 453, 244)
 	drawImage(uiPath("heart.png"), -678, 209, 38, 47)
-	drawImage(uiPath("mana.png"), -673, 256, 29, 44)
-	drawImage(uiPath("Options_menu.png"), -97, 99, 443, 258)
-	drawImage(uiPath("banner.png"), -496, -339, 573, 118)
-
-	// 4. UI Bars (Main Player)
-	if len(req.Players) > 0 {
-		p := req.Players[0]
+	        drawImage(uiPath("mana.png"), -673, 256, 29, 44)
+	        drawImage(uiPath("Options_menu.png"), -97, 99, 443, 258)
+	        drawImage(uiPath("banner.png"), -496, -389, 573, 118)
+	
+	        // 4. UI Bars (Main Player)
+	        if len(req.Players) > 0 {		p := req.Players[0]
 		
 		// Draw HP and Energy Bars
 		hpCoords := []int{-640, -550, -459}
@@ -265,16 +264,16 @@ func GenerateCombatImage(c *gin.Context) {
 		fontPath := filepath.Join(assetsPath, "rpgasset", "ui", "fantesy.ttf")
 		face, err := utils.LoadFont(fontPath, 70) // 70pt like original
 		if err == nil {
-			dc.SetFontFace(face)
-			dc.SetColor(color.RGBA{0, 0, 0, 255}) // Black
+			                        dc.SetFontFace(face)
+			                        dc.SetColor(color.RGBA{0, 0, 0, 255}) // Black
 			
-			                        // Center text in banner at normX(-496), normY(-339)
-			                        bx, by := float64(normX(-496)), float64(normY(-339))
-			                        bw, bh := 573.0, 118.0
+			                                                // Center text in banner at normX(-496), normY(-389)
+			                                                bx, by := float64(normX(-496)), float64(normY(-389))
+			                                                bw, bh := 573.0, 118.0
 			
-			                        // Draw centered, moved UP more (y - 30) to fix misalignment
-			                        dc.DrawStringAnchored(text, bx + bw/2, by + bh/2 - 30, 0.5, 0.5)		}
-	}
+			                                                // Draw centered, moved UP more (y - 30) to fix misalignment
+			                                                dc.DrawStringAnchored(text, bx + bw/2, by + bh/2 - 30, 0.5, 0.5)                }
+			        }
 
 	// Encode
 	buf, err := utils.EncodeImageToBuffer(dc.Image())
