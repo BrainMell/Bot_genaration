@@ -31,8 +31,9 @@ var (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Safari/605.1.15",
                 "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1",
         }
-        searchSources = []string{"reddit", "twitter", "pinterest", "tumblr"}
+        searchSources = []string{"reddit", "twitter", "pinterest", "tumblr", "deviantart", "artstation"}
 )
 
 func init() {
@@ -43,8 +44,6 @@ func init() {
 
 // =============================================================================
 // PINTEREST REPLACEMENT - DuckDuckGo Image Search for .j img command
-// Strategy: Rotate search sources (reddit, twitter, pinterest, tumblr)
-// First half: memes, Second half: reactions
 // =============================================================================
 
 type PinterestResponse struct {
@@ -67,32 +66,24 @@ func SearchPinterest(c *gin.Context) {
 
         images := []string{}
 
-        // STRATEGY: Get variety by rotating sources
-        // First half: memes from different sources
-        // Second half: reactions from different sources
-        halfResults := maxResults / 2
-
-        // Part 1: Search for character memes across sources
-        for i := 0; i < 2 && len(images) < halfResults; i++ {
-                source := searchSources[rand.Intn(len(searchSources))]
-                searchQuery := fmt.Sprintf("%s memes %s", query, source)
-                
-                urls := searchDuckDuckGoImages(searchQuery, 5)
-                images = append(images, urls...)
+        // Increase variety and retry count
+        searchTerms := []string{
+                fmt.Sprintf("%s memes", query),
+                fmt.Sprintf("%s reaction", query),
+                fmt.Sprintf("%s wallpaper", query),
+                fmt.Sprintf("%s site:%s", query, searchSources[rand.Intn(len(searchSources))]),
         }
 
-        // Part 2: Search for reactions across sources
-        for i := 0; i < 2 && len(images) < maxResults; i++ {
-                source := searchSources[rand.Intn(len(searchSources))]
-                searchQuery := fmt.Sprintf("%s reactions %s", query, source)
-                
-                urls := searchDuckDuckGoImages(searchQuery, 5)
+        for _, term := range searchTerms {
+                if len(images) >= maxResults {
+                        break
+                }
+                urls := searchDuckDuckGoImages(term, 15)
                 images = append(images, urls...)
+                // Deduplicate during accumulation
+                images = deduplicateStrings(images)
         }
 
-        // Deduplicate
-        images = deduplicateStrings(images)
-        
         // Limit to maxResults
         if len(images) > maxResults {
                 images = images[:maxResults]
@@ -101,24 +92,27 @@ func SearchPinterest(c *gin.Context) {
         c.JSON(200, PinterestResponse{
                 Images: images,
                 Count:  len(images),
-                Note:   "DuckDuckGo image search - rotating sources (reddit, twitter, pinterest, tumblr)",
+                Note:   "DuckDuckGo image search - robust multi-term mode",
         })
 }
 
 func searchDuckDuckGoImages(query string, limit int) []string {
-        // Use DuckDuckGo to find image URLs
-        searchURL := "https://html.duckduckgo.com/html/"
-        
-        formData := url.Values{}
-        formData.Set("q", query)
-        formData.Set("iax", "images")
-        formData.Set("ia", "images")
-
-        req, err := http.NewRequest("POST", searchURL, strings.NewReader(formData.Encode()))
-        if err != nil {
-                return []string{}
+        // Method 1: Try HTML POST (more results)
+        urls := tryDDGPost(query, limit)
+        if len(urls) > 0 {
+                return urls
         }
 
+        // Method 2: Try standard HTML GET (fallback)
+        return tryDDGGet(query, limit)
+}
+
+func tryDDGPost(query string, limit int) []string {
+        searchURL := "https://html.duckduckgo.com/html/"
+        formData := url.Values{}
+        formData.Set("q", query)
+        
+        req, _ := http.NewRequest("POST", searchURL, strings.NewReader(formData.Encode()))
         req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
         req.Header.Set("User-Agent", getRandomUA())
 
@@ -128,9 +122,21 @@ func searchDuckDuckGoImages(query string, limit int) []string {
         }
         defer resp.Body.Close()
 
-        // Parse HTML for image links
-        urls := extractImageURLsFromHTML(resp.Body, limit)
-        return urls
+        return extractImageURLsFromHTML(resp.Body, limit)
+}
+
+func tryDDGGet(query string, limit int) []string {
+        searchURL := "https://duckduckgo.com/html/?q=" + url.QueryEscape(query)
+        req, _ := http.NewRequest("GET", searchURL, nil)
+        req.Header.Set("User-Agent", getRandomUA())
+
+        resp, err := httpClient.Do(req)
+        if err != nil {
+                return []string{}
+        }
+        defer resp.Body.Close()
+
+        return extractImageURLsFromHTML(resp.Body, limit)
 }
 
 func extractImageURLsFromHTML(body io.Reader, limit int) []string {
@@ -138,7 +144,7 @@ func extractImageURLsFromHTML(body io.Reader, limit int) []string {
         var urls []string
         seen := make(map[string]bool)
 
-        for len(urls) < limit {
+        for {
                 tt := tokenizer.Next()
                 if tt == html.ErrorToken {
                         break
@@ -146,31 +152,49 @@ func extractImageURLsFromHTML(body io.Reader, limit int) []string {
 
                 token := tokenizer.Token()
                 if token.Type == html.StartTagToken {
+                        // In DDG HTML, thumbnails are in <img> tags
                         if token.Data == "img" {
                                 for _, attr := range token.Attr {
-                                        if attr.Key == "src" && !seen[attr.Val] {
-                                                // Filter out tiny/tracking images
-                                                if !strings.Contains(attr.Val, "data:image") &&
-                                                   !strings.Contains(attr.Val, "1x1") &&
-                                                   len(attr.Val) > 20 {
-                                                        seen[attr.Val] = true
-                                                        urls = append(urls, attr.Val)
-                                                        if len(urls) >= limit {
-                                                                return urls
+                                        if attr.Key == "src" {
+                                                val := attr.Val
+                                                // Clean potential proxy/encoded URLs
+                                                if strings.Contains(val, "uddg=") {
+                                                        parts := strings.Split(val, "uddg=")
+                                                        if len(parts) > 1 {
+                                                                decoded, _ := url.QueryUnescape(parts[1])
+                                                                val = decoded
+                                                        }
+                                                }
+                                                
+                                                if !seen[val] && isImageURL(val) && !strings.Contains(val, "duckduckgo.com") {
+                                                        // Filter out tracking pixels or very small images
+                                                        if !strings.Contains(val, "1x1") && len(val) > 20 {
+                                                                seen[val] = true
+                                                                urls = append(urls, val)
+                                                                if len(urls) >= limit {
+                                                                        return urls
+                                                                }
                                                         }
                                                 }
                                         }
                                 }
-                        } else if token.Data == "a" {
-                                // Also check for image links in anchor tags
+                        }
+                        // High res links are sometimes in <a> tags
+                        if token.Data == "a" {
                                 for _, attr := range token.Attr {
                                         if attr.Key == "href" {
-                                                cleaned := cleanDDGLink(attr.Val)
-                                                if isImageURL(cleaned) && !seen[cleaned] {
-                                                        seen[cleaned] = true
-                                                        urls = append(urls, cleaned)
-                                                        if len(urls) >= limit {
-                                                                return urls
+                                                val := attr.Val
+                                                if strings.Contains(val, "uddg=") {
+                                                        parts := strings.Split(val, "uddg=")
+                                                        if len(parts) > 1 {
+                                                                decoded, _ := url.QueryUnescape(parts[1])
+                                                                if isImageURL(decoded) && !seen[decoded] {
+                                                                        seen[decoded] = true
+                                                                        urls = append(urls, decoded)
+                                                                        if len(urls) >= limit {
+                                                                                return urls
+                                                                        }
+                                                                }
                                                         }
                                                 }
                                         }
@@ -184,15 +208,18 @@ func extractImageURLsFromHTML(body io.Reader, limit int) []string {
 
 func isImageURL(url string) bool {
         lower := strings.ToLower(url)
-        return strings.HasSuffix(lower, ".jpg") ||
-               strings.HasSuffix(lower, ".jpeg") ||
-               strings.HasSuffix(lower, ".png") ||
-               strings.HasSuffix(lower, ".gif") ||
-               strings.HasSuffix(lower, ".webp")
+        // Check for common image extensions
+        extensions := []string{".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
+        for _, ext := range extensions {
+                if strings.HasSuffix(lower, ext) || strings.Contains(lower, ext+"?") {
+                        return true
+                }
+        }
+        return false
 }
 
 // =============================================================================
-// KLIPY GIF/STICKER SEARCH - For .j sticker command
+// KLIPY GIF/STICKER SEARCH
 // =============================================================================
 
 type KlipyResponse struct {
@@ -224,7 +251,6 @@ type StickerResponse struct {
         Note     string   `json:"note,omitempty"`
 }
 
-// NEW: Separate endpoint for sticker search using Klipy
 func SearchStickers(c *gin.Context) {
         query := c.Query("query")
         if query == "" {
@@ -238,7 +264,11 @@ func SearchStickers(c *gin.Context) {
         }
 
         if klipyAPIKey == "" {
-                c.JSON(500, gin.H{"error": "KLIPY_API_KEY not set"})
+                klipyAPIKey = os.Getenv("KLIPY_API_KEY")
+        }
+
+        if klipyAPIKey == "" {
+                c.JSON(500, gin.H{"error": "KLIPY_API_KEY not set in environment"})
                 return
         }
 
@@ -247,7 +277,7 @@ func SearchStickers(c *gin.Context) {
         c.JSON(200, StickerResponse{
                 Stickers: stickers,
                 Count:    len(stickers),
-                Note:     "Klipy GIF API - 100% free forever",
+                Note:     "Klipy GIF API - stable search",
         })
 }
 
@@ -256,7 +286,6 @@ func searchKlipy(query string, limit int) []string {
                 limit = 10
         }
 
-        // Klipy search endpoint
         apiURL := fmt.Sprintf("%s/search?key=%s&q=%s&limit=%d&media_filter=gif,tinygif",
                 klipyBaseURL, klipyAPIKey, url.QueryEscape(query), limit)
 
@@ -303,7 +332,7 @@ func searchKlipy(query string, limit int) []string {
 }
 
 // =============================================================================
-// VS BATTLES - Wikipedia Image + Basic Text Scraping
+// VS BATTLES
 // =============================================================================
 
 type VSBCharacter struct {
@@ -335,10 +364,9 @@ func SearchVSBattles(c *gin.Context) {
                 return
         }
 
-        // Use DuckDuckGo to find VS Battles pages
         searchURL := "https://html.duckduckgo.com/html/"
         formData := url.Values{}
-        formData.Set("q", query+" vsbattles")
+        formData.Set("q", query+" vsbattles wiki")
 
         req, _ := http.NewRequest("POST", searchURL, strings.NewReader(formData.Encode()))
         req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -382,11 +410,13 @@ func parseVSBSearchResults(body io.Reader) []VSBCharacter {
                                            !strings.Contains(link, "Category:") &&
                                            !seen[link] {
                                                 seen[link] = true
-                                                
+
                                                 parts := strings.Split(link, "/wiki/")
                                                 name := "Unknown"
                                                 if len(parts) > 1 {
                                                         name = strings.ReplaceAll(parts[1], "_", " ")
+                                                        name = strings.ReplaceAll(name, "%28", "(")
+                                                        name = strings.ReplaceAll(name, "%29", ")")
                                                 }
 
                                                 characters = append(characters, VSBCharacter{
@@ -413,50 +443,49 @@ func GetVSBattlesDetail(c *gin.Context) {
                 return
         }
 
-        // Extract character name from VSB URL
         parts := strings.Split(pageURL, "/wiki/")
         characterName := "Unknown"
         if len(parts) > 1 {
                 characterName = strings.ReplaceAll(parts[1], "_", " ")
-                // Remove any (Verse) or other suffixes for Wikipedia search
-                characterName = regexp.MustCompile(`\([^)]+\)`).ReplaceAllString(characterName, "")
-                characterName = strings.TrimSpace(characterName)
-        }
+                characterName = strings.ReplaceAll(characterName, "%28", "(")
+                characterName = strings.ReplaceAll(characterName, "%29", ")")
+                
+                wikiSearchName := regexp.MustCompile(`\([^)]+\)`).ReplaceAllString(characterName, "")
+                wikiSearchName = strings.TrimSpace(wikiSearchName)
+                
+                detail := VSBDetailResponse{
+                        Name:  characterName,
+                        Stats: make(map[string]string),
+                }
 
-        detail := VSBDetailResponse{
-                Name:  characterName,
-                Stats: make(map[string]string),
-        }
+                wikiImage := getWikipediaImage(wikiSearchName)
+                if wikiImage != "" {
+                        detail.WikiImageURL = wikiImage
+                }
 
-        // STEP 1: Get image from Wikipedia (NOT from VSB)
-        wikiImage := getWikipediaImage(characterName)
-        if wikiImage != "" {
-                detail.WikiImageURL = wikiImage
-        }
+                req, _ := http.NewRequest("GET", pageURL, nil)
+                req.Header.Set("User-Agent", getRandomUA())
 
-        // STEP 2: Scrape VSB page for text stats ONLY
-        req, _ := http.NewRequest("GET", pageURL, nil)
-        req.Header.Set("User-Agent", getRandomUA())
+                resp, err := httpClient.Do(req)
+                if err != nil {
+                        c.JSON(500, gin.H{"error": "Failed to fetch VSB page"})
+                        return
+                }
+                defer resp.Body.Close()
 
-        resp, err := httpClient.Do(req)
-        if err != nil {
-                c.JSON(500, gin.H{"error": "Failed to fetch VSB page"})
+                body, _ := io.ReadAll(resp.Body)
+                htmlContent := string(body)
+
+                detail = extractVSBStatsFromText(detail, htmlContent)
+                c.JSON(200, detail)
                 return
         }
-        defer resp.Body.Close()
 
-        body, _ := io.ReadAll(resp.Body)
-        htmlContent := string(body)
-
-        // Extract stats using basic text scraping
-        detail = extractVSBStatsFromText(detail, htmlContent)
-
-        c.JSON(200, detail)
+        c.JSON(400, gin.H{"error": "Invalid URL"})
 }
 
 func getWikipediaImage(characterName string) string {
-        // Wikipedia API to get character image
-        apiURL := fmt.Sprintf("https://en.wikipedia.org/w/api.php?action=query&titles=%s&prop=pageimages&format=json&pithumbsize=500",
+        apiURL := fmt.Sprintf("https://en.wikipedia.org/w/api.php?action=query&titles=%s&prop=pageimages&format=json&pithumbsize=500&redirects=1",
                 url.QueryEscape(characterName))
 
         resp, err := httpClient.Get(apiURL)
@@ -487,11 +516,9 @@ func getWikipediaImage(characterName string) string {
 }
 
 func extractVSBStatsFromText(detail VSBDetailResponse, htmlContent string) VSBDetailResponse {
-        // Strip HTML for text-only extraction
         text := stripHTML(htmlContent)
 
-        // Extract stats using regex
-        tierRe := regexp.MustCompile(`(?i)Tier[:\s]*([0-9A-Z\-]+)`)
+        tierRe := regexp.MustCompile(`(?i)Tier[:\s]*([0-9A-Z\-\s]+)`)
         if matches := tierRe.FindStringSubmatch(text); len(matches) > 1 {
                 detail.Tier = strings.TrimSpace(matches[1])
         }
@@ -521,10 +548,17 @@ func extractVSBStatsFromText(detail VSBDetailResponse, htmlContent string) VSBDe
                 detail.Range = strings.TrimSpace(matches[1])
         }
 
-        summaryRe := regexp.MustCompile(`(?s)([A-Z][^\.]+\.[^\.]+\.)`)
-        if matches := summaryRe.FindStringSubmatch(text); len(matches) > 1 {
-                detail.Summary = strings.TrimSpace(matches[1])
+        // Improved Summary extraction: Try to find the first real paragraph
+        paragraphs := strings.Split(text, ". ")
+        summary := ""
+        for _, p := range paragraphs {
+                trimmed := strings.TrimSpace(p)
+                if len(trimmed) > 60 && !strings.Contains(trimmed, "Tier:") && !strings.Contains(trimmed, "Summary") {
+                        summary = trimmed + "."
+                        break
+                }
         }
+        detail.Summary = summary
 
         return detail
 }
@@ -618,8 +652,12 @@ func cleanDDGLink(link string) string {
 }
 
 func stripHTML(s string) string {
-        re := regexp.MustCompile(`<[^>]+>`)
-        cleaned := re.ReplaceAllString(s, " ")
+        reStyles := regexp.MustCompile(`(?s)<(style|script)[^>]*>.*?</\1>`)
+        s = reStyles.ReplaceAllString(s, "")
+
+        reTags := regexp.MustCompile(`<[^>]+>`)
+        cleaned := reTags.ReplaceAllString(s, " ")
+
         cleaned = regexp.MustCompile(`\s+`).ReplaceAllString(cleaned, " ")
         return strings.TrimSpace(cleaned)
 }
