@@ -12,12 +12,12 @@ import (
         "image-service/pkg/ludo"
         "image-service/pkg/scraper"
         "image-service/pkg/ttt"
+        "image-service/pkg/youtube"
 )
 
 func main() {
-        // Initialize browser on startup (lazy initialization will happen on first use)
         fmt.Println("🎯 Go Image & Scraper Service")
-        fmt.Println("📌 Browser will initialize on first scraper request")
+        fmt.Println("📌 Ultra-low RAM, API-driven scraping + YouTube audio")
 
         // Set Gin to release mode for production
         gin.SetMode(gin.ReleaseMode)
@@ -39,7 +39,15 @@ func main() {
                 c.JSON(http.StatusOK, gin.H{
                         "status":  "online",
                         "service": "Go Image & Scraper Service",
-                        "version": "1.0.0",
+                        "version": "2.1.0",
+                        "features": []string{
+                                "DuckDuckGo image search (memes/reactions)",
+                                "Klipy GIF/sticker API",
+                                "Wikipedia images",
+                                "VS Battles text scraping",
+                                "Rule34 API",
+                                "YouTube audio download (yt-dlp)",
+                        },
                 })
         })
 
@@ -63,15 +71,35 @@ func main() {
                 // Scrapers
                 scrape := api.Group("/scrape")
                 {
+                        // .j img command - DuckDuckGo search
                         scrape.GET("/pinterest", scraper.SearchPinterest)
-                        scrape.GET("/rule34", scraper.SearchRule34)
+                        
+                        // .j sticker command - Klipy GIF API
+                        scrape.GET("/stickers", scraper.SearchStickers)
+                        
+                        // VS Battles
                         scrape.GET("/vsbattles/search", scraper.SearchVSBattles)
                         scrape.GET("/vsbattles/detail", scraper.GetVSBattlesDetail)
+                        
+                        // Rule34
+                        scrape.GET("/rule34", scraper.SearchRule34)
+                }
+
+                // YouTube Audio
+                yt := api.Group("/youtube")
+                {
+                        // Download audio file
+                        yt.GET("/download", youtube.DownloadAudio)
+                        
+                        // Stream audio directly (saves space)
+                        yt.GET("/stream", youtube.StreamAudio)
+                        
+                        // Get video info only
+                        yt.GET("/info", youtube.GetVideoInfo)
                 }
         }
 
         log.Printf("🚀 Go Service starting on port %s", port)
-        // Bind to 0.0.0.0 explicitly for cloud platforms
         if err := r.Run("0.0.0.0:" + port); err != nil {
                 log.Fatal("Failed to start server: ", err)
         }

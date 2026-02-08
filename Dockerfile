@@ -1,4 +1,4 @@
-# Go Image & Scraper Service - Optimized for Rod with Alpine Chromium
+# Go Image Service - Lightweight with ffmpeg + yt-dlp
 FROM golang:1.21-alpine AS builder
 
 # Install build dependencies
@@ -17,35 +17,30 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o image-service .
 
 # =============================================================================
-# Final Stage - Runtime with Chromium for Rod
+# Final Stage - Runtime with ffmpeg + yt-dlp
 # =============================================================================
 FROM alpine:latest
 
-# Install runtime dependencies for Rod/Chromium
+# Install runtime dependencies + ffmpeg + yt-dlp + python3
 RUN apk add --no-cache \
     ca-certificates \
-    chromium \
-    chromium-chromedriver \
-    nss \
-    freetype \
-    harfbuzz \
-    ttf-freefont \
-    font-noto-emoji \
-    udev \
-    && rm -rf /var/cache/apk/*
+    ffmpeg \
+    wget \
+    python3 \
+    py3-pip \
+    && pip3 install --no-cache-dir --break-system-packages yt-dlp \
+    && rm -rf /var/cache/apk/* /root/.cache
 
 WORKDIR /app
 
 # Copy binary from builder
 COPY --from=builder /build/image-service .
 
-# Copy assets (IMPORTANT!)
+# Copy assets
 COPY assets ./assets
 
-# Environment variables for Rod to use system Chromium
-ENV CHROME_BIN=/usr/bin/chromium-browser \
-    CHROME_PATH=/usr/bin/chromium-browser \
-    CHROMIUM_PATH=/usr/bin/chromium-browser
+# Environment variables
+ENV GIN_MODE=release
 
 # Expose port
 EXPOSE 8080
