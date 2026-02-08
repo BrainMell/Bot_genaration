@@ -12,12 +12,11 @@ import (
         "image-service/pkg/ludo"
         "image-service/pkg/scraper"
         "image-service/pkg/ttt"
-        "image-service/pkg/youtube"
 )
 
 func main() {
         fmt.Println("🎯 Go Image & Scraper Service")
-        fmt.Println("📌 Ultra-low RAM, API-driven scraping + YouTube audio")
+        fmt.Println("📌 Ultra-low RAM, API-driven scraping")
 
         // Set Gin to release mode for production
         gin.SetMode(gin.ReleaseMode)
@@ -46,7 +45,6 @@ func main() {
                                 "Wikipedia images",
                                 "VS Battles text scraping",
                                 "Rule34 API",
-                                "YouTube audio download (yt-dlp)",
                         },
                 })
         })
@@ -73,29 +71,16 @@ func main() {
                 {
                         // .j img command - DuckDuckGo search
                         scrape.GET("/pinterest", scraper.SearchPinterest)
-                        
+
                         // .j sticker command - Klipy GIF API
                         scrape.GET("/stickers", scraper.SearchStickers)
-                        
+
                         // VS Battles
                         scrape.GET("/vsbattles/search", scraper.SearchVSBattles)
                         scrape.GET("/vsbattles/detail", scraper.GetVSBattlesDetail)
-                        
+
                         // Rule34
                         scrape.GET("/rule34", scraper.SearchRule34)
-                }
-
-                // YouTube Audio
-                yt := api.Group("/youtube")
-                {
-                        // Download audio file
-                        yt.GET("/download", youtube.DownloadAudio)
-                        
-                        // Stream audio directly (saves space)
-                        yt.GET("/stream", youtube.StreamAudio)
-                        
-                        // Get video info only
-                        yt.GET("/info", youtube.GetVideoInfo)
                 }
         }
 
