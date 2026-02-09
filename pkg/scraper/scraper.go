@@ -25,9 +25,10 @@ const (
 )
 
 var (
-        klipyAPIKey string
-        httpClient  *http.Client
-        userAgents  = []string{
+	klipyAPIKey string
+	httpClient  *http.Client
+	browser     *rod.Browser
+	userAgents  = []string{
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
                 "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
@@ -36,9 +37,13 @@ var (
 )
 
 func init() {
-        klipyAPIKey = os.Getenv("KLIPY_API_KEY")
-        httpClient = &http.Client{Timeout: 20 * time.Second}
-        rand.Seed(time.Now().UnixNano())
+	klipyAPIKey = os.Getenv("KLIPY_API_KEY")
+	httpClient = &http.Client{Timeout: 20 * time.Second}
+	rand.Seed(time.Now().UnixNano())
+}
+
+func SetBrowser(b *rod.Browser) {
+	browser = b
 }
 
 // =============================================================================
@@ -304,75 +309,91 @@ func SearchVSBattles(c *gin.Context) {
 }
 
 func GetVSBattlesDetail(c *gin.Context) {
-        pageURL := c.Query("url")
-        if pageURL == "" {
-                c.JSON(400, gin.H{"error": "URL required"})
-                return
-        }
+	pageURL := c.Query("url")
+	if pageURL == "" {
+		c.JSON(400, gin.H{"error": "URL required"})
+		return
+	}
 
-        req, _ := http.NewRequest("GET", pageURL, nil)
-        req.Header.Set("User-Agent", getRandomUA())
-        resp, err := httpClient.Do(req)
-        if err != nil {
-                c.JSON(500, gin.H{"error": "Failed to fetch page"})
-                return
-        }
-        defer resp.Body.Close()
+	if browser == nil {
+		c.JSON(500, gin.H{"error": "Browser not initialized"})
+		return
+	}
 
-        body, _ := io.ReadAll(resp.Body)
-        htmlContent := string(body)
+	page := browser.MustPage()
+	defer page.MustClose()
 
-        // Basic Regex Extraction
-        detail := gin.H{
-                "tier": "Unknown",
-                "attackPotency": "N/A",
-                "speed": "N/A",
-                "durability": "N/A",
-                "stamina": "N/A",
-                "range": "N/A",
-                "summary": "No summary available.",
-        }
+	err := page.Navigate(pageURL)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to navigate"})
+		return
+	}
 
-        // Get name
-        nameParts := strings.Split(pageURL, "/wiki/")
-        if len(nameParts) > 1 {
-                name := strings.ReplaceAll(nameParts[1], "_", " ")
-                detail["name"] = name
-                // Wikipedia image fallback
-                detail["wikiImageURL"] = getWikipediaImage(name)
-        }
+	page.MustWaitLoad()
+	time.Sleep(2 * time.Second) // wait for lazy loads
 
-        // Clean stats
-        text := stripHTML(htmlContent)
-        
-        patterns := map[string]string{
-                "tier": `(?i)Tier:\s*([^\n|]+)`,
-                "attackPotency": `(?i)Attack Potency:\s*([^\n|]+)`,
-                "speed": `(?i)Speed:\s*([^\n|]+)`,
-                "durability": `(?i)Durability:\s*([^\n|]+)`,
-                "stamina": `(?i)Stamina:\s*([^\n|]+)`,
-                "range": `(?i)Range:\s*([^\n|]+)`,
-        }
+	// Basic Regex Extraction from HTML (Fallback)
+	htmlContent := page.MustHTML()
+	text := stripHTML(htmlContent)
 
-        for key, pattern := range patterns {
-                re := regexp.MustCompile(pattern)
-                if m := re.FindStringSubmatch(text); len(m) > 1 {
-                        detail[key] = strings.TrimSpace(m[1])
-                }
-        }
+	detail := gin.H{
+		"tier":          "Unknown",
+		"attackPotency": "N/A",
+		"speed":         "N/A",
+		"durability":    "N/A",
+		"stamina":       "N/A",
+		"range":         "N/A",
+		"summary":       "No summary available.",
+	}
 
-        // Better Summary
-        paragraphs := strings.Split(text, ". ")
-        for _, p := range paragraphs {
-                if len(p) > 100 && !strings.Contains(p, "Tier") {
-                        detail["summary"] = strings.TrimSpace(p) + "."
-                        break
-                }
-        }
+	// Try to get character name
+	nameParts := strings.Split(pageURL, "/wiki/")
+	if len(nameParts) > 1 {
+		detail["name"] = strings.ReplaceAll(nameParts[1], "_", " ")
+	}
 
-        c.JSON(200, detail)
+	// High reliability extraction using selectors
+	extractStat := func(label string) string {
+		// Look for <b>Label:</b> following text or in a table
+		re := regexp.MustCompile(`(?i)` + label + `:\s*([^(\n|]+)`)
+		if m := re.FindStringSubmatch(text); len(m) > 1 {
+			return strings.TrimSpace(m[1])
+		}
+		return "N/A"
+	}
+
+	detail["tier"] = extractStat("Tier")
+	detail["attackPotency"] = extractStat("Attack Potency")
+	detail["speed"] = extractStat("Speed")
+	detail["durability"] = extractStat("Durability")
+	detail["stamina"] = extractStat("Stamina")
+	detail["range"] = extractStat("Range")
+
+	// Get image
+	img, err := page.Element("img.pi-image-thumbnail")
+	if err == nil {
+		src, _ := img.Attribute("src")
+		if src != nil {
+			detail["imageUrl"] = *src
+		}
+	} else {
+		// Wikipedia fallback
+		if name, ok := detail["name"].(string); ok {
+			detail["imageUrl"] = getWikipediaImage(name)
+		}
+	}
+
+	// Better Summary
+	paragraphs := strings.Split(text, ". ")
+	for _, p := range paragraphs {
+		if len(p) > 100 && !strings.Contains(p, "Tier") && !strings.Contains(p, "Attack") {
+			detail["summary"] = strings.TrimSpace(p) + "."
+			break
+		}
+	}
+
+	c.JSON(200, detail)
 }
-
 func getWikipediaImage(name string) string {
         name = regexp.MustCompile(`\([^)]+\)`).ReplaceAllString(name, "")
         apiURL := fmt.Sprintf("https://en.wikipedia.org/w/api.php?action=query&titles=%s&prop=pageimages&format=json&pithumbsize=500&redirects=1", url.QueryEscape(strings.TrimSpace(name)))

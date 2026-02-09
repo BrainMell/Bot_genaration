@@ -1,91 +1,118 @@
 package main
 
 import (
-        "fmt"
-        "log"
-        "net/http"
-        "os"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"sync"
 
-        "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
+	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/launcher"
 
-        "image-service/pkg/combat"
-        "image-service/pkg/ludo"
-        "image-service/pkg/scraper"
-        "image-service/pkg/ttt"
+	"image-service/pkg/combat"
+	"image-service/pkg/ludo"
+	"image-service/pkg/scraper"
+	"image-service/pkg/ttt"
 )
 
+var (
+	browser     *rod.Browser
+	browserOnce sync.Once
+)
+
+func initBrowser() {
+	browserOnce.Do(func() {
+		fmt.Println("🚀 Starting browser (one-time setup)...")
+		l := launcher.New().
+			Headless(true).
+			NoSandbox(true).
+			MustLaunch()
+
+		browser = rod.New().
+			ControlURL(l).
+			MustConnect()
+		fmt.Println("✅ Browser ready!")
+	})
+}
+
 func main() {
-        fmt.Println("🎯 Go Image & Scraper Service")
-        fmt.Println("📌 Ultra-low RAM, API-driven scraping")
+	// Initialize browser at startup
+	initBrowser()
+	scraper.SetBrowser(browser)
 
-        // Set Gin to release mode for production
-        gin.SetMode(gin.ReleaseMode)
-        port := os.Getenv("PORT")
-        if port == "" {
-                port = "8080"
-        }
+	fmt.Println("🎯 Go Image & Scraper Service")
+	fmt.Println("📌 Ultra-low RAM, API-driven scraping")
 
-        r := gin.Default()
+	// Set Gin to release mode for production
+	gin.SetMode(gin.ReleaseMode)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
 
-        // Global Middleware
-        r.Use(func(c *gin.Context) {
-                c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-                c.Next()
-        })
+	r := gin.Default()
 
-        // Root Endpoint
-        r.GET("/", func(c *gin.Context) {
-                c.JSON(http.StatusOK, gin.H{
-                        "status":  "online",
-                        "service": "Go Image & Scraper Service",
-                        "version": "2.1.0",
-                        "features": []string{
-                                "DuckDuckGo image search (memes/reactions)",
-                                "Klipy GIF/sticker API",
-                                "Wikipedia images",
-                                "VS Battles text scraping",
-                                "Rule34 API",
-                        },
-                })
-        })
+	// Global Middleware
+	r.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Next()
+	})
 
-        // Health Check
-        r.GET("/health", func(c *gin.Context) {
-                c.JSON(http.StatusOK, gin.H{"status": "ok"})
-        })
+	// Root Endpoint
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "online",
+			"service": "Go Image & Scraper Service",
+			"version": "2.1.0",
+			"features": []string{
+				"DuckDuckGo image search (memes/reactions)",
+				"Klipy GIF/sticker API",
+				"Wikipedia images",
+				"VS Battles text scraping",
+				"Rule34 API",
+			},
+		})
+	})
 
-        // API Group
-        api := r.Group("/api")
-        {
-                // Combat
-                api.POST("/combat", combat.GenerateCombatImage)
-                api.POST("/combat/endscreen", combat.GenerateEndScreen)
+	// Health Check
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
 
-                // Games
-                api.POST("/ludo", ludo.RenderBoard)
-                api.POST("/ttt", ttt.RenderBoard)
-                api.POST("/ttt/leaderboard", ttt.RenderLeaderboard)
+	// API Group
+	api := r.Group("/api")
+	{
+		// Combat
+		api.POST("/combat", combat.GenerateCombatImage)
+		api.POST("/combat/endscreen", combat.GenerateEndScreen)
 
-                // Scrapers
-                scrape := api.Group("/scrape")
-                {
-                        // .j img command - DuckDuckGo search
-                        scrape.GET("/pinterest", scraper.SearchPinterest)
+		// Games
+		api.POST("/ludo", ludo.RenderBoard)
+		api.POST("/ttt", ttt.RenderBoard)
+		api.POST("/ttt/leaderboard", ttt.RenderLeaderboard)
 
-                        // .j sticker command - Klipy GIF API
-                        scrape.GET("/stickers", scraper.SearchStickers)
+		// Scrapers
+		scrape := api.Group("/scrape")
+		{
+			// .j img command - DuckDuckGo search
+			scrape.GET("/pinterest", scraper.SearchPinterest)
 
-                        // VS Battles
-                        scrape.GET("/vsbattles/search", scraper.SearchVSBattles)
-                        scrape.GET("/vsbattles/detail", scraper.GetVSBattlesDetail)
+			// .j sticker command - Klipy GIF API
+			scrape.GET("/stickers", scraper.SearchStickers)
 
-                        // Rule34
-                        scrape.GET("/rule34", scraper.SearchRule34)
-                }
-        }
+			// VS Battles
+			scrape.GET("/vsbattles/search", scraper.SearchVSBattles)
+			scrape.GET("/vsbattles/detail", scraper.GetVSBattlesDetail)
 
-        log.Printf("🚀 Go Service starting on port %s", port)
-        if err := r.Run("0.0.0.0:" + port); err != nil {
-                log.Fatal("Failed to start server: ", err)
-        }
+			// Rule34
+			scrape.GET("/rule34", scraper.SearchRule34)
+		}
+	}
+
+	log.Printf("🚀 Go Service starting on port %s", port)
+	if err := r.Run("0.0.0.0:" + port); err != nil {
+		log.Fatal("Failed to start server: ", err)
+	}
 }
