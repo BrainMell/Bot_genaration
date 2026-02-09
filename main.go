@@ -5,11 +5,8 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"sync"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-rod/rod"
-	"github.com/go-rod/rod/lib/launcher"
 
 	"image-service/pkg/combat"
 	"image-service/pkg/ludo"
@@ -17,32 +14,8 @@ import (
 	"image-service/pkg/ttt"
 )
 
-var (
-	browser     *rod.Browser
-	browserOnce sync.Once
-)
-
-func initBrowser() {
-	browserOnce.Do(func() {
-		fmt.Println("🚀 Starting browser (one-time setup)...")
-		l := launcher.New().
-			Headless(true).
-			NoSandbox(true).
-			MustLaunch()
-
-		browser = rod.New().
-			ControlURL(l).
-			MustConnect()
-		fmt.Println("✅ Browser ready!")
-	})
-}
-
 func main() {
-	// Initialize browser at startup
-	initBrowser()
-	scraper.SetBrowser(browser)
-
-	fmt.Println("🎯 Go Image & Scraper Service")
+	fmt.Println("🚀 Go Image & Scraper Service")
 	fmt.Println("📌 Ultra-low RAM, API-driven scraping")
 
 	// Set Gin to release mode for production
@@ -65,13 +38,12 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "online",
 			"service": "Go Image & Scraper Service",
-			"version": "2.1.0",
+			"version": "2.2.0",
 			"features": []string{
-				"DuckDuckGo image search (memes/reactions)",
-				"Klipy GIF/sticker API",
-				"Wikipedia images",
-				"VS Battles text scraping",
-				"Rule34 API",
+				"DuckDuckGo image search",
+				"Klipy v1 GIF/sticker API",
+				"Robust VS Battles extraction",
+				"Rule34 Web Fallback",
 			},
 		})
 	})
@@ -96,17 +68,10 @@ func main() {
 		// Scrapers
 		scrape := api.Group("/scrape")
 		{
-			// .j img command - DuckDuckGo search
 			scrape.GET("/pinterest", scraper.SearchPinterest)
-
-			// .j sticker command - Klipy GIF API
 			scrape.GET("/stickers", scraper.SearchStickers)
-
-			// VS Battles
 			scrape.GET("/vsbattles/search", scraper.SearchVSBattles)
 			scrape.GET("/vsbattles/detail", scraper.GetVSBattlesDetail)
-
-			// Rule34
 			scrape.GET("/rule34", scraper.SearchRule34)
 		}
 	}
