@@ -190,209 +190,471 @@ func isImageURL(url string) bool {
 // =============================================================================
 
 type KlipyResponse struct {
-	Results []struct {
-		MediaFormats map[string]struct {
-			URL string `json:"url"`
-		} `json:"media_formats"`
-	} `json:"results"`
+
+	Result bool `json:"result"`
+
+	Data   struct {
+
+		Data []struct {
+
+			File struct {
+
+				HD struct {
+
+					GIF struct {
+
+						URL string `json:"url"`
+
+					} `json:"gif"`
+
+				} `json:"hd"`
+
+			} `json:"file"`
+
+		} `json:"data"`
+
+	} `json:"data"`
+
 }
+
+
 
 func SearchStickers(c *gin.Context) {
+
 	query := c.Query("query")
+
 	if query == "" {
+
 		c.JSON(400, gin.H{"error": "Query required"})
+
 		return
+
 	}
+
+
 
 	key := os.Getenv("KLIPY_API_KEY")
+
 	if key == "" {
+
 		c.JSON(500, gin.H{"error": "KLIPY_API_KEY missing"})
+
 		return
+
 	}
 
-	apiURL := fmt.Sprintf("%s/search?key=%s&q=%s&limit=10", klipyBaseURL, key, url.QueryEscape(query))
+
+
+	// Klipy v1 Sticker Search
+
+	apiURL := fmt.Sprintf("https://api.klipy.com/api/v1/%s/stickers/search?q=%s&per_page=10&customer_id=goten_bot", key, url.QueryEscape(query))
+
+
 
 	resp, err := httpClient.Get(apiURL)
+
 	if err != nil {
+
 		c.JSON(500, gin.H{"error": "API request failed"})
+
 		return
+
 	}
+
 	defer resp.Body.Close()
 
+
+
 	var kr KlipyResponse
+
 	if err := json.NewDecoder(resp.Body).Decode(&kr); err != nil {
+
 		c.JSON(500, gin.H{"error": "Failed to parse API response"})
+
 		return
+
 	}
+
+
 
 	stickers := []string{}
-	for _, r := range kr.Results {
-		// Prefer tinygif or gif for WhatsApp stickers
-		if format, ok := r.MediaFormats["tinygif"]; ok && format.URL != "" {
-			stickers = append(stickers, format.URL)
-		} else if format, ok := r.MediaFormats["gif"]; ok && format.URL != "" {
-			stickers = append(stickers, format.URL)
+
+	for _, r := range kr.Data.Data {
+
+		if r.File.HD.GIF.URL != "" {
+
+			stickers = append(stickers, r.File.HD.GIF.URL)
+
 		}
+
 	}
+
+
 
 	c.JSON(200, gin.H{"stickers": stickers, "count": len(stickers)})
+
 }
+
+
+
 // =============================================================================
-// VS BATTLES - Improved Extraction
+
+// VS BATTLES - Improved Extraction using JS
+
 // =============================================================================
+
+
 
 func SearchVSBattles(c *gin.Context) {
-        query := c.Query("query")
-        if query == "" {
-                c.JSON(400, gin.H{"error": "Query required"})
-                return
-        }
 
-        // Search DDG for VSB pages
-        searchURL := "https://html.duckduckgo.com/html/"
-        formData := url.Values{}
-        formData.Set("q", query + " vs battles wiki")
-        
-        req, _ := http.NewRequest("POST", searchURL, strings.NewReader(formData.Encode()))
-        req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-        req.Header.Set("User-Agent", getRandomUA())
+	query := c.Query("query")
 
-        resp, err := httpClient.Do(req)
-        if err != nil {
-                c.JSON(500, gin.H{"error": "Search failed"})
-                return
-        }
-        defer resp.Body.Close()
+	if query == "" {
 
-        characters := []gin.H{}
-        tokenizer := html.NewTokenizer(resp.Body)
-        seen := make(map[string]bool)
+		c.JSON(400, gin.H{"error": "Query required"})
+
+		return
+
+	}
+
+
+
+	// Search DDG for VSB pages
+
+	searchURL := "https://html.duckduckgo.com/html/"
+
+	formData := url.Values{}
+
+	formData.Set("q", query+" vs battles wiki")
+
+
+
+	req, _ := http.NewRequest("POST", searchURL, strings.NewReader(formData.Encode()))
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	req.Header.Set("User-Agent", getRandomUA())
+
+
+
+	resp, err := httpClient.Do(req)
+
+	if err != nil {
+
+		c.JSON(500, gin.H{"error": "Search failed"})
+
+		return
+
+	}
+
+	defer resp.Body.Close()
+
+
+
+	characters := []gin.H{}
+
+	tokenizer := html.NewTokenizer(resp.Body)
+
+	seen := make(map[string]bool)
+
+
 
 	for {
+
 		tt := tokenizer.Next()
-		if tt == html.ErrorToken { break }
+
+		if tt == html.ErrorToken {
+
+			break
+
+		}
+
 		token := tokenizer.Token()
+
 		if token.Type == html.StartTagToken && token.Data == "a" {
+
 			for _, attr := range token.Attr {
+
 				if attr.Key == "href" && (strings.Contains(attr.Val, "vsbattles.fandom.com/wiki/") || strings.Contains(attr.Val, "uddg=")) {
+
 					link := attr.Val
+
 					actual := ""
 
+
+
 					if strings.Contains(link, "uddg=") {
+
 						parts := strings.Split(link, "uddg=")
+
 						if len(parts) > 1 {
+
 							decoded, _ := url.QueryUnescape(parts[1])
+
 							actual = strings.Split(decoded, "&")[0]
+
 						}
+
 					} else if strings.Contains(link, "vsbattles.fandom.com/wiki/") {
+
 						actual = link
+
 					}
+
+
 
 					if actual != "" && strings.Contains(actual, "vsbattles.fandom.com/wiki/") && !seen[actual] && !strings.Contains(actual, "Special:") && !strings.Contains(actual, "Category:") {
+
 						seen[actual] = true
+
 						name := actual[strings.LastIndex(actual, "/")+1:]
+
 						name = strings.ReplaceAll(name, "_", " ")
+
 						characters = append(characters, gin.H{"name": name, "url": actual})
+
 					}
+
 				}
+
 			}
+
 		}
-		if len(characters) >= 5 { break }
+
+		if len(characters) >= 5 {
+
+			break
+
+		}
+
 	}
 
-        if len(characters) == 0 {
-                c.JSON(404, gin.H{"error": "No characters found"})
-                return
-        }
 
-        c.JSON(200, gin.H{"characters": characters})
+
+	if len(characters) == 0 {
+
+		c.JSON(404, gin.H{"error": "No characters found"})
+
+		return
+
+	}
+
+
+
+	c.JSON(200, gin.H{"characters": characters})
+
 }
 
+
+
 func GetVSBattlesDetail(c *gin.Context) {
+
 	pageURL := c.Query("url")
+
 	if pageURL == "" {
+
 		c.JSON(400, gin.H{"error": "URL required"})
+
 		return
+
 	}
+
+
 
 	if browser == nil {
+
 		c.JSON(500, gin.H{"error": "Browser not initialized"})
+
 		return
+
 	}
+
+
 
 	page := browser.MustPage()
+
 	defer page.MustClose()
 
+
+
+	// Navigate and wait for content
+
 	err := page.Navigate(pageURL)
+
 	if err != nil {
+
 		c.JSON(500, gin.H{"error": "Failed to navigate"})
+
 		return
+
 	}
+
+
 
 	page.MustWaitLoad()
-	time.Sleep(2 * time.Second) // wait for lazy loads
 
-	// Basic Regex Extraction from HTML (Fallback)
-	htmlContent := page.MustHTML()
-	text := stripHTML(htmlContent)
+	time.Sleep(3 * time.Second) // Important: Fandom pages load lots of ads/scripts
+
+
+
+	// Execute JS to extract stats precisely
+
+	// This script looks for common VSB label structures
+
+	script := `() => {
+
+		const results = {
+
+			tier: "Unknown",
+
+			ap: "N/A",
+
+			speed: "N/A",
+
+			durability: "N/A",
+
+			stamina: "N/A",
+
+			range: "N/A",
+
+			summary: "",
+
+			imageUrl: ""
+
+		};
+
+
+
+		// 1. Extract Stats
+
+		const labels = {
+
+			"Tier": "tier",
+
+			"Attack Potency": "ap",
+
+			"Speed": "speed",
+
+			"Durability": "durability",
+
+			"Stamina": "stamina",
+
+			"Range": "range"
+
+		};
+
+
+
+		const bodyText = document.body.innerText;
+
+		for (const [label, key] of Object.entries(labels)) {
+
+			const regex = new RegExp(label + "\\s*:\\s*([^\\n|]+)", "i");
+
+			const match = bodyText.match(regex);
+
+			if (match && match[1]) {
+
+				results[key] = match[1].trim().split('(')[0].trim();
+
+			}
+
+		}
+
+
+
+		// 2. Extract Summary (first long paragraph in parser output)
+
+		const content = document.querySelector(".mw-parser-output");
+
+		if (content) {
+
+			const paragraphs = Array.from(content.querySelectorAll("p"));
+
+			for (const p of paragraphs) {
+
+				const text = p.innerText.trim();
+
+				if (text.length > 50 && !text.includes("Tier:")) {
+
+					results.summary = text.split(".")[0] + ".";
+
+					break;
+
+				}
+
+			}
+
+		}
+
+
+
+		// 3. Extract Image
+
+		const img = document.querySelector("img.pi-image-thumbnail");
+
+		if (img) results.imageUrl = img.src;
+
+
+
+		return results;
+
+	}`
+
+
+
+	val, err := page.Eval(script)
+
+	if err != nil {
+
+		c.JSON(500, gin.H{"error": "JS execution failed"})
+
+		return
+
+	}
+
+
+
+	res := val.Value.Map()
+
+	
 
 	detail := gin.H{
-		"tier":          "Unknown",
-		"attackPotency": "N/A",
-		"speed":         "N/A",
-		"durability":    "N/A",
-		"stamina":       "N/A",
-		"range":         "N/A",
-		"summary":       "No summary available.",
+
+		"tier":          res["tier"].String(),
+
+		"attackPotency": res["ap"].String(),
+
+		"speed":         res["speed"].String(),
+
+		"durability":    res["durability"].String(),
+
+		"stamina":       res["stamina"].String(),
+
+		"range":         res["range"].String(),
+
+		"summary":       res["summary"].String(),
+
+		"imageUrl":      res["imageUrl"].String(),
+
 	}
 
-	// Try to get character name
+
+
+	// Fallback for name
+
 	nameParts := strings.Split(pageURL, "/wiki/")
+
 	if len(nameParts) > 1 {
+
 		detail["name"] = strings.ReplaceAll(nameParts[1], "_", " ")
+
 	}
 
-	// High reliability extraction using selectors
-	extractStat := func(label string) string {
-		// Look for <b>Label:</b> following text or in a table
-		re := regexp.MustCompile(`(?i)` + label + `:\s*([^(\n|]+)`)
-		if m := re.FindStringSubmatch(text); len(m) > 1 {
-			return strings.TrimSpace(m[1])
-		}
-		return "N/A"
-	}
 
-	detail["tier"] = extractStat("Tier")
-	detail["attackPotency"] = extractStat("Attack Potency")
-	detail["speed"] = extractStat("Speed")
-	detail["durability"] = extractStat("Durability")
-	detail["stamina"] = extractStat("Stamina")
-	detail["range"] = extractStat("Range")
-
-	// Get image
-	img, err := page.Element("img.pi-image-thumbnail")
-	if err == nil {
-		src, _ := img.Attribute("src")
-		if src != nil {
-			detail["imageUrl"] = *src
-		}
-	} else {
-		// Wikipedia fallback
-		if name, ok := detail["name"].(string); ok {
-			detail["imageUrl"] = getWikipediaImage(name)
-		}
-	}
-
-	// Better Summary
-	paragraphs := strings.Split(text, ". ")
-	for _, p := range paragraphs {
-		if len(p) > 100 && !strings.Contains(p, "Tier") && !strings.Contains(p, "Attack") {
-			detail["summary"] = strings.TrimSpace(p) + "."
-			break
-		}
-	}
 
 	c.JSON(200, detail)
+
 }
 func getWikipediaImage(name string) string {
         name = regexp.MustCompile(`\([^)]+\)`).ReplaceAllString(name, "")
