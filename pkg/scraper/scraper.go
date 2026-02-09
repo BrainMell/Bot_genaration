@@ -1,21 +1,21 @@
 package scraper
 
 import (
-        "encoding/json"
-        "fmt"
-        "io"
-        "math/rand"
-        "net/http"
-        "net/url"
-        "os"
-        "regexp"
-        "strings"
-        "time"
+	"encoding/json"
+	"fmt"
+	"io"
+	"math/rand"
+	"net/http"
+	"net/url"
+	"os"
+	"regexp"
+	"strings"
+	"time"
 
-        "github.com/gin-gonic/gin"
-        "golang.org/x/net/html"
+	"github.com/gin-gonic/gin"
+	"github.com/go-rod/rod"
+	"golang.org/x/net/html"
 )
-
 // =============================================================================
 // CONFIGURATION
 // =============================================================================
