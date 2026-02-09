@@ -22,13 +22,15 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o image-service .
 FROM alpine:latest
 
 # Install runtime dependencies + ffmpeg + yt-dlp + python3
+# Force update yt-dlp by using a build-time argument
+ARG CACHEBUST=1
 RUN apk add --no-cache \
     ca-certificates \
     ffmpeg \
     wget \
     python3 \
     py3-pip \
-    && pip3 install --no-cache-dir --break-system-packages yt-dlp \
+    && pip3 install --no-cache-dir --break-system-packages -U yt-dlp \
     && rm -rf /var/cache/apk/* /root/.cache
 
 WORKDIR /app

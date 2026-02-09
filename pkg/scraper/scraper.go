@@ -112,59 +112,64 @@ func scrapeImagesFromDDG(query string, limit int) []string {
 }
 
 func parseDDGHTML(body io.Reader, limit int) []string {
-        tokenizer := html.NewTokenizer(body)
-        var urls []string
-        seen := make(map[string]bool)
+	tokenizer := html.NewTokenizer(body)
+	var urls []string
+	seen := make(map[string]bool)
 
-        for {
-                tt := tokenizer.Next()
-                if tt == html.ErrorToken {
-                        break
-                }
+	for {
+		tt := tokenizer.Next()
+		if tt == html.ErrorToken {
+			break
+		}
 
-                token := tokenizer.Token()
-                if token.Type == html.StartTagToken && token.Data == "a" {
-                        for _, attr := range token.Attr {
-                                if attr.Key == "href" {
-                                        link := attr.Val
-                                        // DDG encodes the real URL in "uddg="
-                                        if strings.Contains(link, "uddg=") {
-                                                parts := strings.Split(link, "uddg=")
-                                                if len(parts) > 1 {
-                                                        actual, err := url.QueryUnescape(parts[1])
-                                                        if err == nil {
-                                                                // Clean up and check if image
-                                                                actual = strings.Split(actual, "&")[0]
-                                                                if isImageURL(actual) && !seen[actual] && !strings.Contains(actual, "duckduckgo.com") {
-                                                                        seen[actual] = true
-                                                                        urls = append(urls, actual)
-                                                                        if len(urls) >= limit {
-                                                                                return urls
-                                                                        }
-                                                                }
-                                                        }
-                                                }
-                                        }
-                                }
-                        }
-                }
-                // Also check direct img tags
-                if token.Type == html.StartTagToken && token.Data == "img" {
-                        for _, attr := range token.Attr {
-                                if attr.Key == "src" {
-                                        val := attr.Val
-                                        if !seen[val] && isImageURL(val) && !strings.Contains(val, "duckduckgo.com") && len(val) > 20 {
-                                                seen[val] = true
-                                                urls = append(urls, val)
-                                                if len(urls) >= limit {
-                                                        return urls
-                                                }
-                                        }
-                                }
-                        }
-                }
-        }
-        return urls
+		token := tokenizer.Token()
+		if token.Type == html.StartTagToken && token.Data == "a" {
+			for _, attr := range token.Attr {
+				if attr.Key == "href" {
+					link := attr.Val
+					actual := ""
+
+					// Case 1: DDG encodes the real URL in "uddg="
+					if strings.Contains(link, "uddg=") {
+						parts := strings.Split(link, "uddg=")
+						if len(parts) > 1 {
+							decoded, err := url.QueryUnescape(parts[1])
+							if err == nil {
+								actual = strings.Split(decoded, "&")[0]
+							}
+						}
+					} else if strings.HasPrefix(link, "http") {
+						// Case 2: Direct link (Modern DDG Lite behavior)
+						actual = link
+					}
+
+					if actual != "" && isImageURL(actual) && !seen[actual] && !strings.Contains(actual, "duckduckgo.com") {
+						seen[actual] = true
+						urls = append(urls, actual)
+						if len(urls) >= limit {
+							return urls
+						}
+					}
+				}
+			}
+		}
+		// Also check direct img tags
+		if token.Type == html.StartTagToken && token.Data == "img" {
+			for _, attr := range token.Attr {
+				if attr.Key == "src" {
+					val := attr.Val
+					if !seen[val] && isImageURL(val) && !strings.Contains(val, "duckduckgo.com") && len(val) > 20 {
+						seen[val] = true
+						urls = append(urls, val)
+						if len(urls) >= limit {
+							return urls
+						}
+					}
+				}
+			}
+		}
+	}
+	return urls
 }
 
 func isImageURL(url string) bool {
@@ -256,32 +261,37 @@ func SearchVSBattles(c *gin.Context) {
         tokenizer := html.NewTokenizer(resp.Body)
         seen := make(map[string]bool)
 
-        for {
-                tt := tokenizer.Next()
-                if tt == html.ErrorToken { break }
-                token := tokenizer.Token()
-                if token.Type == html.StartTagToken && token.Data == "a" {
-                        for _, attr := range token.Attr {
-                                if attr.Key == "href" && strings.Contains(attr.Val, "vsbattles.fandom.com/wiki/") {
-                                        link := attr.Val
-                                        if strings.Contains(link, "uddg=") {
-                                                parts := strings.Split(link, "uddg=")
-                                                if len(parts) > 1 {
-                                                        actual, _ := url.QueryUnescape(parts[1])
-                                                        link = strings.Split(actual, "&")[0]
-                                                }
-                                        }
-                                        if !seen[link] && !strings.Contains(link, "Special:") {
-                                                seen[link] = true
-                                                name := link[strings.LastIndex(link, "/")+1:]
-                                                name = strings.ReplaceAll(name, "_", " ")
-                                                characters = append(characters, gin.H{"name": name, "url": link})
-                                        }
-                                }
-                        }
-                }
-                if len(characters) >= 5 { break }
-        }
+	for {
+		tt := tokenizer.Next()
+		if tt == html.ErrorToken { break }
+		token := tokenizer.Token()
+		if token.Type == html.StartTagToken && token.Data == "a" {
+			for _, attr := range token.Attr {
+				if attr.Key == "href" && (strings.Contains(attr.Val, "vsbattles.fandom.com/wiki/") || strings.Contains(attr.Val, "uddg=")) {
+					link := attr.Val
+					actual := ""
+
+					if strings.Contains(link, "uddg=") {
+						parts := strings.Split(link, "uddg=")
+						if len(parts) > 1 {
+							decoded, _ := url.QueryUnescape(parts[1])
+							actual = strings.Split(decoded, "&")[0]
+						}
+					} else if strings.Contains(link, "vsbattles.fandom.com/wiki/") {
+						actual = link
+					}
+
+					if actual != "" && strings.Contains(actual, "vsbattles.fandom.com/wiki/") && !seen[actual] && !strings.Contains(actual, "Special:") && !strings.Contains(actual, "Category:") {
+						seen[actual] = true
+						name := actual[strings.LastIndex(actual, "/")+1:]
+						name = strings.ReplaceAll(name, "_", " ")
+						characters = append(characters, gin.H{"name": name, "url": actual})
+					}
+				}
+			}
+		}
+		if len(characters) >= 5 { break }
+	}
 
         if len(characters) == 0 {
                 c.JSON(404, gin.H{"error": "No characters found"})
@@ -383,30 +393,121 @@ func getWikipediaImage(name string) string {
 }
 
 // =============================================================================
-// RULE34 - API
+// RULE34 - API + WEB FALLBACK
 // =============================================================================
 
 func SearchRule34(c *gin.Context) {
-        query := c.Query("query")
-        apiURL := fmt.Sprintf("https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&limit=10&tags=%s", url.QueryEscape(query))
-        resp, err := httpClient.Get(apiURL)
-        if err != nil {
-                c.JSON(200, gin.H{"images": []string{}, "count": 0})
-                return
-        }
-        defer resp.Body.Close()
-        var posts []struct { FileURL string `json:"file_url"` }
-        json.NewDecoder(resp.Body).Decode(&posts)
-        images := []string{}
-        for _, p := range posts {
-                if p.FileURL != "" {
-                        img := p.FileURL
-                        if strings.HasPrefix(img, "//") { img = "https:" + img }
-                        images = append(images, img)
-                }
-        }
-        c.JSON(200, gin.H{"images": images, "count": len(images)})
+	query := c.Query("query")
+	images := []string{}
+
+	// Try API first
+	apiURL := fmt.Sprintf("https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&limit=10&tags=%s", url.QueryEscape(query))
+	resp, err := httpClient.Get(apiURL)
+	if err == nil {
+		defer resp.Body.Close()
+		var posts []struct {
+			FileURL string `json:"file_url"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&posts); err == nil {
+			for _, p := range posts {
+				if p.FileURL != "" {
+					img := p.FileURL
+					if strings.HasPrefix(img, "//") {
+						img = "https:" + img
+					}
+					images = append(images, img)
+				}
+			}
+		}
+	}
+
+	// Fallback to Web Scraping if API failed or returned nothing
+	if len(images) == 0 {
+		images = scrapeRule34Web(query, 10)
+	}
+
+	c.JSON(200, gin.H{"images": images, "count": len(images)})
 }
+
+func scrapeRule34Web(query string, limit int) []string {
+	tag := strings.ReplaceAll(query, " ", "_")
+	searchURL := fmt.Sprintf("https://rule34.xxx/index.php?page=post&s=list&tags=%s", url.QueryEscape(tag))
+
+	req, _ := http.NewRequest("GET", searchURL, nil)
+	req.Header.Set("User-Agent", getRandomUA())
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return []string{}
+	}
+	defer resp.Body.Close()
+
+	var postIDs []string
+	tokenizer := html.NewTokenizer(resp.Body)
+	for {
+		tt := tokenizer.Next()
+		if tt == html.ErrorToken {
+			break
+		}
+		token := tokenizer.Token()
+		if token.Type == html.StartTagToken && token.Data == "span" {
+			for _, attr := range token.Attr {
+				if attr.Key == "id" && strings.HasPrefix(attr.Val, "s") {
+					id := attr.Val[1:] // remove 's'
+					postIDs = append(postIDs, id)
+				}
+			}
+		}
+		if len(postIDs) >= limit {
+			break
+		}
+	}
+
+	images := []string{}
+	for _, id := range postIDs {
+		imgURL := getRule34ImageDirect(id)
+		if imgURL != "" {
+			images = append(images, imgURL)
+		}
+	}
+	return images
+}
+
+func getRule34ImageDirect(postID string) string {
+	postURL := fmt.Sprintf("https://rule34.xxx/index.php?page=post&s=view&id=%s", postID)
+	req, _ := http.NewRequest("GET", postURL, nil)
+	req.Header.Set("User-Agent", getRandomUA())
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	tokenizer := html.NewTokenizer(resp.Body)
+	for {
+		tt := tokenizer.Next()
+		if tt == html.ErrorToken {
+			break
+		}
+		token := tokenizer.Token()
+		if (token.Type == html.StartTagToken || token.Type == html.SelfClosingTagToken) && token.Data == "img" {
+			for _, attr := range token.Attr {
+				if attr.Key == "id" && attr.Val == "image" {
+					for _, a := range token.Attr {
+						if a.Key == "src" {
+							src := a.Val
+							if strings.HasPrefix(src, "//") {
+								src = "https:" + src
+							}
+							return src
+						}
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
 
 // =============================================================================
 // UTILS
