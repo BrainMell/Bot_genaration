@@ -185,51 +185,53 @@ func isImageURL(url string) bool {
 // =============================================================================
 
 type KlipyResponse struct {
-        Results []struct {
-                Files struct {
-                        Gif struct { URL string `json:"url"` } `json:"gif"`
-                } `json:"files"`
-        } `json:"results"`
+	Results []struct {
+		MediaFormats map[string]struct {
+			URL string `json:"url"`
+		} `json:"media_formats"`
+	} `json:"results"`
 }
 
 func SearchStickers(c *gin.Context) {
-        query := c.Query("query")
-        if query == "" {
-                c.JSON(400, gin.H{"error": "Query required"})
-                return
-        }
+	query := c.Query("query")
+	if query == "" {
+		c.JSON(400, gin.H{"error": "Query required"})
+		return
+	}
 
-        key := os.Getenv("KLIPY_API_KEY")
-        if key == "" {
-                c.JSON(500, gin.H{"error": "KLIPY_API_KEY missing"})
-                return
-        }
+	key := os.Getenv("KLIPY_API_KEY")
+	if key == "" {
+		c.JSON(500, gin.H{"error": "KLIPY_API_KEY missing"})
+		return
+	}
 
-        apiURL := fmt.Sprintf("%s/search?key=%s&q=%s&limit=10", klipyBaseURL, key, url.QueryEscape(query))
-        
-        resp, err := httpClient.Get(apiURL)
-        if err != nil {
-                c.JSON(500, gin.H{"error": "API request failed"})
-                return
-        }
-        defer resp.Body.Close()
+	apiURL := fmt.Sprintf("%s/search?key=%s&q=%s&limit=10", klipyBaseURL, key, url.QueryEscape(query))
 
-        var kr KlipyResponse
-        if err := json.NewDecoder(resp.Body).Decode(&kr); err != nil {
-                c.JSON(500, gin.H{"error": "Failed to parse API response"})
-                return
-        }
+	resp, err := httpClient.Get(apiURL)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "API request failed"})
+		return
+	}
+	defer resp.Body.Close()
 
-        stickers := []string{}
-        for _, r := range kr.Results {
-                if r.Files.Gif.URL != "" {
-                        stickers = append(stickers, r.Files.Gif.URL)
-                }
-        }
+	var kr KlipyResponse
+	if err := json.NewDecoder(resp.Body).Decode(&kr); err != nil {
+		c.JSON(500, gin.H{"error": "Failed to parse API response"})
+		return
+	}
 
-        c.JSON(200, gin.H{"stickers": stickers, "count": len(stickers)})
+	stickers := []string{}
+	for _, r := range kr.Results {
+		// Prefer tinygif or gif for WhatsApp stickers
+		if format, ok := r.MediaFormats["tinygif"]; ok && format.URL != "" {
+			stickers = append(stickers, format.URL)
+		} else if format, ok := r.MediaFormats["gif"]; ok && format.URL != "" {
+			stickers = append(stickers, format.URL)
+		}
+	}
+
+	c.JSON(200, gin.H{"stickers": stickers, "count": len(stickers)})
 }
-
 // =============================================================================
 // VS BATTLES - Improved Extraction
 // =============================================================================
@@ -518,11 +520,15 @@ func getRandomUA() string {
 }
 
 func stripHTML(s string) string {
-        reStyles := regexp.MustCompile(`(?s)<(style|script)[^>]*>.*?</\1>`)
-        s = reStyles.ReplaceAllString(s, "")
-        reTags := regexp.MustCompile(`<[^>]+>`)
-        cleaned := reTags.ReplaceAllString(s, " ")
-        return regexp.MustCompile(`\s+`).ReplaceAllString(cleaned, " ")
+	// Go regexp doesn't support backreferences (\1), use separate patterns
+	reStyle := regexp.MustCompile(`(?s)<style[^>]*>.*?</style>`)
+	s = reStyle.ReplaceAllString(s, "")
+	reScript := regexp.MustCompile(`(?s)<script[^>]*>.*?</script>`)
+	s = reScript.ReplaceAllString(s, "")
+
+	reTags := regexp.MustCompile(`<[^>]+>`)
+	cleaned := reTags.ReplaceAllString(s, " ")
+	return regexp.MustCompile(`\s+`).ReplaceAllString(cleaned, " ")
 }
 
 func deduplicateStrings(input []string) []string {
