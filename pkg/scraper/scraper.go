@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/net/html"
 )
@@ -40,19 +41,11 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func SetBrowser(b interface{}) {
-	// No-op for memory optimization (rod removed)
-}
+func SetBrowser(b interface{}) {}
 
 // =============================================================================
-// IMAGE SEARCH - DuckDuckGo Scraper (High Reliability)
+// IMAGE SEARCH - DuckDuckGo
 // =============================================================================
-
-type PinterestResponse struct {
-	Images []string `json:"images"`
-	Count  int      `json:"count"`
-	Note   string   `json:"note,omitempty"`
-}
 
 func SearchPinterest(c *gin.Context) {
 	query := c.Query("query")
@@ -66,38 +59,9 @@ func SearchPinterest(c *gin.Context) {
 		fmt.Sscanf(max, "%d", &maxResults)
 	}
 
-	// Diversified searches
-	queries := []string{
-		fmt.Sprintf("%s hd wallpaper", query),
-		fmt.Sprintf("%s aesthetic photo", query),
-		fmt.Sprintf("%s high resolution", query),
-	}
-
-	images := []string{}
-	for _, q := range queries {
-		if len(images) >= maxResults {
-			break
-		}
-		found := scrapeImagesFromDDG(q, 15)
-		images = append(images, found...)
-		images = deduplicateStrings(images)
-	}
-
-	if len(images) > maxResults {
-		images = images[:maxResults]
-	}
-
-	c.JSON(200, PinterestResponse{
-		Images: images,
-		Count:  len(images),
-		Note:   "DuckDuckGo Image Scraper V2",
-	})
-}
-
-func scrapeImagesFromDDG(query string, limit int) []string {
 	searchURL := "https://html.duckduckgo.com/html/"
 	formData := url.Values{}
-	formData.Set("q", query)
+	formData.Set("q", query+" hd wallpaper")
 
 	req, _ := http.NewRequest("POST", searchURL, strings.NewReader(formData.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -105,11 +69,13 @@ func scrapeImagesFromDDG(query string, limit int) []string {
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return []string{}
+		c.JSON(500, gin.H{"error": "Search failed"})
+		return
 	}
 	defer resp.Body.Close()
 
-	return parseDDGHTML(resp.Body, limit)
+	images := parseDDGHTML(resp.Body, maxResults)
+	c.JSON(200, gin.H{"images": images, "count": len(images)})
 }
 
 func parseDDGHTML(body io.Reader, limit int) []string {
@@ -122,43 +88,24 @@ func parseDDGHTML(body io.Reader, limit int) []string {
 		if tt == html.ErrorToken {
 			break
 		}
-
 		token := tokenizer.Token()
 		if token.Type == html.StartTagToken && token.Data == "a" {
 			for _, attr := range token.Attr {
 				if attr.Key == "href" {
 					link := attr.Val
 					actual := ""
-
 					if strings.Contains(link, "uddg=") {
 						parts := strings.Split(link, "uddg=")
 						if len(parts) > 1 {
-							decoded, err := url.QueryUnescape(parts[1])
-							if err == nil {
-								actual = strings.Split(decoded, "&")[0]
-							}
+							decoded, _ := url.QueryUnescape(parts[1])
+							actual = strings.Split(decoded, "&")[0]
 						}
 					} else if strings.HasPrefix(link, "http") {
 						actual = link
 					}
-
 					if actual != "" && isImageURL(actual) && !seen[actual] && !strings.Contains(actual, "duckduckgo.com") {
 						seen[actual] = true
 						urls = append(urls, actual)
-						if len(urls) >= limit {
-							return urls
-						}
-					}
-				}
-			}
-		}
-		if token.Type == html.StartTagToken && token.Data == "img" {
-			for _, attr := range token.Attr {
-				if attr.Key == "src" {
-					val := attr.Val
-					if !seen[val] && isImageURL(val) && !strings.Contains(val, "duckduckgo.com") && len(val) > 20 {
-						seen[val] = true
-						urls = append(urls, val)
 						if len(urls) >= limit {
 							return urls
 						}
@@ -174,61 +121,54 @@ func isImageURL(url string) bool {
 	l := strings.ToLower(url)
 	return strings.HasSuffix(l, ".jpg") || strings.HasSuffix(l, ".jpeg") ||
 		strings.HasSuffix(l, ".png") || strings.HasSuffix(l, ".gif") ||
-		strings.HasSuffix(l, ".webp") || strings.Contains(l, ".jpg?") ||
-		strings.Contains(l, ".png?")
+		strings.HasSuffix(l, ".webp")
 }
 
 // =============================================================================
-// STICKERS - Klipy v1 API
+// STICKERS - Klipy
 // =============================================================================
-
-type KlipyResponse struct {
-	Result bool `json:"result"`
-	Data   struct {
-		Data []struct {
-			File struct {
-				HD struct {
-					GIF struct {
-						URL string `json:"url"`
-					} `json:"gif"`
-				} `json:"hd"`
-			} `json:"file"`
-		} `json:"data"`
-	} `json:"data"`
-}
 
 func SearchStickers(c *gin.Context) {
 	query := c.Query("query")
-	if query == "" {
-		c.JSON(400, gin.H{"error": "Query required"})
-		return
-	}
-
 	key := os.Getenv("KLIPY_API_KEY")
 	if key == "" {
-		c.JSON(500, gin.H{"error": "KLIPY_API_KEY missing"})
+		c.JSON(500, gin.H{"error": "KLIPY_API_KEY environment variable is not set"})
 		return
 	}
 
-	apiURL := fmt.Sprintf("%s/%s/stickers/search?q=%s&per_page=10&customer_id=goten_bot", klipyBaseURL, key, url.QueryEscape(query))
-
-	resp, err := httpClient.Get(apiURL)
+	apiURL := fmt.Sprintf("https://api.klipy.com/api/v1/%s/stickers/search?q=%s&per_page=10&customer_id=goten_bot", key, url.QueryEscape(query))
+	
+	req, _ := http.NewRequest("GET", apiURL, nil)
+	req.Header.Set("User-Agent", getRandomUA())
+	
+	resp, err := httpClient.Do(req)
 	if err != nil {
-		c.JSON(500, gin.H{"error": "API request failed"})
+		c.JSON(500, gin.H{"error": "Klipy API request failed"})
 		return
 	}
 	defer resp.Body.Close()
 
-	var kr KlipyResponse
-	if err := json.NewDecoder(resp.Body).Decode(&kr); err != nil {
-		c.JSON(500, gin.H{"error": "Failed to parse API response"})
+	var result struct {
+		Data struct {
+			Data []struct {
+				File struct {
+					HD struct {
+						GIF struct { URL string `json:"url"` } `json:"gif"`
+					} `json:"hd"`
+				} `json:"file"`
+			} `json:"data"`
+		} `json:"data"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		c.JSON(500, gin.H{"error": "Failed to decode Klipy response"})
 		return
 	}
 
 	stickers := []string{}
-	for _, r := range kr.Data.Data {
-		if r.File.HD.GIF.URL != "" {
-			stickers = append(stickers, r.File.HD.GIF.URL)
+	for _, item := range result.Data.Data {
+		if item.File.HD.GIF.URL != "" {
+			stickers = append(stickers, item.File.HD.GIF.URL)
 		}
 	}
 
@@ -236,16 +176,11 @@ func SearchStickers(c *gin.Context) {
 }
 
 // =============================================================================
-// VS BATTLES - Robust Low-RAM Extraction
+// VS BATTLES - Heavy Duty goquery Parser
 // =============================================================================
 
 func SearchVSBattles(c *gin.Context) {
 	query := c.Query("query")
-	if query == "" {
-		c.JSON(400, gin.H{"error": "Query required"})
-		return
-	}
-
 	searchURL := "https://html.duckduckgo.com/html/"
 	formData := url.Values{}
 	formData.Set("q", query+" vs battles wiki")
@@ -261,61 +196,37 @@ func SearchVSBattles(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
-	characters := []gin.H{}
-	tokenizer := html.NewTokenizer(resp.Body)
-	seen := make(map[string]bool)
-
-	for {
-		tt := tokenizer.Next()
-		if tt == html.ErrorToken {
-			break
-		}
-		token := tokenizer.Token()
-		if token.Type == html.StartTagToken && token.Data == "a" {
-			for _, attr := range token.Attr {
-				if attr.Key == "href" && (strings.Contains(attr.Val, "vsbattles.fandom.com/wiki/") || strings.Contains(attr.Val, "uddg=")) {
-					link := attr.Val
-					actual := ""
-
-					if strings.Contains(link, "uddg=") {
-						parts := strings.Split(link, "uddg=")
-						if len(parts) > 1 {
-							decoded, _ := url.QueryUnescape(parts[1])
-							actual = strings.Split(decoded, "&")[0]
-						}
-					} else if strings.Contains(link, "vsbattles.fandom.com/wiki/") {
-						actual = link
-					}
-
-					if actual != "" && strings.Contains(actual, "vsbattles.fandom.com/wiki/") && !seen[actual] && !strings.Contains(actual, "Special:") && !strings.Contains(actual, "Category:") {
-						seen[actual] = true
-						name := actual[strings.LastIndex(actual, "/")+1:]
-						name = strings.ReplaceAll(name, "_", " ")
-						characters = append(characters, gin.H{"name": name, "url": actual})
-					}
-				}
-			}
-		}
-		if len(characters) >= 5 {
-			break
-		}
-	}
-
-	if len(characters) == 0 {
-		c.JSON(404, gin.H{"error": "No characters found"})
+	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to parse search results"})
 		return
 	}
+
+	characters := []gin.H{}
+	doc.Find("a.result__a").Each(func(i int, s *goquery.Selection) {
+		href, _ := s.Attr("href")
+		if strings.Contains(href, "vsbattles.fandom.com/wiki/") && len(characters) < 5 {
+			// Clean URL
+			actual := href
+			if strings.Contains(href, "uddg=") {
+				parts := strings.Split(href, "uddg=")
+				decoded, _ := url.QueryUnescape(parts[1])
+				actual = strings.Split(decoded, "&")[0]
+			}
+			
+			if !strings.Contains(actual, "Special:") && !strings.Contains(actual, "Category:") {
+				name := actual[strings.LastIndex(actual, "/")+1:]
+				name = strings.ReplaceAll(name, "_", " ")
+				characters = append(characters, gin.H{"name": name, "url": actual})
+			}
+		}
+	})
 
 	c.JSON(200, gin.H{"characters": characters})
 }
 
 func GetVSBattlesDetail(c *gin.Context) {
 	pageURL := c.Query("url")
-	if pageURL == "" {
-		c.JSON(400, gin.H{"error": "URL required"})
-		return
-	}
-
 	req, _ := http.NewRequest("GET", pageURL, nil)
 	req.Header.Set("User-Agent", getRandomUA())
 	resp, err := httpClient.Do(req)
@@ -325,8 +236,11 @@ func GetVSBattlesDetail(c *gin.Context) {
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
-	htmlContent := string(body)
+	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to parse character page"})
+		return
+	}
 
 	detail := gin.H{
 		"tier":          "Unknown",
@@ -335,105 +249,67 @@ func GetVSBattlesDetail(c *gin.Context) {
 		"durability":    "N/A",
 		"stamina":       "N/A",
 		"range":         "N/A",
-		"summary":       "No summary available.",
+		"summary":       "",
 		"imageUrl":      "",
 	}
 
-	// 1. Precise Image Extraction
-	imgRe := regexp.MustCompile(`class="pi-image-thumbnail"[^>]*src="([^"]+)"`)
-	if m := imgRe.FindStringSubmatch(htmlContent); len(m) > 1 {
-		img := m[1]
-		if strings.Contains(img, "/revision/") {
-			img = strings.Split(img, "/revision/")[0]
+	// 1. Precise Data Extraction from Portable Infobox
+	doc.Find(".pi-item").Each(func(i int, s *goquery.Selection) {
+		label := strings.TrimSpace(s.Find(".pi-data-label").Text())
+		value := strings.TrimSpace(s.Find(".pi-data-value").Text())
+		
+		// Clean value (remove citations like [1])
+		value = regexp.MustCompile(`\[.*?\]`).ReplaceAllString(value, "")
+		value = strings.Split(value, "(")[0] // Take first part before extra info
+		value = strings.TrimSpace(value)
+
+		switch {
+		case strings.Contains(label, "Tier"): detail["tier"] = value
+		case strings.Contains(label, "Attack Potency"): detail["attackPotency"] = value
+		case strings.Contains(label, "Speed"): detail["speed"] = value
+		case strings.Contains(label, "Durability"): detail["durability"] = value
+		case strings.Contains(label, "Stamina"): detail["stamina"] = value
+		case strings.Contains(label, "Range"): detail["range"] = value
 		}
-		detail["imageUrl"] = img
+	})
+
+	// 2. Image
+	img, _ := doc.Find("img.pi-image-thumbnail").Attr("src")
+	if img != "" {
+		detail["imageUrl"] = strings.Split(img, "/revision/")[0]
 	}
 
-	// 2. Clean text for stat extraction
-	text := stripHTML(htmlContent)
-
-	stats := map[string]string{
-		"tier":          "Tier",
-		"attackPotency": "Attack Potency",
-		"speed":         "Speed",
-		"durability":    "Durability",
-		"stamina":       "Stamina",
-		"range":         "Range",
-	}
-
-	for key, label := range stats {
-		re := regexp.MustCompile(`(?i)` + label + `\s*:\s*([^(\n|]+)`)
-		if m := re.FindStringSubmatch(text); len(m) > 1 {
-			val := strings.TrimSpace(m[1])
-			if len(val) > 1 {
-				detail[key] = val
-			}
+	// 3. Summary (First paragraph after infobox)
+	doc.Find(".mw-parser-output > p").EachWithBreak(func(i int, s *goquery.Selection) bool {
+		txt := strings.TrimSpace(s.Text())
+		if len(txt) > 50 {
+			detail["summary"] = strings.Split(txt, ".")[0] + "."
+			return false
 		}
-	}
-
-	// 3. Summary Extraction
-	paragraphs := strings.Split(text, ". ")
-	for _, p := range paragraphs {
-		p = strings.TrimSpace(p)
-		if len(p) > 100 && !strings.Contains(p, "Tier:") && !strings.Contains(p, "Attack Potency:") {
-			detail["summary"] = p + "."
-			break
-		}
-	}
-
-	nameParts := strings.Split(pageURL, "/wiki/")
-	if len(nameParts) > 1 {
-		detail["name"] = strings.ReplaceAll(nameParts[1], "_", " ")
-	}
+		return true
+	})
 
 	c.JSON(200, detail)
 }
 
-func getWikipediaImage(name string) string {
-	name = regexp.MustCompile(`\([^)]+\)`).ReplaceAllString(name, "")
-	apiURL := fmt.Sprintf("https://en.wikipedia.org/w/api.php?action=query&titles=%s&prop=pageimages&format=json&pithumbsize=500&redirects=1", url.QueryEscape(strings.TrimSpace(name)))
-	resp, _ := http.Get(apiURL)
-	if resp != nil {
-		defer resp.Body.Close()
-		var result struct {
-			Query struct {
-				Pages map[string]struct {
-					Thumbnail struct{ Source string `json:"source"` } `json:"thumbnail"`
-				} `json:"pages"`
-			} `json:"query"`
-		}
-		json.NewDecoder(resp.Body).Decode(&result)
-		for _, p := range result.Query.Pages {
-			if p.Thumbnail.Source != "" {
-				return p.Thumbnail.Source
-			}
-		}
-	}
-	return ""
-}
-
 // =============================================================================
-// RULE34 - API + WEB FALLBACK
+// RULE34 - API + WEB
 // =============================================================================
 
 func SearchRule34(c *gin.Context) {
 	query := c.Query("query")
-	images := []string{}
-
 	apiURL := fmt.Sprintf("https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&limit=10&tags=%s", url.QueryEscape(query))
 	resp, err := httpClient.Get(apiURL)
+	images := []string{}
+	
 	if err == nil {
 		defer resp.Body.Close()
-		var posts []struct {
-			FileURL string `json:"file_url"`
-		}
+		var posts []struct { FileURL string `json:"file_url"` }
 		if err := json.NewDecoder(resp.Body).Decode(&posts); err == nil {
 			for _, p := range posts {
 				if p.FileURL != "" {
 					img := p.FileURL
-					if strings.HasPrefix(img, "//") {
-						img = "https:" + img
-					}
+					if strings.HasPrefix(img, "//") { img = "https:" + img }
 					images = append(images, img)
 				}
 			}
@@ -443,106 +319,47 @@ func SearchRule34(c *gin.Context) {
 	if len(images) == 0 {
 		images = scrapeRule34Web(query, 10)
 	}
-
 	c.JSON(200, gin.H{"images": images, "count": len(images)})
 }
 
 func scrapeRule34Web(query string, limit int) []string {
 	tag := strings.ReplaceAll(query, " ", "_")
 	searchURL := fmt.Sprintf("https://rule34.xxx/index.php?page=post&s=list&tags=%s", url.QueryEscape(tag))
-
 	req, _ := http.NewRequest("GET", searchURL, nil)
 	req.Header.Set("User-Agent", getRandomUA())
 	resp, err := httpClient.Do(req)
-	if err != nil {
-		return []string{}
-	}
+	if err != nil { return []string{} }
 	defer resp.Body.Close()
 
-	var postIDs []string
-	tokenizer := html.NewTokenizer(resp.Body)
-	for {
-		tt := tokenizer.Next()
-		if tt == html.ErrorToken {
-			break
-		}
-		token := tokenizer.Token()
-		if token.Type == html.StartTagToken && token.Data == "span" {
-			for _, attr := range token.Attr {
-				if attr.Key == "id" && strings.HasPrefix(attr.Val, "s") {
-					id := attr.Val[1:]
-					postIDs = append(postIDs, id)
-				}
+	doc, _ := goquery.NewDocumentFromReader(resp.Body)
+	images := []string{}
+	doc.Find("span.thumb").Each(func(i int, s *goquery.Selection) {
+		if len(images) < limit {
+			id, _ := s.Attr("id")
+			if strings.HasPrefix(id, "s") {
+				img := getRule34ImageDirect(id[1:])
+				if img != "" { images = append(images, img) }
 			}
 		}
-		if len(postIDs) >= limit {
-			break
-		}
-	}
-
-	images := []string{}
-	for _, id := range postIDs {
-		imgURL := getRule34ImageDirect(id)
-		if imgURL != "" {
-			images = append(images, imgURL)
-		}
-	}
+	})
 	return images
 }
 
-func getRule34ImageDirect(postID string) string {
-	postURL := fmt.Sprintf("https://rule34.xxx/index.php?page=post&s=view&id=%s", postID)
+func getRule34ImageDirect(id string) string {
+	postURL := fmt.Sprintf("https://rule34.xxx/index.php?page=post&s=view&id=%s", id)
 	req, _ := http.NewRequest("GET", postURL, nil)
 	req.Header.Set("User-Agent", getRandomUA())
 	resp, err := httpClient.Do(req)
-	if err != nil {
-		return ""
-	}
+	if err != nil { return "" }
 	defer resp.Body.Close()
-
-	tokenizer := html.NewTokenizer(resp.Body)
-	for {
-		tt := tokenizer.Next()
-		if tt == html.ErrorToken {
-			break
-		}
-		token := tokenizer.Token()
-		if (token.Type == html.StartTagToken || token.Type == html.SelfClosingTagToken) && token.Data == "img" {
-			for _, attr := range token.Attr {
-				if attr.Key == "id" && attr.Val == "image" {
-					for _, a := range token.Attr {
-						if a.Key == "src" {
-							src := a.Val
-							if strings.HasPrefix(src, "//") {
-								src = "https:" + src
-							}
-							return src
-						}
-					}
-				}
-			}
-		}
-	}
-	return ""
+	doc, _ := goquery.NewDocumentFromReader(resp.Body)
+	src, _ := doc.Find("#image").Attr("src")
+	if src != "" && strings.HasPrefix(src, "//") { src = "https:" + src }
+	return src
 }
-
-// =============================================================================
-// UTILS
-// =============================================================================
 
 func getRandomUA() string {
 	return userAgents[rand.Intn(len(userAgents))]
-}
-
-func stripHTML(s string) string {
-	reStyle := regexp.MustCompile(`(?s)<style[^>]*>.*?</style>`)
-	s = reStyle.ReplaceAllString(s, "")
-	reScript := regexp.MustCompile(`(?s)<script[^>]*>.*?</script>`)
-	s = reScript.ReplaceAllString(s, "")
-
-	reTags := regexp.MustCompile(`<[^>]+>`)
-	cleaned := reTags.ReplaceAllString(s, " ")
-	return regexp.MustCompile(`\s+`).ReplaceAllString(cleaned, " ")
 }
 
 func deduplicateStrings(input []string) []string {
