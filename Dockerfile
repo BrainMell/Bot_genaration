@@ -1,5 +1,5 @@
 # Go Image Service - Lightweight with ffmpeg + yt-dlp
-FROM golang:1.21-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates
