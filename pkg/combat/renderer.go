@@ -225,17 +225,17 @@ func GenerateCombatImage(c *gin.Context) {
 			cropH := int(float64(bounds.Dy()) * 0.3)
 			croppedSprite := imaging.Crop(pSprite, image.Rect(0, 0, bounds.Dx(), cropH))
 			
-			// Position at normX(-660), normY(191) - cropH
-			dc.DrawImage(croppedSprite, normX(-660), normY(191)-cropH)
+			// Position at normX(-660), normY(220) - cropH
+			dc.DrawImage(croppedSprite, normX(-660), normY(220)-cropH)
 			
 			// 6. Second Sprite (Small full-body on battlefield) - PvE only
 			if req.CombatType != "PVP" {
 				s2Size := 122
 				smallSprite := imaging.Resize(pSprite, s2Size, 0, imaging.Lanczos)
 				
-				// Position: startX - 500, startY + 10
+				// Position: startX - 500, startY + 30
 				s2X := int(startX - 500)
-				s2Y := int(startY + 10)
+				s2Y := int(startY + 30)
 				
 				// Shadow
 				utils.DrawShadow(dc, float64(s2X)+float64(s2Size)/2, float64(s2Y)+float64(smallSprite.Bounds().Dy()), 150, 0.6)
