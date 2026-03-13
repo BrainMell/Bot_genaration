@@ -24,6 +24,11 @@ func main() {
 	scraper.InitBrowser()
 	defer scraper.CloseBrowser()
 
+	// ensure downloads directory exists so static files are served
+	if err := os.MkdirAll("downloads", 0755); err != nil {
+		log.Fatalf("failed to create downloads dir: %v", err)
+	}
+
 	// Set Gin to release mode for production
 	gin.SetMode(gin.ReleaseMode)
 	port := os.Getenv("PORT")
@@ -31,6 +36,9 @@ func main() {
 		port = "7860"
 	}
 	r := gin.Default()
+
+	// serve downloaded mp3s (so WhatsApp / clients can fetch them)
+	r.Static("/downloads", "./downloads")
 
 	// Global Middleware
 	r.Use(func(c *gin.Context) {
@@ -85,7 +93,7 @@ func main() {
 			scrape.GET("/pinterest", scraper.ScrapePinterest)
 			scrape.GET("/stickers", scraper.SearchStickers)
 			scrape.GET("/rule34", scraper.ScrapeRule34)
-			
+
 			// New Chrome-powered scrapers
 			scrape.GET("/powerscale", scraper.ScrapePowerscale)
 			scrape.GET("/pornpics", scraper.ScrapePornPics)
