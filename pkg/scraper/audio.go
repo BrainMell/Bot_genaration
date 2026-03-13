@@ -3,7 +3,9 @@ package scraper
 import (
 	"encoding/json"
 	"fmt"
-	"os/exec"
+	"io"
+	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -17,7 +19,36 @@ type AudioMetadata struct {
 	URL       string `json:"url"`
 }
 
-// ScrapeAudio uses yt-dlp with SoundCloud — HF doesn't block SoundCloud.
+// Piped instances — falls back if one is down
+var pipedInstances = []string{
+	"https://piped.video",
+	"https://piped.kavin.rocks",
+	"https://piped.adminforge.de",
+}
+
+type pipedSearchResult struct {
+	Items []struct {
+		URL          string `json:"url"`
+		Title        string `json:"title"`
+		Thumbnail    string `json:"thumbnail"`
+		UploaderName string `json:"uploaderName"`
+		Duration     int    `json:"duration"`
+	} `json:"items"`
+}
+
+type pipedStreams struct {
+	Title        string `json:"title"`
+	ThumbnailUrl string `json:"thumbnailUrl"`
+	Uploader     string `json:"uploader"`
+	Duration     int    `json:"duration"`
+	AudioStreams  []struct {
+		URL     string `json:"url"`
+		Quality string `json:"quality"`
+		Bitrate int    `json:"bitrate"`
+	} `json:"audioStreams"`
+}
+
+// ScrapeAudio uses Piped API — pure HTTPS, no yt-dlp, no browser, works on HF Spaces.
 func ScrapeAudio(c *gin.Context) {
 	query := c.Query("query")
 	if query == "" {
@@ -25,78 +56,111 @@ func ScrapeAudio(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("[Audio] SoundCloud searching for: %s\n", query)
+	fmt.Printf("[Audio] Piped search for: %s\n", query)
 
-	// Step 1: Search SoundCloud via yt-dlp (HF doesn't block SoundCloud)
-	searchCmd := exec.Command(
-		"yt-dlp",
-		"scsearch1:"+query,
-		"--dump-json",
-		"--flat-playlist",
-		"--no-warnings",
-	)
-	searchOut, err := searchCmd.CombinedOutput()
-	if err != nil {
-		fmt.Printf("[Audio] Search failed: %v, output: %s\n", err, string(searchOut))
-		c.JSON(500, gin.H{"error": "Search failed: " + err.Error()})
+	// --- Step 1: Search ---
+	videoID := ""
+	title, thumbnail, uploader := "", "", ""
+	duration := 0
+
+	for _, instance := range pipedInstances {
+		searchURL := fmt.Sprintf("%s/api/v1/search?q=%s&filter=music_songs",
+			instance, url.QueryEscape(query))
+
+		resp, err := http.Get(searchURL)
+		if err != nil {
+			fmt.Printf("[Audio] %s search error: %v\n", instance, err)
+			continue
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		var result pipedSearchResult
+		if err := json.Unmarshal(body, &result); err != nil || len(result.Items) == 0 {
+			fmt.Printf("[Audio] %s returned no results\n", instance)
+			continue
+		}
+
+		first := result.Items[0]
+		// URL format: "/watch?v=VIDEO_ID"
+		parts := strings.Split(first.URL, "v=")
+		if len(parts) < 2 {
+			continue
+		}
+		videoID = strings.Split(parts[1], "&")[0]
+		title = first.Title
+		thumbnail = first.Thumbnail
+		uploader = first.UploaderName
+		duration = first.Duration
+		fmt.Printf("[Audio] Found: %s (ID: %s)\n", title, videoID)
+		break
+	}
+
+	if videoID == "" {
+		c.JSON(500, gin.H{"error": "No search results found"})
 		return
 	}
 
-	line := strings.TrimSpace(string(searchOut))
-	if line == "" {
-		c.JSON(500, gin.H{"error": "No results returned"})
-		return
+	// --- Step 2: Get streams ---
+	audioURL := ""
+
+	for _, instance := range pipedInstances {
+		streamsURL := fmt.Sprintf("%s/streams/%s", instance, videoID)
+
+		resp, err := http.Get(streamsURL)
+		if err != nil {
+			fmt.Printf("[Audio] %s streams error: %v\n", instance, err)
+			continue
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		var streams pipedStreams
+		if err := json.Unmarshal(body, &streams); err != nil || len(streams.AudioStreams) == 0 {
+			fmt.Printf("[Audio] %s no streams\n", instance)
+			continue
+		}
+
+		// Pick highest bitrate
+		best := streams.AudioStreams[0]
+		for _, s := range streams.AudioStreams {
+			if s.Bitrate > best.Bitrate {
+				best = s
+			}
+		}
+		audioURL = best.URL
+
+		// Prefer richer metadata from streams endpoint
+		if streams.ThumbnailUrl != "" {
+			thumbnail = streams.ThumbnailUrl
+		}
+		if streams.Uploader != "" {
+			uploader = streams.Uploader
+		}
+		if streams.Title != "" {
+			title = streams.Title
+		}
+		if streams.Duration > 0 {
+			duration = streams.Duration
+		}
+
+		fmt.Printf("[Audio] Stream ready for: %s\n", title)
+		break
 	}
 
-	var entry struct {
-		ID        string  `json:"id"`
-		Title     string  `json:"title"`
-		Uploader  string  `json:"uploader"`
-		Thumbnail string  `json:"thumbnail"`
-		Duration  float64 `json:"duration"`
-		WebpageURL string `json:"webpage_url"`
-	}
-	if err := json.Unmarshal([]byte(line), &entry); err != nil {
-		fmt.Printf("[Audio] Parse failed: %v, raw: %.200s\n", err, line)
-		c.JSON(500, gin.H{"error": "Failed to parse search result"})
-		return
-	}
-
-	trackURL := entry.WebpageURL
-	if trackURL == "" {
-		trackURL = "https://soundcloud.com/" + entry.ID
-	}
-	fmt.Printf("[Audio] Found track: %s (%s)\n", entry.Title, trackURL)
-
-	// Step 2: Get direct audio stream URL
-	urlCmd := exec.Command(
-		"yt-dlp",
-		"-f", "bestaudio",
-		"--get-url",
-		"--no-warnings",
-		trackURL,
-	)
-	directURLBytes, err := urlCmd.CombinedOutput()
-	if err != nil {
-		fmt.Printf("[Audio] Extract failed: %v, output: %s\n", err, string(directURLBytes))
-		c.JSON(500, gin.H{"error": "Failed to extract audio stream: " + string(directURLBytes)})
-		return
-	}
-
-	directURL := strings.TrimSpace(string(directURLBytes))
-	if directURL == "" {
-		c.JSON(500, gin.H{"error": "Empty audio URL returned"})
+	if audioURL == "" {
+		c.JSON(500, gin.H{"error": "Could not get audio stream from any Piped instance"})
 		return
 	}
 
 	c.JSON(200, gin.H{
 		"metadata": AudioMetadata{
-			Title:     entry.Title,
-			Author:    entry.Uploader,
-			Thumbnail: entry.Thumbnail,
-			Duration:  fmt.Sprintf("%.0fs", entry.Duration),
-			URL:       trackURL,
+			Title:     title,
+			Author:    uploader,
+			Thumbnail: thumbnail,
+			Duration:  fmt.Sprintf("%ds", duration),
+			URL:       "https://www.youtube.com/watch?v=" + videoID,
 		},
-		"audioURL": directURL,
+		"audioURL": audioURL,
 	})
 }
