@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"regexp"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,115 +20,78 @@ type AudioMetadata struct {
 	URL       string `json:"url"`
 }
 
-// Stable Invidious instance
-const invidiousInstance = "https://inv.nadeko.net"
+var httpClient = &http.Client{Timeout: 10 * time.Second}
 
-type searchResult struct {
-	Type      string `json:"type"`
-	Title     string `json:"title"`
-	Author    string `json:"author"`
-	VideoID   string `json:"videoId"`
-	LengthSec int    `json:"lengthSeconds"`
-}
-
-type videoStreams struct {
-	Title        string `json:"title"`
-	Author       string `json:"author"`
-	VideoID      string `json:"videoId"`
-	LengthSec    int    `json:"lengthSeconds"`
-	AdaptiveFormats []struct {
-		Type string `json:"type"`
-		URL  string `json:"url"`
-		Bitrate int `json:"bitrate"`
-	} `json:"adaptiveFormats"`
-}
-
+// Uses Jina AI reader proxy to fetch the YouTube search page HTML.
+// Then uses YouTube oEmbed (no API key) for metadata.
 func ScrapeAudio(c *gin.Context) {
-
 	query := c.Query("query")
 	if query == "" {
 		c.JSON(400, gin.H{"error": "query required"})
 		return
 	}
 
-	fmt.Println("[Audio] Searching:", query)
+	fmt.Printf("[Audio] Searching (via r.jina.ai) for: %s\n", query)
 
-	// --- STEP 1: SEARCH ---
-	searchURL := fmt.Sprintf("%s/api/v1/search?q=%s&type=video",
-		invidiousInstance, query)
+	// 1) Fetch YouTube search HTML via Jina reader proxy (avoids needing JS)
+	//    Example: https://r.jina.ai/http://www.youtube.com/results?search_query=babydoll
+	searchURL := "https://r.jina.ai/http://www.youtube.com/results?search_query=" + url.QueryEscape(query)
 
-	resp, err := http.Get(searchURL)
+	resp, err := httpClient.Get(searchURL)
 	if err != nil {
-		c.JSON(500, gin.H{"error": "search request failed"})
+		c.JSON(500, gin.H{"error": "search proxy failed", "detail": err.Error()})
 		return
 	}
-
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
+	html := string(body)
 
-	var results []searchResult
-	json.Unmarshal(body, &results)
-
-	if len(results) == 0 {
-		c.JSON(500, gin.H{"error": "no results"})
+	// 2) Extract first video id from HTML
+	//    standard yt id pattern: 11 chars of [A-Za-z0-9_-]
+	re := regexp.MustCompile(`watch\?v=([A-Za-z0-9_\-]{11})`)
+	matches := re.FindStringSubmatch(html)
+	if len(matches) < 2 {
+		c.JSON(500, gin.H{"error": "no video id found"})
 		return
 	}
+	videoID := matches[1]
+	fmt.Printf("[Audio] Found video id: %s\n", videoID)
 
-	video := results[0]
-	videoID := video.VideoID
+	// 3) Get metadata via YouTube oEmbed (no API key needed)
+	oembedURL := "https://www.youtube.com/oembed?url=" + url.QueryEscape("https://www.youtube.com/watch?v="+videoID) + "&format=json"
 
-	fmt.Println("[Audio] Found video:", video.Title)
-
-	// --- STEP 2: GET STREAMS ---
-	streamURL := fmt.Sprintf("%s/api/v1/videos/%s",
-		invidiousInstance, videoID)
-
-	resp2, err := http.Get(streamURL)
+	resp2, err := httpClient.Get(oembedURL)
 	if err != nil {
-		c.JSON(500, gin.H{"error": "stream request failed"})
+		c.JSON(500, gin.H{"error": "oembed failed", "detail": err.Error()})
 		return
 	}
-
 	body2, _ := io.ReadAll(resp2.Body)
 	resp2.Body.Close()
 
-	var streams videoStreams
-	json.Unmarshal(body2, &streams)
-
-	audioURL := ""
-
-	bestBitrate := 0
-
-	for _, f := range streams.AdaptiveFormats {
-
-		if f.Type == "audio/webm" || f.Type == "audio/mp4" {
-
-			if f.Bitrate > bestBitrate {
-
-				bestBitrate = f.Bitrate
-				audioURL = f.URL
-			}
-		}
+	var oembed struct {
+		Title       string `json:"title"`
+		AuthorName  string `json:"author_name"`
+		ThumbnailURL string `json:"thumbnail_url"`
+		// note: oEmbed doesn't return duration, so we'll leave duration blank here
 	}
-
-	if audioURL == "" {
-		c.JSON(500, gin.H{"error": "no audio stream"})
+	if err := json.Unmarshal(body2, &oembed); err != nil {
+		c.JSON(500, gin.H{"error": "invalid oembed response", "detail": err.Error()})
 		return
 	}
 
-	thumbnail := fmt.Sprintf(
-		"https://i.ytimg.com/vi/%s/hqdefault.jpg",
-		videoID,
-	)
+	// 4) Build response. audioURL will be the watch URL (or embed URL if you prefer)
+	watchURL := "https://www.youtube.com/watch?v=" + videoID
+	embedURL := "https://www.youtube.com/embed/" + videoID
 
 	c.JSON(200, gin.H{
 		"metadata": AudioMetadata{
-			Title:     streams.Title,
-			Author:    streams.Author,
-			Thumbnail: thumbnail,
-			Duration:  fmt.Sprintf("%ds", streams.LengthSec),
-			URL:       "https://youtube.com/watch?v=" + videoID,
+			Title:     oembed.Title,
+			Author:    oembed.AuthorName,
+			Thumbnail: oembed.ThumbnailURL,
+			Duration:  "", // oEmbed doesn't include duration; would need another source
+			URL:       watchURL,
 		},
-		"audioURL": audioURL,
+		// Clients can either open "audioURL" directly in an <iframe>/<webview> or use watchURL
+		"audioURL": embedURL,
 	})
 }
