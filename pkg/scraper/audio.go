@@ -3,10 +3,13 @@ package scraper
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-rod/rod"
 )
 
 type AudioMetadata struct {
@@ -17,7 +20,7 @@ type AudioMetadata struct {
 	URL       string `json:"url"`
 }
 
-// ScrapeAudio handles YouTube searching and audio extraction via yt-dlp
+// ScrapeAudio handles YouTube searching (via Browser) and audio extraction (via yt-dlp)
 func ScrapeAudio(c *gin.Context) {
 	query := c.Query("query")
 	if query == "" {
@@ -25,42 +28,64 @@ func ScrapeAudio(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("[Audio] Processing query: %s\n", query)
+	fmt.Printf("[Audio] Processing browser-based search for: %s\n", query)
 
-	// 1. Search for the video using yt-dlp (get metadata)
-	// We use "ytsearch1:" to find the first result
-	cmd := exec.Command("yt-dlp", 
-		"--dump-json", 
-		"--no-playlist", 
-		"--flat-playlist", 
-		"ytsearch1:"+query)
-	
-	output, err := cmd.CombinedOutput()
+	var videoURL, title, thumb, author string
+
+	// 1. Browser-based Search Phase (Bypasses yt-dlp DNS issues)
+	err := WithPage(func(page *rod.Page) error {
+		searchURL := fmt.Sprintf("https://www.youtube.com/results?search_query=%s", url.QueryEscape(query))
+		page.MustNavigate(searchURL).MustWaitLoad()
+
+		// Wait for video results to appear
+		wait := page.MustWaitIdle()
+		wait()
+
+		// Extract first video link and metadata
+		// Selector for video title/link: ytd-video-renderer #video-title
+		videoEl, err := page.Element("ytd-video-renderer #video-title")
+		if err != nil {
+			return fmt.Errorf("no video results found in browser")
+		}
+
+		href, _ := videoEl.Attribute("href")
+		if href == nil {
+			return fmt.Errorf("could not extract video URL")
+		}
+
+		videoURL = "https://www.youtube.com" + *href
+		title = strings.TrimSpace(videoEl.MustText())
+
+		// Try to get author and thumbnail (optional)
+		if authEl, err := page.Element("ytd-video-renderer #channel-name a"); err == nil {
+			author = strings.TrimSpace(authEl.MustText())
+		}
+		
+		// Wait for image load
+		time.Sleep(1 * time.Second)
+		if imgEl, err := page.Element("ytd-video-renderer img"); err == nil {
+			src, _ := imgEl.Attribute("src")
+			if src != nil { thumb = *src }
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		fmt.Printf("[Audio] yt-dlp search error: %v, output: %s\n", err, string(output))
-		c.JSON(500, gin.H{"error": "Failed to find video"})
+		fmt.Printf("[Audio] Browser search failed: %v\n", err)
+		c.JSON(500, gin.H{"error": "Failed to find video via browser"})
 		return
 	}
 
-	var metadata map[string]interface{}
-	if err := json.Unmarshal(output, &metadata); err != nil {
-		c.JSON(500, gin.H{"error": "Failed to parse video metadata"})
-		return
-	}
-
-	videoURL := fmt.Sprintf("%v", metadata["webpage_url"])
-	title := fmt.Sprintf("%v", metadata["title"])
-	author := fmt.Sprintf("%v", metadata["uploader"])
-	thumb := fmt.Sprintf("%v", metadata["thumbnail"])
-	duration := fmt.Sprintf("%v", metadata["duration_string"])
-
-	// 2. Return metadata to the client
-	// The actual download will be handled as a separate request or 
-	// we can provide the direct audio link if yt-dlp can get it fast.
-	
-	// Getting direct audio URL
+	// 2. Extraction Phase (Direct URL to yt-dlp)
+	// Now that we have a direct URL, yt-dlp usually succeeds even if search fails
 	cmdURL := exec.Command("yt-dlp", "-f", "bestaudio", "--get-url", videoURL)
-	directURLBytes, _ := cmdURL.CombinedOutput()
+	directURLBytes, err := cmdURL.CombinedOutput()
+	if err != nil {
+		fmt.Printf("[Audio] yt-dlp extraction failed: %v, output: %s\n", err, string(directURLBytes))
+		c.JSON(500, gin.H{"error": "Failed to extract audio stream"})
+		return
+	}
 	directURL := strings.TrimSpace(string(directURLBytes))
 
 	c.JSON(200, gin.H{
@@ -68,7 +93,7 @@ func ScrapeAudio(c *gin.Context) {
 			Title:     title,
 			Author:    author,
 			Thumbnail: thumb,
-			Duration:  duration,
+			Duration:  "N/A", // Duration is harder to get quickly from search page
 			URL:       videoURL,
 		},
 		"audioURL": directURL,
