@@ -17,7 +17,7 @@ type AudioMetadata struct {
 	URL       string `json:"url"`
 }
 
-// ScrapeAudio uses yt-dlp exclusively — no browser needed, works on HF Spaces.
+// ScrapeAudio uses yt-dlp with SoundCloud — HF doesn't block SoundCloud.
 func ScrapeAudio(c *gin.Context) {
 	query := c.Query("query")
 	if query == "" {
@@ -25,12 +25,12 @@ func ScrapeAudio(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("[Audio] yt-dlp searching for: %s\n", query)
+	fmt.Printf("[Audio] SoundCloud searching for: %s\n", query)
 
-	// Step 1: Search YouTube via yt-dlp (no browser, no DNS issues)
+	// Step 1: Search SoundCloud via yt-dlp (HF doesn't block SoundCloud)
 	searchCmd := exec.Command(
 		"yt-dlp",
-		"ytsearch1:"+query,
+		"scsearch1:"+query,
 		"--dump-json",
 		"--flat-playlist",
 		"--no-warnings",
@@ -54,23 +54,27 @@ func ScrapeAudio(c *gin.Context) {
 		Uploader  string  `json:"uploader"`
 		Thumbnail string  `json:"thumbnail"`
 		Duration  float64 `json:"duration"`
+		WebpageURL string `json:"webpage_url"`
 	}
 	if err := json.Unmarshal([]byte(line), &entry); err != nil {
-		fmt.Printf("[Audio] Parse failed: %v, raw: %s\n", err, line[:min(len(line), 200)])
+		fmt.Printf("[Audio] Parse failed: %v, raw: %.200s\n", err, line)
 		c.JSON(500, gin.H{"error": "Failed to parse search result"})
 		return
 	}
 
-	videoURL := "https://www.youtube.com/watch?v=" + entry.ID
-	fmt.Printf("[Audio] Found video: %s (%s)\n", entry.Title, videoURL)
+	trackURL := entry.WebpageURL
+	if trackURL == "" {
+		trackURL = "https://soundcloud.com/" + entry.ID
+	}
+	fmt.Printf("[Audio] Found track: %s (%s)\n", entry.Title, trackURL)
 
-	// Step 2: Get direct audio stream URL via yt-dlp
+	// Step 2: Get direct audio stream URL
 	urlCmd := exec.Command(
 		"yt-dlp",
 		"-f", "bestaudio",
 		"--get-url",
 		"--no-warnings",
-		videoURL,
+		trackURL,
 	)
 	directURLBytes, err := urlCmd.CombinedOutput()
 	if err != nil {
@@ -91,15 +95,8 @@ func ScrapeAudio(c *gin.Context) {
 			Author:    entry.Uploader,
 			Thumbnail: entry.Thumbnail,
 			Duration:  fmt.Sprintf("%.0fs", entry.Duration),
-			URL:       videoURL,
+			URL:       trackURL,
 		},
 		"audioURL": directURL,
 	})
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
