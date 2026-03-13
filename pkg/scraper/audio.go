@@ -1,14 +1,12 @@
 package scraper
 
 import (
+	"encoding/json"
 	"fmt"
-	"net/url"
 	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-rod/rod"
 )
 
 type AudioMetadata struct {
@@ -19,6 +17,7 @@ type AudioMetadata struct {
 	URL       string `json:"url"`
 }
 
+// ScrapeAudio uses yt-dlp exclusively — no browser needed, works on HF Spaces.
 func ScrapeAudio(c *gin.Context) {
 	query := c.Query("query")
 	if query == "" {
@@ -26,65 +25,81 @@ func ScrapeAudio(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("[Audio] Processing browser-based search for: %s\n", query)
+	fmt.Printf("[Audio] yt-dlp searching for: %s\n", query)
 
-	var videoURL, title, thumb, author string
-
-	err := WithPage(func(page *rod.Page) error {
-		searchURL := fmt.Sprintf("https://www.youtube.com/results?search_query=%s", url.QueryEscape(query))
-		page.MustNavigate(searchURL).MustWaitLoad()
-		page.MustWaitIdle()
-
-		videoEl, err := page.Element("ytd-video-renderer #video-title")
-		if err != nil {
-			return fmt.Errorf("no video results found in browser")
-		}
-
-		href, _ := videoEl.Attribute("href")
-		if href == nil {
-			return fmt.Errorf("could not extract video URL")
-		}
-
-		videoURL = "https://www.youtube.com" + *href
-		title = strings.TrimSpace(videoEl.MustText())
-
-		if authEl, err := page.Element("ytd-video-renderer #channel-name a"); err == nil {
-			author = strings.TrimSpace(authEl.MustText())
-		}
-
-		time.Sleep(1 * time.Second)
-		if imgEl, err := page.Element("ytd-video-renderer img"); err == nil {
-			if src, _ := imgEl.Attribute("src"); src != nil {
-				thumb = *src
-			}
-		}
-
-		return nil
-	})
-
+	// Step 1: Search YouTube via yt-dlp (no browser, no DNS issues)
+	searchCmd := exec.Command(
+		"yt-dlp",
+		"ytsearch1:"+query,
+		"--dump-json",
+		"--flat-playlist",
+		"--no-warnings",
+	)
+	searchOut, err := searchCmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("[Audio] Browser search failed: %v\n", err)
-		c.JSON(500, gin.H{"error": "Failed to find video via browser"})
+		fmt.Printf("[Audio] Search failed: %v, output: %s\n", err, string(searchOut))
+		c.JSON(500, gin.H{"error": "Search failed: " + err.Error()})
 		return
 	}
 
-	cmdURL := exec.Command("yt-dlp", "-f", "bestaudio", "--get-url", videoURL)
-	directURLBytes, err := cmdURL.CombinedOutput()
-	if err != nil {
-		fmt.Printf("[Audio] yt-dlp extraction failed: %v, output: %s\n", err, string(directURLBytes))
-		c.JSON(500, gin.H{"error": "Failed to extract audio stream"})
+	line := strings.TrimSpace(string(searchOut))
+	if line == "" {
+		c.JSON(500, gin.H{"error": "No results returned"})
 		return
 	}
+
+	var entry struct {
+		ID        string  `json:"id"`
+		Title     string  `json:"title"`
+		Uploader  string  `json:"uploader"`
+		Thumbnail string  `json:"thumbnail"`
+		Duration  float64 `json:"duration"`
+	}
+	if err := json.Unmarshal([]byte(line), &entry); err != nil {
+		fmt.Printf("[Audio] Parse failed: %v, raw: %s\n", err, line[:min(len(line), 200)])
+		c.JSON(500, gin.H{"error": "Failed to parse search result"})
+		return
+	}
+
+	videoURL := "https://www.youtube.com/watch?v=" + entry.ID
+	fmt.Printf("[Audio] Found video: %s (%s)\n", entry.Title, videoURL)
+
+	// Step 2: Get direct audio stream URL via yt-dlp
+	urlCmd := exec.Command(
+		"yt-dlp",
+		"-f", "bestaudio",
+		"--get-url",
+		"--no-warnings",
+		videoURL,
+	)
+	directURLBytes, err := urlCmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("[Audio] Extract failed: %v, output: %s\n", err, string(directURLBytes))
+		c.JSON(500, gin.H{"error": "Failed to extract audio stream: " + string(directURLBytes)})
+		return
+	}
+
 	directURL := strings.TrimSpace(string(directURLBytes))
+	if directURL == "" {
+		c.JSON(500, gin.H{"error": "Empty audio URL returned"})
+		return
+	}
 
 	c.JSON(200, gin.H{
 		"metadata": AudioMetadata{
-			Title:     title,
-			Author:    author,
-			Thumbnail: thumb,
-			Duration:  "N/A",
+			Title:     entry.Title,
+			Author:    entry.Uploader,
+			Thumbnail: entry.Thumbnail,
+			Duration:  fmt.Sprintf("%.0fs", entry.Duration),
 			URL:       videoURL,
 		},
 		"audioURL": directURL,
 	})
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
