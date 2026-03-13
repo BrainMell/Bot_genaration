@@ -10,3 +10,12 @@ Thumbs.db
 # Go stuff
 go.sum
 vendor/
+# compiled binaries
+*.exe
+*.out
+*.bin
+image-service-linux
+
+# runtime / build artifacts
+downloads/
+*.mp3
