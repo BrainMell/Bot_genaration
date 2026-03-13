@@ -2,6 +2,7 @@ package scraper
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/go-rod/rod"
@@ -16,52 +17,69 @@ var (
 )
 
 // InitBrowser initializes the global Rod browser instance.
-// It uses a persistent connection to a single browser process.
 func InitBrowser() {
 	browserOnce.Do(func() {
 		fmt.Println("🚀 Initializing Rod Browser Engine...")
 
-		// Launch a new browser with default options (headless)
-		u := launcher.New().
+		// FORCED: Use the Chromium binary installed in the Docker container
+		// Alpine Chromium path: /usr/bin/chromium-browser
+		chromePath := os.Getenv("CHROME_PATH")
+		if chromePath == "" {
+			chromePath = "/usr/bin/chromium-browser"
+		}
+
+		fmt.Printf("📂 Using System Chromium: %s\n", chromePath)
+
+		// Create a launcher that STRICTLY uses the existing binary
+		l := launcher.New().
+			Bin(chromePath).
 			Headless(true).
-			NoSandbox(true). // Critical for container/server environments
-			MustLaunch()
+			NoSandbox(true).
+			Devtools(false)
+
+		// Launch the browser
+		u, err := l.Launch()
+		if err != nil {
+			fmt.Printf("❌ Failed to launch system chromium: %v\n", err)
+			// Fallback: try default launcher logic but this likely won't work on HF
+			return
+		}
 
 		browser = rod.New().
 			ControlURL(u).
 			MustConnect()
 
-		// Initialize a page pool to limit concurrency (max 3 tabs)
-		pagePool = make(chan *rod.Page, 3)
+		// Limit to 2 concurrent tabs to save RAM on HF Spaces
+		pagePool = make(chan *rod.Page, 2)
 
 		fmt.Println("✅ Rod Browser Engine Ready!")
 	})
 }
 
-// WithPage safely acquires a page from the browser, runs the given function,
-// and ensures the page is closed/cleaned up afterwards.
+// WithPage safely acquires a page from the browser.
 func WithPage(action func(*rod.Page) error) error {
-	// Ensure browser is running
 	if browser == nil {
 		InitBrowser()
 	}
+	
+	if browser == nil {
+		return fmt.Errorf("browser engine not initialized")
+	}
 
-	// Acquire slot
+	// Acquire slot (concurrency control)
 	pagePool <- nil
-	defer func() { <-pagePool }() // Release slot
+	defer func() { <-pagePool }()
 
-	// Create new incognito page
+	// Create new page
 	page, err := browser.MustIncognito().Page(proto.TargetCreateTarget{URL: "about:blank"})
 	if err != nil {
 		return fmt.Errorf("failed to create page: %v", err)
 	}
-	defer page.MustClose() // Always close the page when done
+	defer page.MustClose()
 
-	// Run the scraper logic
 	return action(page)
 }
 
-// CloseBrowser shuts down the browser process.
 func CloseBrowser() {
 	if browser != nil {
 		browser.MustClose()
