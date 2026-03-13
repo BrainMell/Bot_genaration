@@ -21,8 +21,6 @@ func InitBrowser() {
 	browserOnce.Do(func() {
 		fmt.Println("🚀 Initializing Rod Browser Engine...")
 
-		// FORCED: Use the Chromium binary installed in the Docker container
-		// Alpine Chromium path: /usr/bin/chromium-browser
 		chromePath := os.Getenv("CHROME_PATH")
 		if chromePath == "" {
 			chromePath = "/usr/bin/chromium-browser"
@@ -30,18 +28,29 @@ func InitBrowser() {
 
 		fmt.Printf("📂 Using System Chromium: %s\n", chromePath)
 
-		// Create a launcher that STRICTLY uses the existing binary
 		l := launcher.New().
 			Bin(chromePath).
 			Headless(true).
 			NoSandbox(true).
-			Devtools(false)
+			Devtools(false).
+			// --- DNS-over-HTTPS: bypasses HF broken system DNS resolver ---
+			// Routes all DNS through Cloudflare DoH (port 443, always open)
+			Append("--dns-over-https-mode=secure").
+			Append("--dns-over-https-templates=https://cloudflare-dns.com/dns-query").
+			// --- Container stability flags ---
+			Append("--disable-dev-shm-usage").   // Prevents crashes in low /dev/shm Docker envs
+			Append("--disable-gpu").              // No GPU in container
+			Append("--no-first-run").             // Skip first-run setup
+			Append("--no-default-browser-check"). // Skip browser check dialog
+			Append("--disable-extensions").       // No extensions needed
+			Append("--disable-background-networking"). // Reduce unnecessary network calls
+			Append("--disable-sync").             // No Google sync
+			Append("--metrics-recording-only").   // Disable reporting
+			Append("--mute-audio")                // No audio needed
 
-		// Launch the browser
 		u, err := l.Launch()
 		if err != nil {
 			fmt.Printf("❌ Failed to launch system chromium: %v\n", err)
-			// Fallback: try default launcher logic but this likely won't work on HF
 			return
 		}
 
@@ -49,31 +58,38 @@ func InitBrowser() {
 			ControlURL(u).
 			MustConnect()
 
-		// Limit to 2 concurrent tabs to save RAM on HF Spaces
-		pagePool = make(chan *rod.Page, 2)
+		// 3 concurrent tabs — balanced for HF Spaces RAM
+		pagePool = make(chan *rod.Page, 3)
 
 		fmt.Println("✅ Rod Browser Engine Ready!")
 	})
 }
 
-// WithPage safely acquires a page from the browser.
-func WithPage(action func(*rod.Page) error) error {
+// WithPage safely acquires a page from the pool and runs an action.
+// It recovers from panics so a single bad request can't crash the service.
+func WithPage(action func(*rod.Page) error) (err error) {
 	if browser == nil {
 		InitBrowser()
 	}
-	
+
 	if browser == nil {
 		return fmt.Errorf("browser engine not initialized")
 	}
 
-	// Acquire slot (concurrency control)
+	// Acquire concurrency slot
 	pagePool <- nil
 	defer func() { <-pagePool }()
 
-	// Create new page
-	page, err := browser.MustIncognito().Page(proto.TargetCreateTarget{URL: "about:blank"})
-	if err != nil {
-		return fmt.Errorf("failed to create page: %v", err)
+	// Recover from rod panics (e.g. MustNavigate on DNS failure)
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("browser panic: %v", r)
+		}
+	}()
+
+	page, createErr := browser.MustIncognito().Page(proto.TargetCreateTarget{URL: "about:blank"})
+	if createErr != nil {
+		return fmt.Errorf("failed to create page: %v", createErr)
 	}
 	defer page.MustClose()
 
