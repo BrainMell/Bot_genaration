@@ -1,5 +1,5 @@
-# Go Image Service - Chrome-Powered
-# Optimized build for Alpine
+# Go Image Service - Ultra-Stable Build
+# Version: 3.0.2 (Build-Safe)
 FROM golang:1.24-alpine AS builder
 
 # Install build dependencies
@@ -7,28 +7,24 @@ RUN apk add --no-cache git ca-certificates
 
 WORKDIR /build
 
-# Copy go mod files first for better caching
+# Copy and verify dependencies
 COPY go.mod go.sum ./
-RUN go mod download
+RUN go mod download && go mod verify
 
-# Copy source code
+# Copy ALL source code (crucial for local imports)
 COPY pkg/ ./pkg/
 COPY main.go ./
 
-# Build binary with modern optimizations (removed deprecated -installsuffix)
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o image-service .
+# Build with RAM safety (GOMAXPROCS=1) and verbose output
+# We remove -trimpath to see if it helps with memory
+RUN GOMAXPROCS=1 CGO_ENABLED=0 GOOS=linux go build -v -ldflags="-s -w" -o image-service .
 
 # =============================================================================
-# Final Stage - Runtime with Chrome + ffmpeg + yt-dlp
+# Final Stage - Runtime
 # =============================================================================
 FROM alpine:latest
 
-# Install runtime dependencies
-# We need:
-# - ca-certificates for HTTPS
-# - ffmpeg for media processing
-# - chromium for Rod (Chrome automation)
-# - python3 + yt-dlp for audio extraction
+# Install dependencies including Chromium for Rod
 RUN apk add --no-cache \
     ca-certificates \
     ffmpeg \
@@ -41,23 +37,19 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
-# Copy binary from builder
+# Copy binary
 COPY --from=builder /build/image-service .
 
-# Copy assets
+# Copy assets exactly as structured
 COPY assets ./assets
 
-# Environment variables
+# Environment
 ENV GIN_MODE=release
-# Rod path for Alpine
 ENV CHROME_PATH=/usr/bin/chromium-browser
 
-# Expose port
 EXPOSE 7860
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:7860/health || exit 1
 
-# Run the service
 CMD ["./image-service"]
