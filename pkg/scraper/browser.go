@@ -28,25 +28,25 @@ func InitBrowser() {
 
 		fmt.Printf("📂 Using System Chromium: %s\n", chromePath)
 
+		// Rod's Set(name, value) requires NO "=" in the name.
+		// Boolean flags use Append("--flag-name").
 		l := launcher.New().
 			Bin(chromePath).
 			Headless(true).
 			NoSandbox(true).
 			Devtools(false).
-			// --- DNS-over-HTTPS: bypasses HF broken system DNS resolver ---
-			// Routes all DNS through Cloudflare DoH (port 443, always open)
-			Append("--dns-over-https-mode=secure").
-			Append("--dns-over-https-templates=https://cloudflare-dns.com/dns-query").
-			// --- Container stability flags ---
-			Append("--disable-dev-shm-usage").   // Prevents crashes in low /dev/shm Docker envs
-			Append("--disable-gpu").              // No GPU in container
-			Append("--no-first-run").             // Skip first-run setup
-			Append("--no-default-browser-check"). // Skip browser check dialog
-			Append("--disable-extensions").       // No extensions needed
-			Append("--disable-background-networking"). // Reduce unnecessary network calls
-			Append("--disable-sync").             // No Google sync
-			Append("--metrics-recording-only").   // Disable reporting
-			Append("--mute-audio")                // No audio needed
+			// DNS-over-HTTPS: routes DNS through Cloudflare HTTPS (port 443)
+			// bypassing HF's broken UDP DNS resolver
+			Set("dns-over-https-mode", "secure").
+			Set("dns-over-https-templates", "https://cloudflare-dns.com/dns-query").
+			// Container stability
+			Append("--disable-dev-shm-usage").
+			Append("--disable-gpu").
+			Append("--no-first-run").
+			Append("--no-default-browser-check").
+			Append("--disable-extensions").
+			Append("--disable-sync").
+			Append("--mute-audio")
 
 		u, err := l.Launch()
 		if err != nil {
