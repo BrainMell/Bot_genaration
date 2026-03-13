@@ -5,10 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"path"
-	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -21,179 +17,114 @@ type AudioMetadata struct {
 	URL       string `json:"url"`
 }
 
-// Use known API base URLs (pipedapi.*). Frontend domains often don't expose API endpoints.
-var pipedInstances = []string{
-	"https://pipedapi.kavin.rocks",
-	"https://pipedapi-libre.kavin.rocks",
-	"https://pipedapi.r4fo.com",
-	// add more pipedapi.* instances (or fetch dynamic list from TeamPiped's instances list)
+// Stable Invidious instance
+const invidiousInstance = "https://inv.nadeko.net"
+
+type searchResult struct {
+	Type      string `json:"type"`
+	Title     string `json:"title"`
+	Author    string `json:"author"`
+	VideoID   string `json:"videoId"`
+	LengthSec int    `json:"lengthSeconds"`
 }
 
-type pipedSearchResult struct {
-	Items []struct {
-		URL          string `json:"url"`
-		Title        string `json:"title"`
-		Thumbnail    string `json:"thumbnail"`
-		UploaderName string `json:"uploaderName"`
-		Duration     int    `json:"duration"`
-	} `json:"items"`
-}
-
-type pipedStreams struct {
+type videoStreams struct {
 	Title        string `json:"title"`
-	ThumbnailUrl string `json:"thumbnailUrl"`
-	Uploader     string `json:"uploader"`
-	Duration     int    `json:"duration"`
-	AudioStreams []struct {
-		URL     string `json:"url"`
-		Quality string `json:"quality"`
-		Bitrate int    `json:"bitrate"`
-	} `json:"audioStreams"`
+	Author       string `json:"author"`
+	VideoID      string `json:"videoId"`
+	LengthSec    int    `json:"lengthSeconds"`
+	AdaptiveFormats []struct {
+		Type string `json:"type"`
+		URL  string `json:"url"`
+		Bitrate int `json:"bitrate"`
+	} `json:"adaptiveFormats"`
 }
 
 func ScrapeAudio(c *gin.Context) {
+
 	query := c.Query("query")
 	if query == "" {
-		c.JSON(400, gin.H{"error": "Search query required"})
+		c.JSON(400, gin.H{"error": "query required"})
 		return
 	}
 
-	fmt.Printf("[Audio] Piped search for: %s\n", query)
+	fmt.Println("[Audio] Searching:", query)
 
-	httpClient := &http.Client{Timeout: 10 * time.Second}
+	// --- STEP 1: SEARCH ---
+	searchURL := fmt.Sprintf("%s/api/v1/search?q=%s&type=video",
+		invidiousInstance, query)
 
-	// --- Step 1: Search ---
-	videoID := ""
-	title, thumbnail, uploader := "", "", ""
-	duration := 0
-
-	for _, instance := range pipedInstances {
-		// Build safe URL
-		base, err := url.Parse(instance)
-		if err != nil {
-			fmt.Printf("[Audio] invalid instance URL %s: %v\n", instance, err)
-			continue
-		}
-
-		// Many setups use /api/v1/search?q=...&filter=music_songs
-		// Construct path safely
-		base.Path = path.Join(base.Path, "api", "v1", "search")
-		base.RawQuery = "q=" + url.QueryEscape(query) + "&filter=music_songs"
-		searchURL := base.String()
-
-		resp, err := httpClient.Get(searchURL)
-		if err != nil {
-			fmt.Printf("[Audio] %s search error: %v\n", instance, err)
-			continue
-		}
-		// read only on 200
-		if resp.StatusCode != http.StatusOK {
-			fmt.Printf("[Audio] %s search HTTP %d\n", instance, resp.StatusCode)
-			resp.Body.Close()
-			continue
-		}
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-
-		var result pipedSearchResult
-		if err := json.Unmarshal(body, &result); err != nil || len(result.Items) == 0 {
-			fmt.Printf("[Audio] %s returned no results or bad JSON\n", instance)
-			continue
-		}
-
-		first := result.Items[0]
-		parts := strings.Split(first.URL, "v=")
-		if len(parts) < 2 {
-			// some instances return "/watch?v=..." or "/watch?v=...&list=..."
-			fmt.Printf("[Audio] malformed URL returned by %s: %s\n", instance, first.URL)
-			continue
-		}
-		videoID = strings.Split(parts[1], "&")[0]
-		title = first.Title
-		thumbnail = first.Thumbnail
-		uploader = first.UploaderName
-		duration = first.Duration
-		fmt.Printf("[Audio] Found: %s (ID: %s) via %s\n", title, videoID, instance)
-		break
-	}
-
-	if videoID == "" {
-		c.JSON(500, gin.H{"error": "No search results found"})
+	resp, err := http.Get(searchURL)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "search request failed"})
 		return
 	}
 
-	// --- Step 2: Get streams ---
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	var results []searchResult
+	json.Unmarshal(body, &results)
+
+	if len(results) == 0 {
+		c.JSON(500, gin.H{"error": "no results"})
+		return
+	}
+
+	video := results[0]
+	videoID := video.VideoID
+
+	fmt.Println("[Audio] Found video:", video.Title)
+
+	// --- STEP 2: GET STREAMS ---
+	streamURL := fmt.Sprintf("%s/api/v1/videos/%s",
+		invidiousInstance, videoID)
+
+	resp2, err := http.Get(streamURL)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "stream request failed"})
+		return
+	}
+
+	body2, _ := io.ReadAll(resp2.Body)
+	resp2.Body.Close()
+
+	var streams videoStreams
+	json.Unmarshal(body2, &streams)
+
 	audioURL := ""
 
-	for _, instance := range pipedInstances {
-		base, err := url.Parse(instance)
-		if err != nil {
-			fmt.Printf("[Audio] invalid instance URL %s: %v\n", instance, err)
-			continue
-		}
+	bestBitrate := 0
 
-		base.Path = path.Join(base.Path, "streams", videoID)
-		streamsURL := base.String()
+	for _, f := range streams.AdaptiveFormats {
 
-		resp, err := httpClient.Get(streamsURL)
-		if err != nil {
-			fmt.Printf("[Audio] %s streams error: %v\n", instance, err)
-			continue
-		}
-		if resp.StatusCode != http.StatusOK {
-			fmt.Printf("[Audio] %s streams HTTP %d\n", instance, resp.StatusCode)
-			resp.Body.Close()
-			continue
-		}
+		if f.Type == "audio/webm" || f.Type == "audio/mp4" {
 
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+			if f.Bitrate > bestBitrate {
 
-		var streams pipedStreams
-		if err := json.Unmarshal(body, &streams); err != nil || len(streams.AudioStreams) == 0 {
-			fmt.Printf("[Audio] %s no streams or bad JSON\n", instance)
-			continue
-		}
-
-		// Pick highest bitrate
-		best := streams.AudioStreams[0]
-		for _, s := range streams.AudioStreams {
-			if s.Bitrate > best.Bitrate {
-				best = s
+				bestBitrate = f.Bitrate
+				audioURL = f.URL
 			}
 		}
-		audioURL = best.URL
-
-		// Prefer richer metadata from streams endpoint
-		if streams.ThumbnailUrl != "" {
-			thumbnail = streams.ThumbnailUrl
-		}
-		if streams.Uploader != "" {
-			uploader = streams.Uploader
-		}
-		if streams.Title != "" {
-			title = streams.Title
-		}
-		if streams.Duration > 0 {
-			duration = streams.Duration
-		}
-
-		fmt.Printf("[Audio] Stream ready for: %s via %s\n", title, instance)
-		break
 	}
 
 	if audioURL == "" {
-		c.JSON(500, gin.H{"error": "Could not get audio stream from any Piped instance"})
+		c.JSON(500, gin.H{"error": "no audio stream"})
 		return
 	}
 
+	thumbnail := fmt.Sprintf(
+		"https://i.ytimg.com/vi/%s/hqdefault.jpg",
+		videoID,
+	)
+
 	c.JSON(200, gin.H{
 		"metadata": AudioMetadata{
-			Title:     title,
-			Author:    uploader,
+			Title:     streams.Title,
+			Author:    streams.Author,
 			Thumbnail: thumbnail,
-			Duration:  fmt.Sprintf("%ds", duration),
-			URL:       "https://www.youtube.com/watch?v=" + videoID,
+			Duration:  fmt.Sprintf("%ds", streams.LengthSec),
+			URL:       "https://youtube.com/watch?v=" + videoID,
 		},
 		"audioURL": audioURL,
 	})
