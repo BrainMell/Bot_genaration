@@ -6,7 +6,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,11 +21,12 @@ type AudioMetadata struct {
 	URL       string `json:"url"`
 }
 
-// Piped instances — falls back if one is down
+// Use known API base URLs (pipedapi.*). Frontend domains often don't expose API endpoints.
 var pipedInstances = []string{
-	"https://piped.video",
-	"https://piped.kavin.rocks",
-	"https://piped.adminforge.de",
+	"https://pipedapi.kavin.rocks",
+	"https://pipedapi-libre.kavin.rocks",
+	"https://pipedapi.r4fo.com",
+	// add more pipedapi.* instances (or fetch dynamic list from TeamPiped's instances list)
 }
 
 type pipedSearchResult struct {
@@ -41,14 +44,13 @@ type pipedStreams struct {
 	ThumbnailUrl string `json:"thumbnailUrl"`
 	Uploader     string `json:"uploader"`
 	Duration     int    `json:"duration"`
-	AudioStreams  []struct {
+	AudioStreams []struct {
 		URL     string `json:"url"`
 		Quality string `json:"quality"`
 		Bitrate int    `json:"bitrate"`
 	} `json:"audioStreams"`
 }
 
-// ScrapeAudio uses Piped API — pure HTTPS, no yt-dlp, no browser, works on HF Spaces.
 func ScrapeAudio(c *gin.Context) {
 	query := c.Query("query")
 	if query == "" {
@@ -58,18 +60,36 @@ func ScrapeAudio(c *gin.Context) {
 
 	fmt.Printf("[Audio] Piped search for: %s\n", query)
 
+	httpClient := &http.Client{Timeout: 10 * time.Second}
+
 	// --- Step 1: Search ---
 	videoID := ""
 	title, thumbnail, uploader := "", "", ""
 	duration := 0
 
 	for _, instance := range pipedInstances {
-		searchURL := fmt.Sprintf("%s/api/v1/search?q=%s&filter=music_songs",
-			instance, url.QueryEscape(query))
+		// Build safe URL
+		base, err := url.Parse(instance)
+		if err != nil {
+			fmt.Printf("[Audio] invalid instance URL %s: %v\n", instance, err)
+			continue
+		}
 
-		resp, err := http.Get(searchURL)
+		// Many setups use /api/v1/search?q=...&filter=music_songs
+		// Construct path safely
+		base.Path = path.Join(base.Path, "api", "v1", "search")
+		base.RawQuery = "q=" + url.QueryEscape(query) + "&filter=music_songs"
+		searchURL := base.String()
+
+		resp, err := httpClient.Get(searchURL)
 		if err != nil {
 			fmt.Printf("[Audio] %s search error: %v\n", instance, err)
+			continue
+		}
+		// read only on 200
+		if resp.StatusCode != http.StatusOK {
+			fmt.Printf("[Audio] %s search HTTP %d\n", instance, resp.StatusCode)
+			resp.Body.Close()
 			continue
 		}
 		body, _ := io.ReadAll(resp.Body)
@@ -77,14 +97,15 @@ func ScrapeAudio(c *gin.Context) {
 
 		var result pipedSearchResult
 		if err := json.Unmarshal(body, &result); err != nil || len(result.Items) == 0 {
-			fmt.Printf("[Audio] %s returned no results\n", instance)
+			fmt.Printf("[Audio] %s returned no results or bad JSON\n", instance)
 			continue
 		}
 
 		first := result.Items[0]
-		// URL format: "/watch?v=VIDEO_ID"
 		parts := strings.Split(first.URL, "v=")
 		if len(parts) < 2 {
+			// some instances return "/watch?v=..." or "/watch?v=...&list=..."
+			fmt.Printf("[Audio] malformed URL returned by %s: %s\n", instance, first.URL)
 			continue
 		}
 		videoID = strings.Split(parts[1], "&")[0]
@@ -92,7 +113,7 @@ func ScrapeAudio(c *gin.Context) {
 		thumbnail = first.Thumbnail
 		uploader = first.UploaderName
 		duration = first.Duration
-		fmt.Printf("[Audio] Found: %s (ID: %s)\n", title, videoID)
+		fmt.Printf("[Audio] Found: %s (ID: %s) via %s\n", title, videoID, instance)
 		break
 	}
 
@@ -105,19 +126,32 @@ func ScrapeAudio(c *gin.Context) {
 	audioURL := ""
 
 	for _, instance := range pipedInstances {
-		streamsURL := fmt.Sprintf("%s/streams/%s", instance, videoID)
+		base, err := url.Parse(instance)
+		if err != nil {
+			fmt.Printf("[Audio] invalid instance URL %s: %v\n", instance, err)
+			continue
+		}
 
-		resp, err := http.Get(streamsURL)
+		base.Path = path.Join(base.Path, "streams", videoID)
+		streamsURL := base.String()
+
+		resp, err := httpClient.Get(streamsURL)
 		if err != nil {
 			fmt.Printf("[Audio] %s streams error: %v\n", instance, err)
 			continue
 		}
+		if resp.StatusCode != http.StatusOK {
+			fmt.Printf("[Audio] %s streams HTTP %d\n", instance, resp.StatusCode)
+			resp.Body.Close()
+			continue
+		}
+
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
 
 		var streams pipedStreams
 		if err := json.Unmarshal(body, &streams); err != nil || len(streams.AudioStreams) == 0 {
-			fmt.Printf("[Audio] %s no streams\n", instance)
+			fmt.Printf("[Audio] %s no streams or bad JSON\n", instance)
 			continue
 		}
 
@@ -144,7 +178,7 @@ func ScrapeAudio(c *gin.Context) {
 			duration = streams.Duration
 		}
 
-		fmt.Printf("[Audio] Stream ready for: %s\n", title)
+		fmt.Printf("[Audio] Stream ready for: %s via %s\n", title, instance)
 		break
 	}
 
