@@ -32,15 +32,11 @@ func ScrapeAudio(c *gin.Context) {
 
 	var videoURL, title, thumb, author string
 
-	// 1. Browser-based Search Phase (Bypasses yt-dlp DNS issues)
+	// 1. Browser-based Search Phase
 	err := WithPage(func(page *rod.Page) error {
 		searchURL := fmt.Sprintf("https://www.youtube.com/results?search_query=%s", url.QueryEscape(query))
-		page.MustNavigate(searchURL)
+		page.MustNavigate(searchURL).MustWaitIdle()
 
-		// Correctly wait for the page to be idle after navigation
-		page.MustWaitIdle()
-
-		// Extract first video link and metadata
 		videoEl, err := page.Element("ytd-video-renderer #video-title")
 		if err != nil {
 			return fmt.Errorf("no video results found in browser")
@@ -54,15 +50,15 @@ func ScrapeAudio(c *gin.Context) {
 		videoURL = "https://www.youtube.com" + *href
 		title = strings.TrimSpace(videoEl.MustText())
 
-		// Try to get author and thumbnail (optional)
 		if authEl, err := page.Element("ytd-video-renderer #channel-name a"); err == nil {
 			author = strings.TrimSpace(authEl.MustText())
 		}
 		
-		time.Sleep(1 * time.Second) // Small delay for image to render
+		time.Sleep(1 * time.Second)
 		if imgEl, err := page.Element("ytd-video-renderer img"); err == nil {
-			src, _ := imgEl.Attribute("src")
-			if src != nil { thumb = *src }
+			if src, _ := imgEl.Attribute("src"); src != nil {
+				thumb = *src
+			}
 		}
 
 		return nil
@@ -75,7 +71,7 @@ func ScrapeAudio(c *gin.Context) {
 		return
 	}
 
-	// 2. Extraction Phase (Direct URL to yt-dlp)
+	// 2. Extraction Phase
 	cmdURL := exec.Command("yt-dlp", "-f", "bestaudio", "--get-url", videoURL)
 	directURLBytes, err := cmdURL.CombinedOutput()
 	if err != nil {
@@ -91,7 +87,7 @@ func ScrapeAudio(c *gin.Context) {
 			Title:     title,
 			Author:    author,
 			Thumbnail: thumb,
-			Duration:  "N/A", 
+			Duration:  "N/A",
 			URL:       videoURL,
 		},
 		"audioURL": directURL,
