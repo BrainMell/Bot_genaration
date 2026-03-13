@@ -1,6 +1,8 @@
 package scraper
 
+
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os/exec"
@@ -27,16 +29,21 @@ func ScrapeAudio(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("[Audio] Processing browser-based search for: %s
-", query)
+	fmt.Printf("[Audio] Processing browser-based search for: %s\n", query)
 
 	var videoURL, title, thumb, author string
 
-	// 1. Browser-based Search Phase
+	// 1. Browser-based Search Phase (Bypasses yt-dlp DNS issues)
 	err := WithPage(func(page *rod.Page) error {
 		searchURL := fmt.Sprintf("https://www.youtube.com/results?search_query=%s", url.QueryEscape(query))
-		page.MustNavigate(searchURL).MustWaitIdle()
+		page.MustNavigate(searchURL).MustWaitLoad()
 
+		// Wait for video results to appear
+		wait := page.MustWaitIdle()
+		wait()
+
+		// Extract first video link and metadata
+		// Selector for video title/link: ytd-video-renderer #video-title
 		videoEl, err := page.Element("ytd-video-renderer #video-title")
 		if err != nil {
 			return fmt.Errorf("no video results found in browser")
@@ -50,33 +57,33 @@ func ScrapeAudio(c *gin.Context) {
 		videoURL = "https://www.youtube.com" + *href
 		title = strings.TrimSpace(videoEl.MustText())
 
+		// Try to get author and thumbnail (optional)
 		if authEl, err := page.Element("ytd-video-renderer #channel-name a"); err == nil {
 			author = strings.TrimSpace(authEl.MustText())
 		}
 		
+		// Wait for image load
 		time.Sleep(1 * time.Second)
 		if imgEl, err := page.Element("ytd-video-renderer img"); err == nil {
-			if src, _ := imgEl.Attribute("src"); src != nil {
-				thumb = *src
-			}
+			src, _ := imgEl.Attribute("src")
+			if src != nil { thumb = *src }
 		}
 
 		return nil
 	})
 
 	if err != nil {
-		fmt.Printf("[Audio] Browser search failed: %v
-", err)
+		fmt.Printf("[Audio] Browser search failed: %v\n", err)
 		c.JSON(500, gin.H{"error": "Failed to find video via browser"})
 		return
 	}
 
-	// 2. Extraction Phase
+	// 2. Extraction Phase (Direct URL to yt-dlp)
+	// Now that we have a direct URL, yt-dlp usually succeeds even if search fails
 	cmdURL := exec.Command("yt-dlp", "-f", "bestaudio", "--get-url", videoURL)
 	directURLBytes, err := cmdURL.CombinedOutput()
 	if err != nil {
-		fmt.Printf("[Audio] yt-dlp extraction failed: %v, output: %s
-", err, string(directURLBytes))
+		fmt.Printf("[Audio] yt-dlp extraction failed: %v, output: %s\n", err, string(directURLBytes))
 		c.JSON(500, gin.H{"error": "Failed to extract audio stream"})
 		return
 	}
@@ -87,7 +94,7 @@ func ScrapeAudio(c *gin.Context) {
 			Title:     title,
 			Author:    author,
 			Thumbnail: thumb,
-			Duration:  "N/A",
+			Duration:  "N/A", // Duration is harder to get quickly from search page
 			URL:       videoURL,
 		},
 		"audioURL": directURL,
