@@ -1,12 +1,13 @@
 package scraper
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"regexp"
 	"time"
 
@@ -28,10 +29,10 @@ func ScrapeAudio(c *gin.Context) {
 		return
 	}
 
-	httpClient := &http.Client{Timeout: 10 * time.Second}
+	httpClient := &http.Client{Timeout: 30 * time.Second}
 
-	// ── Step 1: Get YouTube video ID via r.jina.ai (unchanged, works on HF) ──
-	fmt.Printf("[Audio] Searching (via r.jina.ai) for: %s\n", query)
+	// ── Step 1: Get YouTube video ID via r.jina.ai ───────────────────────────
+	fmt.Printf("[Audio] Searching for: %s\n", query)
 	searchURL := "https://r.jina.ai/http://www.youtube.com/results?search_query=" + url.QueryEscape(query)
 	resp, err := httpClient.Get(searchURL)
 	if err != nil {
@@ -48,34 +49,68 @@ func ScrapeAudio(c *gin.Context) {
 		return
 	}
 	videoID := match[1]
-	fmt.Printf("[Audio] Found video id: %s\n", videoID)
+	fmt.Printf("[Audio] Video ID: %s\n", videoID)
 
 	thumbnail := fmt.Sprintf("https://i.ytimg.com/vi/%s/hqdefault.jpg", videoID)
 	watchURL := "https://www.youtube.com/watch?v=" + videoID
 
-	// ── Step 2: Download audio via yt-dlp from SoundCloud ────────────────────
-	// SoundCloud is NOT blocked on HF. We search SC for the same query,
-	// download it locally, then serve the mp3 — no expired URLs.
+	// ── Step 2: Use cobalt.tools API to get MP3 download link ────────────────
+	// cobalt.tools is a free open source YouTube converter — plain HTTPS API
 	_ = os.MkdirAll("downloads", 0755)
 	mp3Path := fmt.Sprintf("downloads/%s.mp3", videoID)
 
 	if _, err := os.Stat(mp3Path); os.IsNotExist(err) {
-		fmt.Printf("[Audio] Downloading via yt-dlp (SoundCloud)...\n")
-		cmd := exec.Command(
-			"yt-dlp",
-			"scsearch1:"+query,
-			"-x",
-			"--audio-format", "mp3",
-			"--audio-quality", "0",
-			"-o", mp3Path,
-			"--no-playlist",
-		)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			fmt.Printf("[Audio] yt-dlp failed: %v\n%s\n", err, string(out))
-			c.JSON(500, gin.H{"error": "download failed: " + string(out)})
+		fmt.Printf("[Audio] Requesting MP3 from cobalt.tools...\n")
+
+		reqBody, _ := json.Marshal(map[string]interface{}{
+			"url":           watchURL,
+			"downloadMode":  "audio",
+			"audioFormat":   "mp3",
+			"audioBitrate":  "128",
+		})
+
+		req, _ := http.NewRequest("POST", "https://api.cobalt.tools/", bytes.NewBuffer(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+
+		cobaltResp, err := httpClient.Do(req)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "cobalt request failed: " + err.Error()})
 			return
 		}
-		fmt.Printf("[Audio] mp3 ready: %s\n", mp3Path)
+		cobaltBody, _ := io.ReadAll(cobaltResp.Body)
+		cobaltResp.Body.Close()
+
+		var cobaltResult map[string]interface{}
+		if err := json.Unmarshal(cobaltBody, &cobaltResult); err != nil {
+			fmt.Printf("[Audio] cobalt response: %s\n", string(cobaltBody))
+			c.JSON(500, gin.H{"error": "cobalt response parse failed"})
+			return
+		}
+
+		fmt.Printf("[Audio] Cobalt status: %v\n", cobaltResult["status"])
+
+		downloadURL, ok := cobaltResult["url"].(string)
+		if !ok || downloadURL == "" {
+			fmt.Printf("[Audio] Cobalt full response: %s\n", string(cobaltBody))
+			c.JSON(500, gin.H{"error": "no download URL from cobalt", "detail": cobaltResult})
+			return
+		}
+
+		// ── Step 3: Download MP3 bytes locally ──────────────────────────────
+		fmt.Printf("[Audio] Downloading MP3...\n")
+		dlReq, _ := http.NewRequest("GET", downloadURL, nil)
+		dlReq.Header.Set("User-Agent", "Mozilla/5.0")
+		dlResp, err := httpClient.Do(dlReq)
+		if err != nil {
+			c.JSON(500, gin.H{"error": "mp3 download failed: " + err.Error()})
+			return
+		}
+		f, _ := os.Create(mp3Path)
+		io.Copy(f, dlResp.Body)
+		f.Close()
+		dlResp.Body.Close()
+		fmt.Printf("[Audio] MP3 saved: %s\n", mp3Path)
 	}
 
 	host := os.Getenv("SERVICE_URL")
@@ -86,7 +121,7 @@ func ScrapeAudio(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"metadata": AudioMetadata{
 			Title:     query,
-			Author:    "SoundCloud",
+			Author:    "YouTube",
 			Thumbnail: thumbnail,
 			Duration:  "",
 			URL:       watchURL,
