@@ -33,21 +33,27 @@ func ScrapePowerscale(c *gin.Context) {
 	err := WithPage(func(page *rod.Page) error {
 
 		// ── Step 1: Navigate to search page ───────────────────────────────────
-		// Original: page.goto(searchUrl, { waitUntil: "domcontentloaded" })
 		searchURL := fmt.Sprintf(
-			"https://vsbattles.fandom.com/wiki/Special:Search?query=%s&ns0=1",
+			"https://vsbattles.fandom.com/wiki/Special:Search?scope=internal&navigationSearch=true&query=%s",
 			url.QueryEscape(query),
 		)
 		fmt.Printf("[Powerscale] Navigating to search: %s\n", searchURL)
 		page.MustNavigate(searchURL).MustWaitLoad()
+		time.Sleep(3 * time.Second) // wait for JS-rendered results
 
 		// ── Step 2: Extract search result links ───────────────────────────────
-		// Original: $$eval(".unified-search__result a", links => links.map(a => a.href)
-		//           .filter(h => h.includes("/wiki/") && !h.includes("Special:") && !h.includes("Category:"))
-		linkEls, err := page.Elements(".unified-search__result__link")
-		if err != nil || len(linkEls) == 0 {
-			linkEls, _ = page.Elements(".unified-search__result a")
+		// Try selectors from most to least specific
+		linkEls, _ := page.Elements(".unified-search__result a")
+		if len(linkEls) == 0 {
+			linkEls, _ = page.Elements("article.unified-search__result a")
 		}
+		if len(linkEls) == 0 {
+			linkEls, _ = page.Elements("li.unified-search__result a")
+		}
+		if len(linkEls) == 0 {
+			linkEls, _ = page.Elements(".unified-search__result__link")
+		}
+		fmt.Printf("[Powerscale] Found %d raw link elements\n", len(linkEls))
 
 		var pageURLs []string
 		seen := map[string]bool{}
