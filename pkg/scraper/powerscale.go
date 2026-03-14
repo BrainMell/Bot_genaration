@@ -2,24 +2,24 @@ package scraper
 
 import (
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-rod/rod"
 )
 
 type VSBatleDetail struct {
-	Name          string            `json:"name"`
-	ImageURL      string            `json:"imageUrl"`
-	Summary       string            `json:"summary"`
-	Stats         map[string]string `json:"stats"`
-	PageURL       string            `json:"pageUrl"`
+	Name     string            `json:"name"`
+	ImageURL string            `json:"imageUrl"`
+	Summary  string            `json:"summary"`
+	Stats    map[string]string `json:"stats"`
+	PageURL  string            `json:"pageUrl"`
 }
 
-// ScrapePowerscale handles the character stat extraction from VS Battles Wiki
 func ScrapePowerscale(c *gin.Context) {
 	query := c.Query("query")
 	if query == "" {
@@ -27,141 +27,161 @@ func ScrapePowerscale(c *gin.Context) {
 		return
 	}
 
-	var result *VSBatleDetail
+	client := &http.Client{Timeout: 20 * time.Second}
 
-	err := WithPage(func(page *rod.Page) error {
-		// 1. Search Phase
-		searchUrl := fmt.Sprintf("https://vsbattles.fandom.com/wiki/Special:Search?query=%s", url.QueryEscape(query))
-		fmt.Printf("[Powerscale] Searching: %s\n", searchUrl)
-		
-		page.MustNavigate(searchUrl).MustWaitLoad()
-		
-		// Extract search result links
-		links, err := page.Elements(".unified-search__result a")
-		if err != nil || len(links) == 0 {
-			return fmt.Errorf("no search results found")
-		}
+	fmt.Printf("[Powerscale] Searching for: %s\n", query)
 
-		searchURLs := []string{}
-		for _, link := range links {
-			href, _ := link.Attribute("href")
-			if href != nil && strings.Contains(*href, "/wiki/") && 
-			   !strings.Contains(*href, "Special:") && !strings.Contains(*href, "Category:") {
-				searchURLs = append(searchURLs, *href)
-			}
-			if len(searchURLs) >= 3 { break } // Only try top 3
-		}
-
-		// 2. Iteration Phase
-		for _, pageURL := range searchURLs {
-			fmt.Printf("[Powerscale] Trying URL: %s\n", pageURL)
-			
-			// Navigate and wait for network idle to ensure images load
-			page.MustNavigate(pageURL).MustWaitLoad()
-			
-			// Scroll to trigger lazy loading
-			page.MustEval(`() => window.scrollTo(0, document.body.scrollHeight / 2)`)
-			time.Sleep(2 * time.Second)
-
-			// 3. Extraction Phase
-			detail := extractVSBData(page)
-			detail.PageURL = pageURL
-
-			// Validation: Must have at least a Name and either an Image or some Stats
-			if detail.Name != "" && (detail.ImageURL != "" || len(detail.Stats) > 0) {
-				result = detail
-				return nil // Success!
-			}
-			fmt.Printf("[Powerscale] Page skipped (insufficient data): %s\n", pageURL)
-		}
-
-		return fmt.Errorf("could not find valid character data after trying %d results", len(searchURLs))
-	})
-
+	// Step 1: Search via Jina proxy
+	searchURL := fmt.Sprintf(
+		"https://r.jina.ai/https://vsbattles.fandom.com/wiki/Special:Search?query=%s",
+		url.QueryEscape(query),
+	)
+	resp, err := client.Get(searchURL)
 	if err != nil {
-		c.JSON(404, gin.H{"error": err.Error()})
+		c.JSON(500, gin.H{"error": "search request failed: " + err.Error()})
+		return
+	}
+	searchBody, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	// Extract wiki page URLs from search results
+	reLinks := regexp.MustCompile(`https://vsbattles\.fandom\.com/wiki/([^)\s"'\]]+)`)
+	allMatches := reLinks.FindAllString(string(searchBody), -1)
+
+	// Deduplicate and filter out Special/Category/Talk pages
+	seen := map[string]bool{}
+	var pageURLs []string
+	for _, u := range allMatches {
+		if seen[u] { continue }
+		if strings.Contains(u, "Special:") { continue }
+		if strings.Contains(u, "Category:") { continue }
+		if strings.Contains(u, "Talk:") { continue }
+		if strings.Contains(u, "User:") { continue }
+		if strings.Contains(u, "File:") { continue }
+		seen[u] = true
+		pageURLs = append(pageURLs, u)
+		if len(pageURLs) >= 3 { break }
+	}
+
+	if len(pageURLs) == 0 {
+		c.JSON(404, gin.H{"error": fmt.Sprintf("no results found for '%s'", query)})
 		return
 	}
 
-	c.JSON(200, result)
+	// Step 2: Fetch each page via Jina and extract stats
+	for _, pageURL := range pageURLs {
+		fmt.Printf("[Powerscale] Trying: %s\n", pageURL)
+
+		jinaURL := "https://r.jina.ai/" + pageURL
+		r, err := client.Get(jinaURL)
+		if err != nil {
+			fmt.Printf("[Powerscale] fetch error: %v\n", err)
+			continue
+		}
+		raw, _ := io.ReadAll(r.Body)
+		r.Body.Close()
+		text := string(raw)
+
+		detail := parseVSBPage(text, pageURL)
+
+		if detail.Name != "" && len(detail.Stats) > 0 {
+			fmt.Printf("[Powerscale] Success: %s\n", detail.Name)
+			c.JSON(200, detail)
+			return
+		}
+		fmt.Printf("[Powerscale] Skipping (insufficient data)\n")
+	}
+
+	c.JSON(404, gin.H{"error": "no valid character data found"})
 }
 
-func extractVSBData(page *rod.Page) *VSBatleDetail {
+func parseVSBPage(text, pageURL string) *VSBatleDetail {
 	detail := &VSBatleDetail{
-		Stats: make(map[string]string),
+		Stats:   make(map[string]string),
+		PageURL: pageURL,
 	}
 
-	// Extract Name
-	if nameEl, err := page.Element(".page-header__title"); err == nil {
-		detail.Name = strings.TrimSpace(nameEl.MustText())
+	lines := strings.Split(text, "\n")
+
+	// Extract name from first H1 heading
+	reH1 := regexp.MustCompile(`^#\s+(.+)`)
+	for _, line := range lines {
+		if m := reH1.FindStringSubmatch(strings.TrimSpace(line)); len(m) > 1 {
+			detail.Name = strings.TrimSpace(m[1])
+			break
+		}
 	}
 
-	// Extract Image (Multi-Strategy)
-	// Strategy 1: Infobox Thumbnail
-	if img, err := page.Element(".pi-image-thumbnail"); err == nil {
-		detail.ImageURL = cleanImageURL(img.MustAttribute("src"))
-	}
-	// Strategy 2: Any Wikia Image if Strategy 1 failed
-	if detail.ImageURL == "" {
-		imgs, _ := page.Elements("img")
-		for _, img := range imgs {
-			src, _ := img.Attribute("src")
-			if src != nil && strings.Contains(*src, "static.wikia.nocookie.net") && !strings.Contains(*src, "Wikia-Visualization") {
-				detail.ImageURL = cleanImageURL(src)
+	// Extract summary — first paragraph with >50 chars
+	reClean := regexp.MustCompile(`\[.*?\]|\(.*?\)`)
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if len(line) > 50 && !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "|") {
+			detail.Summary = reClean.ReplaceAllString(line, "")
+			detail.Summary = strings.TrimSpace(detail.Summary)
+			if len(detail.Summary) > 50 {
+				if len(detail.Summary) > 400 {
+					detail.Summary = detail.Summary[:400] + "..."
+				}
 				break
 			}
 		}
 	}
 
-	// Extract Summary
-	// Find first meaningful paragraph
-	paras, _ := page.Elements("#mw-content-text p")
-	for _, p := range paras {
-		txt := strings.TrimSpace(p.MustText())
-		if len(txt) > 50 {
-			detail.Summary = cleanStatText(txt)
-			break
+	// Extract stats via regex
+	statFields := map[string]string{
+		"Tier":             "Tier",
+		"Attack Potency":   "Attack Potency",
+		"Speed":            "Speed",
+		"Durability":       "Durability",
+		"Stamina":          "Stamina",
+		"Range":            "Range",
+		"Lifting Strength": "Lifting Strength",
+		"Intelligence":     "Intelligence",
+	}
+
+	for field, key := range statFields {
+		re := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(field) + `\s*[:\|]\s*(.+)`)
+		if m := re.FindStringSubmatch(text); len(m) > 1 {
+			val := cleanVSBText(m[1])
+			if val != "" && len(val) < 200 {
+				detail.Stats[key] = val
+			}
 		}
 	}
 
-	// Extract Stats (Regex on full text)
-	fullText := page.MustElement("#mw-content-text").MustText()
-	statFields := []string{"Tier", "Attack Potency", "Speed", "Durability", "Stamina", "Range", "Lifting Strength"}
-	
-	for _, field := range statFields {
-		re := regexp.MustCompile("(?i)" + field + `\s*:\s*(.+)`)
-		match := re.FindStringSubmatch(fullText)
-		if len(match) > 1 {
-			detail.Stats[field] = cleanStatText(match[1])
+	// Extract image URL
+	reImg := regexp.MustCompile(`https://static\.wikia\.nocookie\.net/[^\s"')]+\.(?:jpg|jpeg|png|gif|webp)`)
+	if imgs := reImg.FindAllString(text, -1); len(imgs) > 0 {
+		for _, img := range imgs {
+			if !strings.Contains(img, "Wikia-Visualization") &&
+				!strings.Contains(img, "Wiki-wordmark") &&
+				!strings.Contains(img, "Site-logo") {
+				// Strip revision params
+				if idx := strings.Index(img, "/revision/"); idx != -1 {
+					img = img[:idx]
+				}
+				detail.ImageURL = img
+				break
+			}
 		}
 	}
 
 	return detail
 }
 
-func cleanImageURL(src *string) string {
-	if src == nil { return "" }
-	url := *src
-	if strings.Contains(url, "/revision/") {
-		return strings.Split(url, "/revision/")[0]
-	}
-	return url
-}
-
-func cleanStatText(text string) string {
-	// 1. Peak Logic: Take last segment after '|'
+func cleanVSBText(text string) string {
+	// Take last segment after '|' (peak logic)
 	if strings.Contains(text, "|") {
 		parts := strings.Split(text, "|")
 		text = parts[len(parts)-1]
 	}
-
-	// 2. Remove Reference Brackets [1], [2] etc.
-	reBrackets := regexp.MustCompile(`\[[^\]]+\]`)
-	text = reBrackets.ReplaceAllString(text, "")
-
-	// 3. Remove Parentheses (notes)
-	reParens := regexp.MustCompile(`\([^)]+\)`)
-	text = reParens.ReplaceAllString(text, "")
-
+	// Remove refs and parens
+	text = regexp.MustCompile(`\[[^\]]+\]`).ReplaceAllString(text, "")
+	text = regexp.MustCompile(`\([^)]+\)`).ReplaceAllString(text, "")
+	// Trim at newline
+	if idx := strings.Index(text, "\n"); idx != -1 {
+		text = text[:idx]
+	}
 	return strings.TrimSpace(text)
 }
