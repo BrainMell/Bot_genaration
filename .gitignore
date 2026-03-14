@@ -17,5 +17,4 @@ vendor/
 image-service-linux
 
 # runtime / build artifacts
-downloads/
 *.mp3
