@@ -2,14 +2,13 @@ package scraper
 
 import (
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-rod/rod"
 )
 
 type VSBatleDetail struct {
@@ -27,265 +26,218 @@ func ScrapePowerscale(c *gin.Context) {
 		return
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
-
 	fmt.Printf("[Powerscale] Searching for: %s\n", query)
 
-	// ── Step 1: Fetch search page via Jina ────────────────────────────────────
-	// Original: page.goto Special:Search?query=X then $$eval(".unified-search__result a")
-	searchURL := fmt.Sprintf(
-		"https://r.jina.ai/https://vsbattles.fandom.com/wiki/Special:Search?query=%s&ns0=1",
-		url.QueryEscape(query),
-	)
+	var result *VSBatleDetail
 
-	req, _ := http.NewRequest("GET", searchURL, nil)
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-	req.Header.Set("Accept", "text/plain")
+	err := WithPage(func(page *rod.Page) error {
 
-	resp, err := client.Do(req)
-	if err != nil {
-		c.JSON(500, gin.H{"error": "search request failed: " + err.Error()})
-		return
-	}
-	searchBody, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	searchText := string(searchBody)
+		// ── Step 1: Navigate to search page ───────────────────────────────────
+		// Original: page.goto(searchUrl, { waitUntil: "domcontentloaded" })
+		searchURL := fmt.Sprintf(
+			"https://vsbattles.fandom.com/wiki/Special:Search?query=%s&ns0=1",
+			url.QueryEscape(query),
+		)
+		fmt.Printf("[Powerscale] Navigating to search: %s\n", searchURL)
+		page.MustNavigate(searchURL).MustWaitLoad()
 
-	fmt.Printf("[Powerscale] Search page fetched (%d bytes)\n", len(searchText))
-
-	// ── Step 2: Extract search result links ───────────────────────────────────
-	// Original CSS: .unified-search__result a
-	// Jina renders as markdown links — extract and rank by query relevance
-	pageURLs := extractSearchResultLinks(searchText, query)
-
-	if len(pageURLs) == 0 {
-		fmt.Printf("[Powerscale] No links found, trying direct URL fallback\n")
-		directURL := "https://vsbattles.fandom.com/wiki/" + url.PathEscape(strings.ReplaceAll(query, " ", "_"))
-		pageURLs = []string{directURL}
-	}
-
-	fmt.Printf("[Powerscale] Candidates: %v\n", pageURLs)
-
-	// ── Step 3: Fetch each page via Jina and extract data ─────────────────────
-	// Original: page.goto URL, page.evaluate() → image + summary + stats
-	for _, pageURL := range pageURLs {
-		fmt.Printf("[Powerscale] Trying: %s\n", pageURL)
-
-		jinaPageURL := "https://r.jina.ai/" + pageURL
-		r, err := client.Get(jinaPageURL)
-		if err != nil {
-			fmt.Printf("[Powerscale] fetch error: %v\n", err)
-			continue
+		// ── Step 2: Extract search result links ───────────────────────────────
+		// Original: $$eval(".unified-search__result a", links => links.map(a => a.href)
+		//           .filter(h => h.includes("/wiki/") && !h.includes("Special:") && !h.includes("Category:"))
+		linkEls, err := page.Elements(".unified-search__result__link")
+		if err != nil || len(linkEls) == 0 {
+			linkEls, _ = page.Elements(".unified-search__result a")
 		}
-		raw, _ := io.ReadAll(r.Body)
-		r.Body.Close()
-		text := string(raw)
 
-		detail := parseVSBPage(text, pageURL)
-
-		// Original check: hasStats || summary.length > 0
-		hasStats := len(detail.Stats) > 0
-		hasSummary := len(detail.Summary) > 0
-
-		if detail.Name != "" && (hasStats || hasSummary) {
-			// Original fallback: no wiki image → try SuperHero API
-			if detail.ImageURL == "" {
-				detail.ImageURL = fetchSuperheroImage(client, query)
-			}
-			fmt.Printf("[Powerscale] Success: %s (stats=%d summary=%d)\n",
-				detail.Name, len(detail.Stats), len(detail.Summary))
-			c.JSON(200, detail)
-			return
-		}
-		fmt.Printf("[Powerscale] Skipping name=%q stats=%d summary=%d\n",
-			detail.Name, len(detail.Stats), len(detail.Summary))
-	}
-
-	c.JSON(404, gin.H{"error": "no valid character data found"})
-}
-
-// extractSearchResultLinks replicates $$eval(".unified-search__result a", ...)
-// Original filter: url.includes("/wiki/") && !url.includes("Special:") && !url.includes("Category:")
-// We rank by query match so exact title matches come first
-func extractSearchResultLinks(text, query string) []string {
-	queryLower := strings.ToLower(strings.TrimSpace(query))
-
-	skipPatterns := []string{
-		"Special:", "Category:", "Talk:", "User:", "File:",
-		"Help:", "Thread:", "Board:", "Forum:", "Blog:", "Message_Wall",
-	}
-
-	isSkipped := func(u string) bool {
-		for _, s := range skipPatterns {
-			if strings.Contains(u, s) {
-				return true
-			}
-		}
-		return false
-	}
-
-	seen := map[string]bool{}
-	var exact []string
-	var strong []string
-	var weak []string
-
-	addLink := func(rawURL, title string) {
-		// Strip query/fragment
-		if idx := strings.Index(rawURL, "?"); idx != -1 {
-			rawURL = rawURL[:idx]
-		}
-		if idx := strings.Index(rawURL, "#"); idx != -1 {
-			rawURL = rawURL[:idx]
-		}
-		if isSkipped(rawURL) || seen[rawURL] {
-			return
-		}
-		seen[rawURL] = true
-
-		titleNorm := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(title), "_", " "))
-
-		if titleNorm == queryLower {
-			exact = append(exact, rawURL)
-		} else if strings.HasPrefix(titleNorm, queryLower) || strings.Contains(titleNorm, queryLower) {
-			strong = append(strong, rawURL)
-		} else {
-			weak = append(weak, rawURL)
-		}
-	}
-
-	// Parse markdown links: [Title](URL)
-	reMdLink := regexp.MustCompile(`\[([^\]]+)\]\((https://vsbattles\.fandom\.com/wiki/[^)]+)\)`)
-	for _, m := range reMdLink.FindAllStringSubmatch(text, -1) {
-		addLink(m[2], m[1])
-	}
-
-	// Parse bare URLs
-	reRawLink := regexp.MustCompile(`https://vsbattles\.fandom\.com/wiki/([^\s"'\])<]+)`)
-	for _, u := range reRawLink.FindAllString(text, -1) {
-		parts := strings.Split(u, "/wiki/")
-		title := ""
-		if len(parts) > 1 {
-			title = strings.ReplaceAll(parts[1], "_", " ")
-		}
-		addLink(u, title)
-	}
-
-	result := append(exact, append(strong, weak...)...)
-	if len(result) > 5 {
-		result = result[:5]
-	}
-	return result
-}
-
-// parseVSBPage replicates the full page.evaluate() block from scrapeVSBPage()
-// Fields: image (pi-image-thumbnail → data-src → strip /revision/),
-//         summary (first <p> in #mw-content-text),
-//         stats (innerText regex for each field)
-func parseVSBPage(text, pageURL string) *VSBatleDetail {
-	detail := &VSBatleDetail{
-		Stats:   make(map[string]string),
-		PageURL: pageURL,
-	}
-
-	lines := strings.Split(text, "\n")
-
-	// Name from first H1 (# Title)
-	reH1 := regexp.MustCompile(`^#\s+(.+)`)
-	for _, line := range lines {
-		if m := reH1.FindStringSubmatch(strings.TrimSpace(line)); len(m) > 1 {
-			name := strings.TrimSpace(m[1])
-			name = regexp.MustCompile(`[*_~` + "`" + `]`).ReplaceAllString(name, "")
-			detail.Name = name
-			break
-		}
-	}
-
-	// Summary — first paragraph equivalent (original: content.querySelector("p").innerText)
-	reClean := regexp.MustCompile(`\[.*?\]|\(.*?\)`)
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if len(line) < 50 {
-			continue
-		}
-		if strings.HasPrefix(line, "#") || strings.HasPrefix(line, "|") ||
-			strings.HasPrefix(line, "!") || strings.HasPrefix(line, "http") ||
-			strings.HasPrefix(line, ">") || strings.HasPrefix(line, "-") ||
-			strings.HasPrefix(line, "*") {
-			continue
-		}
-		candidate := reClean.ReplaceAllString(line, "")
-		candidate = strings.TrimSpace(candidate)
-		if len(candidate) > 50 {
-			if len(candidate) > 400 {
-				candidate = candidate[:400] + "..."
-			}
-			detail.Summary = candidate
-			break
-		}
-	}
-
-	// Stats — original statFields forEach with content.innerText.match(field + ":\s*(.+)")
-	// Fields from original powerscale.js + olderindex.js combined
-	statFields := []string{
-		"Tier",
-		"Attack Potency",
-		"Speed",
-		"Durability",
-		"Stamina",
-		"Range",
-		"Striking Strength",
-		"Lifting Strength",
-		"Intelligence",
-		"Standard Equipment",
-	}
-
-	for _, field := range statFields {
-		re := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(field) + `\s*:\s*(.+)`)
-		if m := re.FindStringSubmatch(text); len(m) > 1 {
-			val := peakLogicClean(m[1])
-			if val != "" && val != "N/A" && len(val) < 300 {
-				detail.Stats[field] = val
-			}
-		}
-	}
-
-	// Image — original: img.pi-image-thumbnail → data-src || src → strip /revision/
-	// Prefer vsbattles-specific images first
-	reVSBImg := regexp.MustCompile(`https://static\.wikia\.nocookie\.net/vsbattles/images/[^\s"'\])<]+\.(?:jpg|jpeg|png|gif|webp)`)
-	reAnyImg := regexp.MustCompile(`https://static\.wikia\.nocookie\.net/[^\s"'\])<]+\.(?:jpg|jpeg|png|gif|webp)`)
-
-	findImage := func(re *regexp.Regexp) string {
-		for _, img := range re.FindAllString(text, -1) {
-			lower := strings.ToLower(img)
-			if strings.Contains(lower, "wikia-visualization") ||
-				strings.Contains(lower, "wiki-wordmark") ||
-				strings.Contains(lower, "site-logo") ||
-				strings.Contains(lower, "favicon") ||
-				strings.Contains(lower, "avatar") {
+		var pageURLs []string
+		seen := map[string]bool{}
+		for _, el := range linkEls {
+			href, err := el.Attribute("href")
+			if err != nil || href == nil {
 				continue
 			}
-			// Strip /revision/ suffix — original: rawUrl.substring(0, revisionIndex)
-			if idx := strings.Index(img, "/revision/"); idx != -1 {
-				img = img[:idx]
+			u := *href
+			if strings.HasPrefix(u, "/") {
+				u = "https://vsbattles.fandom.com" + u
 			}
-			return img
+			if !strings.Contains(u, "/wiki/") { continue }
+			if strings.Contains(u, "Special:") { continue }
+			if strings.Contains(u, "Category:") { continue }
+			if strings.Contains(u, "Talk:") { continue }
+			if strings.Contains(u, "User:") { continue }
+			if strings.Contains(u, "File:") { continue }
+			if seen[u] { continue }
+			seen[u] = true
+			pageURLs = append(pageURLs, u)
+			fmt.Printf("[Powerscale] Found link: %s\n", u)
+			if len(pageURLs) >= 5 { break }
 		}
-		return ""
+
+		if len(pageURLs) == 0 {
+			direct := "https://vsbattles.fandom.com/wiki/" + url.PathEscape(strings.ReplaceAll(query, " ", "_"))
+			fmt.Printf("[Powerscale] No search results, trying direct: %s\n", direct)
+			pageURLs = []string{direct}
+		}
+
+		// ── Step 3: Visit each result until valid data found ──────────────────
+		// Original: for (const url of searchResults) { page.goto, page.evaluate() }
+		for _, pageURL := range pageURLs {
+			fmt.Printf("[Powerscale] Trying: %s\n", pageURL)
+
+			err := page.Navigate(pageURL)
+			if err != nil {
+				fmt.Printf("[Powerscale] navigate error: %v\n", err)
+				continue
+			}
+			page.MustWaitLoad()
+
+			// Original: page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2))
+			// + await new Promise(resolve => setTimeout(resolve, 2000))
+			page.MustEval(`() => window.scrollTo(0, document.body.scrollHeight / 2)`)
+			time.Sleep(2 * time.Second)
+
+			// ── Image ─────────────────────────────────────────────────────────
+			// Original: img = content.querySelector('img.pi-image-thumbnail')
+			// rawUrl = img.dataset.src || img.src
+			// out.imageUrl = rawUrl.substring(0, revisionIndex)
+			imageURL := ""
+			imgEl, err := page.Element("img.pi-image-thumbnail")
+			if err == nil && imgEl != nil {
+				dataSrc, _ := imgEl.Attribute("data-src")
+				src, _ := imgEl.Attribute("src")
+				rawURL := ""
+				if dataSrc != nil && *dataSrc != "" && !strings.HasPrefix(*dataSrc, "data:") {
+					rawURL = *dataSrc
+				} else if src != nil && *src != "" && !strings.HasPrefix(*src, "data:") {
+					rawURL = *src
+				}
+				if rawURL != "" {
+					if idx := strings.Index(rawURL, "/revision/"); idx != -1 {
+						rawURL = rawURL[:idx]
+					}
+					imageURL = rawURL
+					fmt.Printf("[Powerscale] Image: %s\n", imageURL)
+				}
+			}
+
+			// Fallback: any wikia image in article content
+			if imageURL == "" {
+				allImgs, _ := page.Elements("#mw-content-text img")
+				for _, img := range allImgs {
+					src, _ := img.Attribute("src")
+					if src == nil { continue }
+					s := *src
+					if !strings.Contains(s, "static.wikia.nocookie.net") { continue }
+					sl := strings.ToLower(s)
+					if strings.Contains(sl, "wikia-visualization") ||
+						strings.Contains(sl, "wiki-wordmark") ||
+						strings.Contains(sl, "site-logo") { continue }
+					if idx := strings.Index(s, "/revision/"); idx != -1 {
+						s = s[:idx]
+					}
+					imageURL = s
+					break
+				}
+			}
+
+			// ── Summary ───────────────────────────────────────────────────────
+			// Original: const firstP = content.querySelector("p")
+			// out.summary = firstP ? firstP.innerText : ""
+			summary := ""
+			firstP, err := page.Element("#mw-content-text p")
+			if err == nil && firstP != nil {
+				text, _ := firstP.Text()
+				summary = strings.TrimSpace(text)
+				if len(summary) > 400 {
+					summary = summary[:400] + "..."
+				}
+			}
+
+			// ── Stats ─────────────────────────────────────────────────────────
+			// Original: statFields.forEach(field => { content.innerText.match(field + ":\s*(.+)") })
+			pageText := ""
+			contentEl, err := page.Element("#mw-content-text")
+			if err == nil && contentEl != nil {
+				pageText, _ = contentEl.Text()
+			}
+
+			stats := map[string]string{}
+			statFields := []string{
+				"Tier",
+				"Attack Potency",
+				"Speed",
+				"Durability",
+				"Stamina",
+				"Range",
+				"Striking Strength",
+				"Lifting Strength",
+				"Intelligence",
+				"Standard Equipment",
+			}
+			for _, field := range statFields {
+				re := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(field) + `\s*:\s*(.+)`)
+				if m := re.FindStringSubmatch(pageText); len(m) > 1 {
+					val := vsbPeakClean(m[1])
+					if val != "" && val != "N/A" && len(val) < 300 {
+						stats[field] = val
+					}
+				}
+			}
+
+			// ── Name ──────────────────────────────────────────────────────────
+			name := ""
+			h1, err := page.Element("h1.page-header__title")
+			if err != nil || h1 == nil {
+				h1, err = page.Element("#firstHeading")
+			}
+			if err == nil && h1 != nil {
+				name, _ = h1.Text()
+				name = strings.TrimSpace(name)
+			}
+
+			// Original check: hasStats || summary.length > 0
+			hasStats := len(stats) > 0
+			hasSummary := len(summary) > 0
+
+			fmt.Printf("[Powerscale] name=%q stats=%d summary=%d\n", name, len(stats), len(summary))
+
+			if name != "" && (hasStats || hasSummary) {
+				result = &VSBatleDetail{
+					Name:     name,
+					ImageURL: imageURL,
+					Summary:  summary,
+					Stats:    stats,
+					PageURL:  pageURL,
+				}
+				fmt.Printf("[Powerscale] ✅ Success: %s\n", name)
+				return nil
+			}
+
+			fmt.Printf("[Powerscale] ❌ Skipping, trying next...\n")
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		fmt.Printf("[Powerscale] Rod error: %v\n", err)
+		c.JSON(500, gin.H{"error": "browser error: " + err.Error()})
+		return
 	}
 
-	detail.ImageURL = findImage(reVSBImg)
-	if detail.ImageURL == "" {
-		detail.ImageURL = findImage(reAnyImg)
+	if result == nil {
+		c.JSON(404, gin.H{"error": "no valid character data found"})
+		return
 	}
 
-	return detail
+	c.JSON(200, result)
 }
 
-// peakLogicClean replicates PeakLogic.clean() from original powerscale.js:
+// vsbPeakClean replicates PeakLogic.clean() from original powerscale.js:
 //   text.split('|').pop().trim()
 //   .replace(/\([^)]+\)/g, "")
 //   .replace(/\[[^\]]+\]/g, "")
-func peakLogicClean(text string) string {
+func vsbPeakClean(text string) string {
 	if strings.Contains(text, "|") {
 		parts := strings.Split(text, "|")
 		text = parts[len(parts)-1]
@@ -295,32 +247,5 @@ func peakLogicClean(text string) string {
 	if idx := strings.Index(text, "\n"); idx != -1 {
 		text = text[:idx]
 	}
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return "N/A"
-	}
-	return text
-}
-
-// fetchSuperheroImage replicates the SuperHero API fallback from olderindex.js:
-//   axios.get(`https://superheroapi.com/api/.../search/${character}`)
-//   → results[0].image.url
-func fetchSuperheroImage(client *http.Client, character string) string {
-	apiURL := fmt.Sprintf(
-		"https://superheroapi.com/api/6e934a5989d474065c897c8fcc68df21/search/%s",
-		url.PathEscape(character),
-	)
-	r, err := client.Get(apiURL)
-	if err != nil {
-		return ""
-	}
-	defer r.Body.Close()
-	body, _ := io.ReadAll(r.Body)
-
-	reImg := regexp.MustCompile(`"url"\s*:\s*"(https://[^"]+)"`)
-	if m := reImg.FindSubmatch(body); len(m) > 1 {
-		fmt.Printf("[Powerscale] SuperHero API image: %s\n", string(m[1]))
-		return string(m[1])
-	}
-	return ""
+	return strings.TrimSpace(text)
 }
