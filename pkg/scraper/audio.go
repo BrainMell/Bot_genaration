@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -40,7 +39,7 @@ type pipedStreams struct {
 	} `json:"audioStreams"`
 }
 
-var httpClient = &http.Client{Timeout: 15 * time.Second}
+// httpClient is declared in scraper.go init()
 
 func ScrapeAudio(c *gin.Context) {
 	query := c.Query("query")
