@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"regexp"
 	"time"
 
@@ -20,6 +21,98 @@ type AudioMetadata struct {
 	Thumbnail string `json:"thumbnail"`
 	Duration  string `json:"duration"`
 	URL       string `json:"url"`
+}
+
+// Free self-hosted cobalt instances that don't require auth
+var cobaltInstances = []string{
+	"https://co.wuk.sh",
+	"https://cobalt.ggtyler.dev",
+	"https://cobalt.api.timelessnesses.me",
+	"https://cobalt-api.kkande.me",
+}
+
+func tryCobalt(httpClient *http.Client, watchURL string, mp3Path string) bool {
+	reqBody, _ := json.Marshal(map[string]interface{}{
+		"url":          watchURL,
+		"downloadMode": "audio",
+		"audioFormat":  "mp3",
+		"audioBitrate": "128",
+	})
+
+	for _, instance := range cobaltInstances {
+		fmt.Printf("[Audio] Trying cobalt instance: %s\n", instance)
+		req, _ := http.NewRequest("POST", instance+"/", bytes.NewBuffer(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			fmt.Printf("[Audio] %s error: %v\n", instance, err)
+			continue
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		var result map[string]interface{}
+		if err := json.Unmarshal(body, &result); err != nil {
+			fmt.Printf("[Audio] %s bad JSON\n", instance)
+			continue
+		}
+
+		status, _ := result["status"].(string)
+		if status != "tunnel" && status != "redirect" && status != "stream" {
+			fmt.Printf("[Audio] %s status: %s\n", instance, status)
+			continue
+		}
+
+		downloadURL, ok := result["url"].(string)
+		if !ok || downloadURL == "" {
+			continue
+		}
+
+		// Download the mp3
+		dlReq, _ := http.NewRequest("GET", downloadURL, nil)
+		dlReq.Header.Set("User-Agent", "Mozilla/5.0")
+		dlResp, err := httpClient.Do(dlReq)
+		if err != nil {
+			fmt.Printf("[Audio] %s download error: %v\n", instance, err)
+			continue
+		}
+		f, _ := os.Create(mp3Path)
+		io.Copy(f, dlResp.Body)
+		f.Close()
+		dlResp.Body.Close()
+
+		// Verify file has content
+		if info, err := os.Stat(mp3Path); err == nil && info.Size() > 10000 {
+			fmt.Printf("[Audio] Cobalt success via %s\n", instance)
+			return true
+		}
+		os.Remove(mp3Path)
+	}
+	return false
+}
+
+func trySoundCloud(query string, mp3Path string) bool {
+	fmt.Printf("[Audio] Trying SoundCloud via yt-dlp...\n")
+	cmd := exec.Command(
+		"yt-dlp",
+		"scsearch1:"+query,
+		"-x",
+		"--audio-format", "mp3",
+		"--audio-quality", "0",
+		"-o", mp3Path,
+		"--no-playlist",
+	)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		fmt.Printf("[Audio] SoundCloud failed: %v\n%s\n", err, string(out))
+		return false
+	}
+	if info, err := os.Stat(mp3Path); err == nil && info.Size() > 10000 {
+		fmt.Printf("[Audio] SoundCloud success\n")
+		return true
+	}
+	return false
 }
 
 func ScrapeAudio(c *gin.Context) {
@@ -54,63 +147,20 @@ func ScrapeAudio(c *gin.Context) {
 	thumbnail := fmt.Sprintf("https://i.ytimg.com/vi/%s/hqdefault.jpg", videoID)
 	watchURL := "https://www.youtube.com/watch?v=" + videoID
 
-	// ── Step 2: Use cobalt.tools API to get MP3 download link ────────────────
-	// cobalt.tools is a free open source YouTube converter — plain HTTPS API
 	_ = os.MkdirAll("downloads", 0755)
 	mp3Path := fmt.Sprintf("downloads/%s.mp3", videoID)
 
+	// ── Step 2: Try cobalt first, fall back to SoundCloud ───────────────────
+	source := "YouTube"
 	if _, err := os.Stat(mp3Path); os.IsNotExist(err) {
-		fmt.Printf("[Audio] Requesting MP3 from cobalt.tools...\n")
-
-		reqBody, _ := json.Marshal(map[string]interface{}{
-			"url":           watchURL,
-			"downloadMode":  "audio",
-			"audioFormat":   "mp3",
-			"audioBitrate":  "128",
-		})
-
-		req, _ := http.NewRequest("POST", "https://api.cobalt.tools/", bytes.NewBuffer(reqBody))
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Accept", "application/json")
-
-		cobaltResp, err := httpClient.Do(req)
-		if err != nil {
-			c.JSON(500, gin.H{"error": "cobalt request failed: " + err.Error()})
-			return
+		if !tryCobalt(httpClient, watchURL, mp3Path) {
+			fmt.Printf("[Audio] Cobalt failed, falling back to SoundCloud...\n")
+			if !trySoundCloud(query, mp3Path) {
+				c.JSON(500, gin.H{"error": "all download methods failed"})
+				return
+			}
+			source = "SoundCloud"
 		}
-		cobaltBody, _ := io.ReadAll(cobaltResp.Body)
-		cobaltResp.Body.Close()
-
-		var cobaltResult map[string]interface{}
-		if err := json.Unmarshal(cobaltBody, &cobaltResult); err != nil {
-			fmt.Printf("[Audio] cobalt response: %s\n", string(cobaltBody))
-			c.JSON(500, gin.H{"error": "cobalt response parse failed"})
-			return
-		}
-
-		fmt.Printf("[Audio] Cobalt status: %v\n", cobaltResult["status"])
-
-		downloadURL, ok := cobaltResult["url"].(string)
-		if !ok || downloadURL == "" {
-			fmt.Printf("[Audio] Cobalt full response: %s\n", string(cobaltBody))
-			c.JSON(500, gin.H{"error": "no download URL from cobalt", "detail": cobaltResult})
-			return
-		}
-
-		// ── Step 3: Download MP3 bytes locally ──────────────────────────────
-		fmt.Printf("[Audio] Downloading MP3...\n")
-		dlReq, _ := http.NewRequest("GET", downloadURL, nil)
-		dlReq.Header.Set("User-Agent", "Mozilla/5.0")
-		dlResp, err := httpClient.Do(dlReq)
-		if err != nil {
-			c.JSON(500, gin.H{"error": "mp3 download failed: " + err.Error()})
-			return
-		}
-		f, _ := os.Create(mp3Path)
-		io.Copy(f, dlResp.Body)
-		f.Close()
-		dlResp.Body.Close()
-		fmt.Printf("[Audio] MP3 saved: %s\n", mp3Path)
 	}
 
 	host := os.Getenv("SERVICE_URL")
@@ -121,7 +171,7 @@ func ScrapeAudio(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"metadata": AudioMetadata{
 			Title:     query,
-			Author:    "YouTube",
+			Author:    source,
 			Thumbnail: thumbnail,
 			Duration:  "",
 			URL:       watchURL,
