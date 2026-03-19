@@ -42,7 +42,9 @@ var (
 	proxyClient  = &http.Client{Timeout: 120 * time.Second}
 )
 
-// Routes that must be forwarded to the Codespace when running in render mode
+// Routes that must be forwarded to the Codespace when running in render mode.
+// NOTE: /api/cards/gif is handled separately below to avoid duplicate
+// registration in full mode.
 var heavyRoutes = []string{
 	"/api/scrape/pinterest",
 	"/api/scrape/pornpics",
@@ -51,7 +53,6 @@ var heavyRoutes = []string{
 	"/api/scrape/anikai",
 	"/api/scrape/news",
 	"/api/scrape/rule34/deep",
-	"/api/cards/gif",
 }
 
 // Cache TTLs in seconds
@@ -433,6 +434,11 @@ func main() {
 			routePath := strings.TrimPrefix(route, "/api")
 			api.GET(routePath, handleHeavy)
 			api.POST(routePath, handleHeavy)
+		}
+		// cards/gif registered separately so it doesn't conflict with
+		// the direct registration in codespace/full mode below
+		if mode == "render" {
+			api.POST("/cards/gif", handleHeavy)
 		}
 	}
 
