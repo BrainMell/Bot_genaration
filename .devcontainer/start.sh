@@ -3,8 +3,6 @@
 # start.sh — runs every time the Codespace wakes up.
 # Starts the Go service in CODESPACE mode, then starts
 # a Cloudflare tunnel so the outside world can reach it.
-# The tunnel URL is written to /tmp/tunnel_url.txt so the
-# orchestrator on Render can read it (if needed).
 # ============================================================
 
 set -e
@@ -26,9 +24,9 @@ if ! command -v cloudflared &> /dev/null; then
   chmod +x /usr/local/bin/cloudflared
 fi
 
-# Start the Go service (codespace mode) in the background
+# Start the Go service (NOW with nohup)
 echo "🚀 [start] Starting Go service in CODESPACE mode..."
-MODE=codespace PORT=7860 ./image-service > /tmp/image-service.log 2>&1 &
+nohup MODE=codespace PORT=7860 ./image-service > /tmp/image-service.log 2>&1 &
 SERVICE_PID=$!
 echo "$SERVICE_PID" > /tmp/image-service.pid
 
@@ -42,9 +40,9 @@ for i in $(seq 1 30); do
   sleep 1
 done
 
-# Start Cloudflare tunnel — output goes to log, URL extracted
+# Start Cloudflare tunnel (NOW with nohup)
 echo "🌐 [start] Starting Cloudflare tunnel..."
-cloudflared tunnel --url http://localhost:7860 > /tmp/cloudflared.log 2>&1 &
+nohup cloudflared tunnel --url http://localhost:7860 > /tmp/cloudflared.log 2>&1 &
 TUNNEL_PID=$!
 echo "$TUNNEL_PID" > /tmp/cloudflared.pid
 
