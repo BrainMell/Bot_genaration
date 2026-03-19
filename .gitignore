@@ -15,6 +15,6 @@ vendor/
 *.out
 *.bin
 image-service-linux
-
+changes
 # runtime / build artifacts
 *.mp3
