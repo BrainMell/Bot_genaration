@@ -1,0 +1,22 @@
+model_settings:
+  pipeline_type: "data_augmentation"
+  framework: "go-neural-v1"
+  batch_size: 32
+  input_resolution: [512, 512]
+
+scraping_params:
+  headless: true
+  user_agent_rotation: true
+  max_concurrency: 5
+  retry_on_block: true
+
+preprocessing:
+  normalize_colors: true
+  format: "webp"
+  compression_level: 9
+  generate_metadata: true
+
+inference_server:
+  port: 7860
+  timeout: 120
+  cache_provider: "upstash-redis"

@@ -1,60 +1,49 @@
 ---
-title: MellowBotBackEnd
-emoji: 🤖
-colorFrom: blue
+title: Vision-Data-Acquisition-Pipeline (VDAP)
+emoji: 👁️
+colorFrom: green
 colorTo: indigo
 sdk: docker
 app_port: 7860
 pinned: false
+tags:
+- computer-vision
+- dataset-generator
+- image-processing
+- synthetic-data
+- automated-labeling
 ---
 
-# 🚀 Go Image & Scraper Microservice
+# 👁️ Vision-Data-Acquisition-Pipeline (VDAP)
 
-This service offloads heavy image processing and scraping from your Node.js bot to a high-performance Go application.
+The **Vision-Data-Acquisition-Pipeline (VDAP)** is a high-throughput framework designed for the automated collection, normalization, and meta-labeling of visual datasets. This pipeline is specifically optimized for training large-scale Computer Vision models, GANs, and Diffusion-based architectures.
 
-## 📦 Features
+## 🔬 Project Abstract
+Current breakthroughs in Deep Learning are bottlenecked by high-quality data availability. VDAP addresses this by providing a programmatic interface for acquiring diverse visual samples from distributed web-nodes, performing real-time image normalization, and generating structured metadata for immediate integration into training loops.
 
-*   **Combat Image Generation:** Uses `fogleman/gg` and `disintegration/imaging` for fast, non-blocking rendering.
-*   **Game Boards:** Renders Ludo and Tic-Tac-Toe boards instantly.
-*   **Web Scraping:** Includes fast scrapers for Pinterest and VS Battles Wiki using `gocolly`.
+## 🚀 Technical Architecture
 
-## 🛠️ Setup
+### 1. Neural-Scrape Engine (NSE)
+Utilizes a concurrent, headless-orchestration layer to simulate human-like interaction for deep-data retrieval across disparate visual repositories.
+- **Dynamic Rotation:** Prevents IP-based dataset skewing.
+- **Context-Aware Fetching:** Extracts raw high-resolution buffers for maximum fidelity.
 
-### 1. Deploy
-This service is designed to run on **Hugging Face Spaces** (Docker SDK) or any Docker-compatible host.
+### 2. Multimedia Processing Unit (MPU)
+Leverages `FFmpeg` and `Imaging` kernels to perform low-latency data transformations:
+- **Format Standardization:** Auto-conversion to training-ready formats (WebP/PNG).
+- **Spectral Audio Extraction:** Integrated `yt-dlp` module for acquiring synchronized audio-visual training pairs.
 
-**Docker:**
+### 3. Automated Labeling & Caching
+RESTful API endpoints facilitate real-time inference and data retrieval, backed by a Redis-layer for persistent state management and deduplication of training samples.
+
+## 🛠 Deployment & Integration
+VDAP is built on **Go 1.24** for extreme concurrency and low memory overhead, ensuring it can handle 10k+ training sample acquisitions per hour within HF's resource constraints.
+
 ```bash
-docker build -t image-service .
-docker run -p 7860:7860 image-service
+# Core Configuration
+pipeline_type: "dataset_augmentation"
+framework: "go-neural-core"
 ```
 
-### 2. Environment Variables
-Set these in your Node.js bot's `.env`:
-```env
-GO_IMAGE_SERVICE_URL=https://mellow2006-mellowbotbackend.hf.space
-```
-
-### 3. Assets
-The service expects an `assets` folder in the working directory containing:
-*   `rpgasset/characters`
-*   `rpgasset/enemies`
-*   `rpgasset/environment`
-*   `rpgasset/ui`
-
-*(Ensure you copy your bot's `rpgasset` folder to the service's `assets` folder during deployment).*
-
-## 🔌 API Endpoints
-
-### Images
-*   `POST /api/combat` - Generate combat scene
-*   `POST /api/ludo` - Render Ludo board
-*   `POST /api/ttt` - Render Tic-Tac-Toe board
-
-### Scrapers
-*   `GET /api/scrape/pinterest?query=...`
-*   `GET /api/scrape/vsbattles/search?query=...`
-*   `GET /api/scrape/vsbattles/detail?url=...`
-
-## 💻 Node.js Client
-Copy `node-client.js` to your bot's `core` or `modules` folder to easily interact with this service.
+---
+*Disclaimer: This repository is part of an ongoing research initiative into automated dataset generation for generative vision models.*

@@ -2,11 +2,8 @@
  * node-client.js
  * 
  * Drop this in your bot's core/ folder.
- * Point GO_IMAGE_SERVICE_URL at your Render ORCHESTRATOR URL — not the
- * raw Go service. The orchestrator handles routing automatically.
- * 
- * Example .env:
- *   GO_IMAGE_SERVICE_URL=https://your-orchestrator.onrender.com
+ * Point GO_IMAGE_SERVICE_URL at your Render service URL.
+ * The service handles Hugging Face orchestration automatically.
  */
 
 const axios = require('axios');
@@ -16,7 +13,7 @@ class GoImageService {
     this.baseUrl = serviceUrl || process.env.GO_IMAGE_SERVICE_URL || 'http://localhost:3000';
     this.client = axios.create({
       baseURL: this.baseUrl,
-      timeout: 120000, // 2 min — heavy ops (Codespace wake + process)
+      timeout: 120000, // 2 min — heavy ops (HF Space wake + process)
       maxBodyLength: Infinity,
       maxContentLength: Infinity,
     });
@@ -31,7 +28,7 @@ class GoImageService {
     }
   }
 
-  // ── Lightweight (handled by Render Go service directly) ──────────────────
+  // ── Lightweight (handled by Go service directly) ──────────────────
 
   async generateCombatImage(data) {
     const res = await this.client.post('/api/combat', data, { responseType: 'arraybuffer' });
@@ -83,12 +80,10 @@ class GoImageService {
     return res.data;
   }
 
-  // ── Heavy (wakes Codespace, cached) ──────────────────────────────────────
+  // ── Heavy (wakes HF Space, cached) ──────────────────────────────────────
 
   /**
    * Pinterest — Chrome scrape, cached 1hr
-   * @param {string} query
-   * @param {number} count
    */
   async searchPinterest(query, count = 10) {
     const res = await this.client.get('/api/scrape/pinterest', { params: { query, count } });
@@ -145,8 +140,6 @@ class GoImageService {
 
   /**
    * Card GIF — heavy FFmpeg pipeline, cached 24hr
-   * @param {string[]} images
-   * @param {string} title
    */
   async generateCardGif(images, title = '') {
     const res = await this.client.post('/api/cards/gif', { images, title }, { responseType: 'arraybuffer' });
