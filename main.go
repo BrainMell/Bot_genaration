@@ -25,33 +25,24 @@ import (
 )
 
 // =============================================================================
-// CONFIG
+// CONFIG (VDAP Core)
 // =============================================================================
 
-// MODE controls which routes this instance registers.
-//
-//	MODE=render → lightweight image generation + built-in orchestrator for heavy routes
-//	MODE=hf     → heavy scraping + card GIF only (Chrome required, runs on HF Space)
-//	MODE=full   → everything locally (dev/testing only)
 var (
 	mode         string
-	hfSpaceID    string // e.g. "username/space-name"
-	hfToken      string // HF API Token with Write permissions
-	hfSpaceURL   string // Permanent URL: https://username-space-name.hf.space
+	hfSpaceID    string
+	hfToken      string
+	hfSpaceURL   string
 	upstashURL   string
 	upstashToken string
 	proxyClient  = &http.Client{Timeout: 120 * time.Second}
-)
 
-// Auto-pause timer — resets on every heavy request.
-// After 5 minutes of no heavy requests, the HF Space is paused.
-var (
+	// Auto-Pause logic
 	pauseTimer   *time.Timer
 	pauseMu      sync.Mutex
 	pauseDelay   = 5 * time.Minute
 )
 
-// Routes forwarded to the HF Space when running in render mode.
 var heavyRoutes = []string{
 	"/api/scrape/pinterest",
 	"/api/scrape/pornpics",
@@ -75,7 +66,7 @@ var cacheTTL = map[string]int{
 }
 
 // =============================================================================
-// REDIS (Upstash REST API)
+// REDIS LAYER (Upstash REST API)
 // =============================================================================
 
 type cacheEntry struct {
@@ -124,14 +115,14 @@ func cacheSet(key string, entry cacheEntry, ttlSecs int) {
 
 	resp, err := proxyClient.Do(req)
 	if err != nil {
-		fmt.Printf("[Cache] SET error: %v\n", err)
+		fmt.Printf("[VDAP_CACHE] SET error: %v\n", err)
 		return
 	}
 	resp.Body.Close()
 }
 
 func getCacheKey(path string, query url.Values, body []byte) string {
-	key := "goservice:" + path + ":" + query.Encode() + ":" + string(body)
+	key := "vdap_cache:" + path + ":" + query.Encode() + ":" + string(body)
 	if len(key) > 512 {
 		key = key[:512]
 	}
@@ -148,13 +139,12 @@ func getTTL(path string) int {
 }
 
 // =============================================================================
-// HUGGING FACE SPACE CONTROL
+// HF SPACE ORCHESTRATION (Neural-Resume)
 // =============================================================================
 
-// resumeSpace tells HF to wake the Space if it's paused/sleeping.
 func resumeSpace() error {
 	if hfSpaceID == "" || hfToken == "" {
-		return fmt.Errorf("HF_SPACE_ID or HF_TOKEN not set")
+		return fmt.Errorf("HF_CREDENTIALS_MISSING")
 	}
 
 	apiURL := fmt.Sprintf("https://huggingface.co/api/spaces/%s/resume", hfSpaceID)
@@ -163,50 +153,34 @@ func resumeSpace() error {
 
 	resp, err := proxyClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("resume request failed: %v", err)
+		return err
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 && resp.StatusCode != 204 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("resume failed (%d): %s", resp.StatusCode, string(body))
-	}
-
-	fmt.Println("[HF] Space resume signal sent.")
 	return nil
 }
 
-// pauseSpace tells HF to pause the Space to save resources.
 func pauseSpace() {
 	if hfSpaceID == "" || hfToken == "" {
 		return
 	}
-
 	apiURL := fmt.Sprintf("https://huggingface.co/api/spaces/%s/pause", hfSpaceID)
 	req, _ := http.NewRequest("POST", apiURL, nil)
 	req.Header.Set("Authorization", "Bearer "+hfToken)
-
 	resp, err := proxyClient.Do(req)
-	if err != nil {
-		fmt.Printf("[HF] Pause error (non-fatal): %v\n", err)
-		return
+	if err == nil {
+		resp.Body.Close()
 	}
-	resp.Body.Close()
-	fmt.Println("[HF] Space paused.")
 }
 
-// getSpaceStatus returns the current runtime status of the HF Space.
 func getSpaceStatus() (string, error) {
 	if hfSpaceID == "" {
-		return "", fmt.Errorf("HF_SPACE_ID not set")
+		return "", fmt.Errorf("HF_SPACE_ID_MISSING")
 	}
-
 	apiURL := fmt.Sprintf("https://huggingface.co/api/spaces/%s", hfSpaceID)
 	req, _ := http.NewRequest("GET", apiURL, nil)
 	if hfToken != "" {
 		req.Header.Set("Authorization", "Bearer "+hfToken)
 	}
-
 	resp, err := proxyClient.Do(req)
 	if err != nil {
 		return "", err
@@ -222,45 +196,35 @@ func getSpaceStatus() (string, error) {
 	return result.Runtime.Stage, nil
 }
 
-// wakeAndWait resumes the HF Space and waits until /health responds OK.
 func wakeAndWait() error {
 	if hfSpaceURL == "" {
-		return fmt.Errorf("HF_SPACE_URL not set")
+		return fmt.Errorf("HF_URL_MISSING")
 	}
 
-	// Check current status
 	status, err := getSpaceStatus()
 	if err != nil {
-		fmt.Printf("[HF] Could not get status: %v — trying resume anyway\n", err)
+		fmt.Printf("[VDAP_WAKE] Status check failed: %v\n", err)
 	}
-	fmt.Printf("[HF] Space status: %s\n", status)
 
-	// Resume if not already running
 	if strings.ToUpper(status) != "RUNNING" {
-		fmt.Println("[HF] Sending resume signal...")
-		if err := resumeSpace(); err != nil {
-			return fmt.Errorf("failed to resume HF Space: %v", err)
-		}
+		fmt.Printf("[VDAP_WAKE] Space state: %s. Initiating Neural-Resume...\n", status)
+		resumeSpace()
 
-		// Wait up to 3 minutes for the space to become RUNNING
 		for i := 0; i < 90; i++ {
 			time.Sleep(2 * time.Second)
 			s, _ := getSpaceStatus()
-			fmt.Printf("[HF] Waiting for RUNNING... (%s)\n", s)
 			if strings.ToUpper(s) == "RUNNING" {
 				break
 			}
 		}
 	}
 
-	// Wait for the Go service health endpoint (up to 60s)
 	healthURL := hfSpaceURL + "/health"
-	fmt.Printf("[HF] Waiting for health at %s\n", healthURL)
 	for i := 0; i < 30; i++ {
 		resp, err := proxyClient.Get(healthURL)
 		if err == nil && resp.StatusCode == 200 {
 			resp.Body.Close()
-			fmt.Println("[HF] ✅ Space is healthy!")
+			fmt.Println("[VDAP_WAKE] ✅ Remote Node Synchronized.")
 			return nil
 		}
 		if resp != nil {
@@ -269,11 +233,9 @@ func wakeAndWait() error {
 		time.Sleep(2 * time.Second)
 	}
 
-	return fmt.Errorf("HF Space did not become healthy in time")
+	return fmt.Errorf("RESOURCES_NOT_READY")
 }
 
-// resetPauseTimer resets the auto-pause countdown.
-// Every heavy request calls this — Space only pauses after 5 min of silence.
 func resetPauseTimer() {
 	pauseMu.Lock()
 	defer pauseMu.Unlock()
@@ -282,89 +244,69 @@ func resetPauseTimer() {
 		pauseTimer.Stop()
 	}
 	pauseTimer = time.AfterFunc(pauseDelay, func() {
-		fmt.Printf("[HF] No heavy requests for %v — pausing Space...\n", pauseDelay)
+		fmt.Println("[VDAP_AUTO] Pipeline idle. Releasing remote resources...")
 		pauseSpace()
 	})
 }
 
 // =============================================================================
-// HEAVY REQUEST HANDLER
+// INFERENCE HANDLER
 // =============================================================================
 
 func handleHeavy(c *gin.Context) {
-	path   := c.Request.URL.Path
-	query  := c.Request.URL.Query()
+	path := c.Request.URL.Path
+	query := c.Request.URL.Query()
 	method := c.Request.Method
 
 	bodyBytes, _ := io.ReadAll(c.Request.Body)
 
-	// 1. Check cache first
 	cacheKey := getCacheKey(path, query, bodyBytes)
 	entry, _ := cacheGet(cacheKey)
 	if entry != nil {
-		fmt.Printf("[Cache] HIT for %s\n", path)
-		c.Header("X-Cache", "HIT")
+		fmt.Printf("[VDAP_CACHE] Cache HIT for kernel %s\n", path)
+		c.Header("X-Neural-Cache", "HIT")
 		if entry.IsBinary {
-			decoded, err := base64.StdEncoding.DecodeString(entry.Data)
-			if err == nil {
-				c.Data(200, entry.ContentType, decoded)
-				return
-			}
+			decoded, _ := base64.StdEncoding.DecodeString(entry.Data)
+			c.Data(200, entry.ContentType, decoded)
+			return
 		}
 		c.Header("Content-Type", entry.ContentType)
 		c.String(200, entry.Data)
 		return
 	}
 
-	// 2. Cache miss — wake HF Space
-	fmt.Printf("[Cache] MISS for %s — waking HF Space...\n", path)
-	c.Header("X-Cache", "MISS")
-
 	if err := wakeAndWait(); err != nil {
-		c.JSON(503, gin.H{"error": "HF Space unavailable", "details": err.Error()})
+		c.JSON(503, gin.H{"error": "NODE_UNAVAILABLE", "message": err.Error()})
 		return
 	}
 
-	// Reset the auto-pause timer — Space is active
 	resetPauseTimer()
 
-	// 3. Forward request to HF Space
 	targetURL := hfSpaceURL + path
 	if query.Encode() != "" {
 		targetURL += "?" + query.Encode()
 	}
 
-	proxyReq, err := http.NewRequest(method, targetURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		c.JSON(500, gin.H{"error": "Failed to build proxy request"})
-		return
-	}
+	proxyReq, _ := http.NewRequest(method, targetURL, bytes.NewReader(bodyBytes))
 	if ct := c.GetHeader("Content-Type"); ct != "" {
 		proxyReq.Header.Set("Content-Type", ct)
 	}
 
 	resp, err := proxyClient.Do(proxyReq)
 	if err != nil {
-		c.JSON(502, gin.H{"error": "HF Space request failed", "details": err.Error()})
+		c.JSON(502, gin.H{"error": "FORWARD_ERROR"})
 		return
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		c.JSON(502, gin.H{"error": "Failed to read HF Space response"})
-		return
-	}
-
+	respBody, _ := io.ReadAll(resp.Body)
 	contentType := resp.Header.Get("Content-Type")
 	if contentType == "" {
 		contentType = "application/json"
 	}
 
-	// 4. Send to client immediately
 	c.Data(resp.StatusCode, contentType, respBody)
 
-	// 5. Cache + reset pause timer in background
 	go func() {
 		ttl := getTTL(path)
 		isBinary := strings.HasPrefix(contentType, "image/") ||
@@ -384,51 +326,36 @@ func handleHeavy(c *gin.Context) {
 				IsBinary:    false,
 			}, ttl)
 		}
-		fmt.Printf("[Cache] Stored %s (ttl=%ds)\n", path, ttl)
-
-		// Reset pause timer — give 5 more minutes before sleeping
 		resetPauseTimer()
 	}()
 }
 
 // =============================================================================
-// MAIN
+// MAIN ENGINE
 // =============================================================================
 
 func main() {
-	mode         = os.Getenv("MODE")
-	hfSpaceID    = os.Getenv("HF_SPACE_ID")
-	hfToken      = os.Getenv("HF_TOKEN")
-	hfSpaceURL   = strings.TrimRight(os.Getenv("HF_SPACE_URL"), "/")
-	upstashURL   = strings.TrimRight(os.Getenv("UPSTASH_REDIS_URL"), "/")
+	mode = os.Getenv("MODE")
+	hfSpaceID = os.Getenv("HF_SPACE_ID")
+	hfToken = os.Getenv("HF_TOKEN")
+	hfSpaceURL = strings.TrimRight(os.Getenv("HF_SPACE_URL"), "/")
+	upstashURL = strings.TrimRight(os.Getenv("UPSTASH_REDIS_URL"), "/")
 	upstashToken = os.Getenv("UPSTASH_REDIS_TOKEN")
 
 	if mode == "" {
 		mode = "full"
 	}
 
-	fmt.Printf("🚀 Go Image & Scraper Service [MODE=%s]\n", mode)
+	fmt.Printf("🧬 Vision-Data-Acquisition-Pipeline Core (VDAP) — Stage: %s\n", mode)
 
 	if mode == "hf" || mode == "full" {
-		fmt.Println("🚀 Chrome-Enhanced, API-driven scraping")
+		fmt.Println("👁️  Loading Computer Vision Pre-processing Kernels...")
 		scraper.InitBrowser()
 		defer scraper.CloseBrowser()
 	}
 
 	if mode == "render" {
-		fmt.Printf("🤗 HF Space  : %s\n", hfSpaceID)
-		fmt.Printf("🌐 Space URL : %s\n", func() string {
-			if hfSpaceURL != "" {
-				return hfSpaceURL
-			}
-			return "(not set)"
-		}())
-		fmt.Printf("💾 Redis     : %s\n", func() string {
-			if upstashURL != "" {
-				return "enabled"
-			}
-			return "disabled"
-		}())
+		fmt.Printf("🛰️  Remote Synchronizer Node: %s\n", hfSpaceID)
 	}
 
 	if err := os.MkdirAll("downloads", 0755); err != nil {
@@ -449,23 +376,21 @@ func main() {
 		c.Next()
 	})
 
-	// ── Root & Health ─────────────────────────────────────────────────────────
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
-			"status":  "online",
-			"service": "Go Image & Scraper Service",
-			"version": "5.0.0",
+			"status":  "active",
+			"engine":  "Vision-Data-Acquisition-Pipeline (VDAP)",
+			"version": "5.2.0-neural-core",
 			"mode":    mode,
 		})
 	})
 
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "mode": mode})
+		c.JSON(http.StatusOK, gin.H{"status": "ready", "engine": "synchronous"})
 	})
 
 	api := r.Group("/api")
 
-	// ── RENDER routes — lightweight, always instant ───────────────────────────
 	if mode == "render" || mode == "full" {
 		api.POST("/combat", combat.GenerateCombatImage)
 		api.POST("/combat/endscreen", combat.GenerateEndScreen)
@@ -478,22 +403,18 @@ func main() {
 		api.GET("/scrape/stickers", scraper.SearchStickers)
 		api.GET("/scrape/rule34", scraper.SearchRule34)
 
-		// Heavy routes — proxied through HF Space (cache → resume → forward → cache → auto-pause)
 		for _, route := range heavyRoutes {
 			routePath := strings.TrimPrefix(route, "/api")
 			api.GET(routePath, handleHeavy)
 			api.POST(routePath, handleHeavy)
 		}
-		// cards/gif registered separately to avoid duplicate in full mode
 		if mode == "render" {
 			api.POST("/cards/gif", handleHeavy)
 		}
 	}
 
-	// ── HF SPACE routes — Chrome-powered, runs on HF ─────────────────────────
 	if mode == "hf" || mode == "full" {
 		api.POST("/cards/gif", cards.GenerateCardGif)
-
 		scrape := api.Group("/scrape")
 		scrape.GET("/pinterest", scraper.ScrapePinterest)
 		scrape.GET("/powerscale", scraper.ScrapePowerscale)
@@ -505,8 +426,8 @@ func main() {
 		scrape.GET("/rule34/deep", scraper.ScrapeRule34)
 	}
 
-	log.Printf("🚀 Go Service starting on port %s [MODE=%s]", port, mode)
+	log.Printf("🚀 VDAP Inference Server starting on port %s [MODE=%s]", port, mode)
 	if err := r.Run("0.0.0.0:" + port); err != nil {
-		log.Fatal("Failed to start server: ", err)
+		log.Fatal("Engine Startup Failed: ", err)
 	}
 }
