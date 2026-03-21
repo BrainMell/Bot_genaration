@@ -50,6 +50,7 @@ var heavyRoutes = []string{
 	"/api/scrape/pornpics",
 	"/api/scrape/audio",
 	"/api/scrape/powerscale",
+	"/api/scrape/powerscale/fetch",
 	"/api/scrape/anikai",
 	"/api/scrape/news",
 	"/api/scrape/rule34/deep",
