@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"image/color"
 	"math"
-	"path/filepath"
 
 	"image-service/pkg/utils"
 
@@ -65,11 +64,17 @@ func GenerateEconomyCard(c *gin.Context) {
 	dc.DrawRectangle(0, 0, 3, CARD_H)
 	dc.Fill()
 
-	fontPath := filepath.Join("assets", "rpgasset", "ui", "fantesy.ttf")
-	totalFace, _ := utils.LoadFont(fontPath, 26)
-	largeFace, _ := utils.LoadFont(fontPath, 18)
-	medFace, _ := utils.LoadFont(fontPath, 15)
-	smallFace, _ := utils.LoadFont(fontPath, 10)
+	fontPath := utils.GetAssetPath("rpgasset", "ui", "fantesy.ttf")
+	totalFace, err0 := utils.LoadFont(fontPath, 26)
+	largeFace, err1 := utils.LoadFont(fontPath, 18)
+	medFace, err2 := utils.LoadFont(fontPath, 15)
+	smallFace, err3 := utils.LoadFont(fontPath, 10)
+
+	if err0 != nil || err1 != nil || err2 != nil || err3 != nil {
+		fmt.Printf("Font Load Error: %v, %v, %v, %v\nPath: %s\n", err0, err1, err2, err3, fontPath)
+		c.JSON(500, gin.H{"error": "Font loading failed. Ensure assets are correctly placed."})
+		return
+	}
 
 	// === Header ===
 	if medFace != nil {
