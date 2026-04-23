@@ -19,7 +19,9 @@ import (
 	"image-service/pkg/cards"
 	"image-service/pkg/chess"
 	"image-service/pkg/combat"
+	"image-service/pkg/economy"
 	"image-service/pkg/ludo"
+	"image-service/pkg/profile"
 	"image-service/pkg/scraper"
 	"image-service/pkg/ttt"
 )
@@ -38,9 +40,9 @@ var (
 	proxyClient  = &http.Client{Timeout: 120 * time.Second}
 
 	// Auto-Pause logic
-	pauseTimer   *time.Timer
-	pauseMu      sync.Mutex
-	pauseDelay   = 5 * time.Minute
+	pauseTimer *time.Timer
+	pauseMu    sync.Mutex
+	pauseDelay = 5 * time.Minute
 )
 
 var heavyRoutes = []string{
@@ -402,6 +404,8 @@ func main() {
 		api.POST("/cards/convert", cards.ConvertCard)
 		api.GET("/scrape/stickers", scraper.SearchStickers)
 		api.GET("/scrape/rule34", scraper.SearchRule34)
+		api.POST("/cards/economy", economy.GenerateEconomyCard)
+		api.POST("/cards/profile", profile.GenerateProfileCard)
 
 		for _, route := range heavyRoutes {
 			routePath := strings.TrimPrefix(route, "/api")
