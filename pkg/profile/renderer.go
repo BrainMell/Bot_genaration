@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	PROF_W = 800
-	PROF_H = 500
+	PROF_W = 500
+	PROF_H = 272
 )
 
 type ProfileCardRequest struct {
@@ -60,16 +60,11 @@ func GenerateProfileCard(c *gin.Context) {
 
 	dc := gg.NewContext(PROF_W, PROF_H)
 
-	// === Deep dark background ===
-	grad := gg.NewLinearGradient(0, 0, float64(PROF_W), float64(PROF_H))
-	grad.AddColorStop(0, color.RGBA{10, 10, 25, 255})
-	grad.AddColorStop(0.6, color.RGBA{15, 15, 40, 255})
-	grad.AddColorStop(1, color.RGBA{20, 10, 35, 255})
-	dc.SetFillStyle(grad)
+	// Flat dark background
+	dc.SetColor(color.RGBA{15, 15, 26, 255})
 	dc.DrawRectangle(0, 0, PROF_W, PROF_H)
 	dc.Fill()
 
-	// === Left accent strip ===
 	rankColors := map[string]color.RGBA{
 		"F": {100, 100, 120, 255}, "E": {100, 149, 237, 255},
 		"D": {50, 205, 50, 255}, "C": {255, 215, 0, 255},
@@ -82,176 +77,107 @@ func GenerateProfileCard(c *gin.Context) {
 		rankColor = color.RGBA{150, 150, 180, 255}
 	}
 
-	// Left colored bar
+	// Left accent bar
 	dc.SetColor(rankColor)
-	dc.DrawRectangle(0, 0, 6, PROF_H)
+	dc.DrawRectangle(0, 0, 3, PROF_H)
 	dc.Fill()
 
-	// Gradient fade from left bar
-	leftGrad := gg.NewLinearGradient(0, 0, 120, 0)
-	leftGrad.AddColorStop(0, color.RGBA{rankColor.R, rankColor.G, rankColor.B, 60})
-	leftGrad.AddColorStop(1, color.RGBA{0, 0, 0, 0})
-	dc.SetFillStyle(leftGrad)
-	dc.DrawRectangle(6, 0, 120, PROF_H)
-	dc.Fill()
-
-	// === Gold border ===
-	dc.SetColor(color.RGBA{212, 175, 55, 180})
-	dc.SetLineWidth(1.5)
-	dc.DrawRoundedRectangle(8, 8, PROF_W-16, PROF_H-16, 8)
-	dc.Stroke()
-
-	// === Font loading ===
 	fontPath := filepath.Join("assets", "rpgasset", "ui", "fantesy.ttf")
-	titleFace, _ := utils.LoadFont(fontPath, 36)
-	largeFace, _ := utils.LoadFont(fontPath, 52)
-	medFace, _ := utils.LoadFont(fontPath, 20)
-	smallFace, _ := utils.LoadFont(fontPath, 14)
+	largeFace, _ := utils.LoadFont(fontPath, 18)
+	medFace, _ := utils.LoadFont(fontPath, 16)
+	smallFace, _ := utils.LoadFont(fontPath, 10)
 
-	// === Profile picture (left side) ===
-	pfpX, pfpY, pfpSize := 30.0, 30.0, 120.0
+	// === Avatar ===
+	const avCX, avCY, avR = 58.0, 65.0, 38.0
 	pfpLoaded := false
-
 	if req.PfpUrl != "" {
-		if pfpImg, err := utils.DownloadImage(req.PfpUrl); err == nil {
-			pfpImg = imaging.Fill(pfpImg, int(pfpSize), int(pfpSize), imaging.Center, imaging.Lanczos)
-			// Clip to circle by drawing in a circular mask area
+		if img, err := utils.DownloadImage(req.PfpUrl); err == nil {
+			img = imaging.Fill(img, int(avR*2), int(avR*2), imaging.Center, imaging.Lanczos)
 			dc.Push()
-			dc.DrawCircle(pfpX+pfpSize/2, pfpY+pfpSize/2, pfpSize/2)
+			dc.DrawCircle(avCX, avCY, avR)
 			dc.Clip()
-			dc.DrawImage(pfpImg, int(pfpX), int(pfpY))
+			dc.DrawImage(img, int(avCX-avR), int(avCY-avR))
 			dc.ResetClip()
 			dc.Pop()
-			// Circle border
-			dc.SetColor(rankColor)
-			dc.SetLineWidth(3)
-			dc.DrawCircle(pfpX+pfpSize/2, pfpY+pfpSize/2, pfpSize/2)
-			dc.Stroke()
 			pfpLoaded = true
 		}
 	}
-
 	if !pfpLoaded {
-		// Default circle avatar
-		dc.SetColor(color.RGBA{rankColor.R / 3, rankColor.G / 3, rankColor.B / 3, 255})
-		dc.DrawCircle(pfpX+pfpSize/2, pfpY+pfpSize/2, pfpSize/2)
+		dc.SetColor(color.RGBA{rankColor.R / 4, rankColor.G / 4, rankColor.B / 4, 255})
+		dc.DrawCircle(avCX, avCY, avR)
 		dc.Fill()
-		dc.SetColor(rankColor)
-		dc.SetLineWidth(3)
-		dc.DrawCircle(pfpX+pfpSize/2, pfpY+pfpSize/2, pfpSize/2)
-		dc.Stroke()
-		// Initial letter
-		if titleFace != nil {
-			dc.SetFontFace(titleFace)
+		if largeFace != nil {
+			dc.SetFontFace(largeFace)
 		}
-		dc.SetColor(color.RGBA{255, 255, 255, 200})
-		initial := string([]rune(req.Nickname)[0:1])
-		dc.DrawStringAnchored(initial, pfpX+pfpSize/2, pfpY+pfpSize/2+2, 0.5, 0.5)
+		dc.SetColor(color.RGBA{220, 220, 230, 200})
+		dc.DrawStringAnchored(string([]rune(req.Nickname)[0:1]), avCX, avCY+2, 0.5, 0.5)
 	}
+	dc.SetColor(rankColor)
+	dc.SetLineWidth(2)
+	dc.DrawCircle(avCX, avCY, avR)
+	dc.Stroke()
 
-	// === Name + Title ===
-	nameX := pfpX + pfpSize + 20
-	if titleFace != nil {
-		dc.SetFontFace(titleFace)
+	// === Name block ===
+	const nameX = 112.0
+	if medFace != nil {
+		dc.SetFontFace(medFace)
 	}
-	// Shadow
-	dc.SetColor(color.RGBA{0, 0, 0, 150})
-	dc.DrawString(req.Nickname, nameX+2, 62)
-	dc.SetColor(color.RGBA{255, 255, 255, 255})
-	dc.DrawString(req.Nickname, nameX, 60)
+	dc.SetColor(color.RGBA{240, 240, 250, 255})
+	dc.DrawString(req.Nickname, nameX, 44)
 
 	if req.Title != "" {
-		if medFace != nil {
-			dc.SetFontFace(medFace)
-		}
-		dc.SetColor(color.RGBA{212, 175, 55, 200})
-		dc.DrawString("✦ "+req.Title, nameX, 86)
-	}
-
-	// Class + Rank badges
-	badgeY := 100.0
-	if req.WhatsappName != "" && req.WhatsappName != req.Nickname {
 		if smallFace != nil {
 			dc.SetFontFace(smallFace)
 		}
-		dc.SetColor(color.RGBA{150, 150, 180, 180})
-		dc.DrawString("aka "+req.WhatsappName, nameX, badgeY)
-		badgeY += 18
+		dc.SetColor(color.RGBA{212, 175, 55, 210})
+		dc.DrawString("✦ "+req.Title, nameX, 59)
 	}
 
 	// Class badge
-	dc.SetColor(color.RGBA{40, 40, 80, 220})
-	dc.DrawRoundedRectangle(nameX, badgeY, 140, 28, 6)
-	dc.Fill()
-	dc.SetColor(color.RGBA{150, 180, 255, 255})
-	dc.SetLineWidth(1)
-	dc.DrawRoundedRectangle(nameX, badgeY, 140, 28, 6)
-	dc.Stroke()
-	if medFace != nil {
-		dc.SetFontFace(medFace)
+	if smallFace != nil {
+		dc.SetFontFace(smallFace)
 	}
-	dc.SetColor(color.RGBA{200, 220, 255, 255})
-	classText := req.ClassIcon + " " + req.Class
-	dc.DrawStringAnchored(classText, nameX+70, badgeY+16, 0.5, 0.5)
+	dc.SetColor(color.RGBA{30, 30, 58, 255})
+	dc.DrawRoundedRectangle(nameX, 64, 90, 18, 3)
+	dc.Fill()
+	dc.SetColor(color.RGBA{83, 74, 183, 180})
+	dc.SetLineWidth(0.8)
+	dc.DrawRoundedRectangle(nameX, 64, 90, 18, 3)
+	dc.Stroke()
+	dc.SetColor(color.RGBA{175, 169, 236, 255})
+	dc.DrawStringAnchored(req.ClassIcon+" "+req.Class, nameX+45, 75, 0.5, 0.5)
 
 	// Rank badge
 	dc.SetColor(rankColor)
-	dc.DrawRoundedRectangle(nameX+150, badgeY, 70, 28, 6)
+	dc.DrawRoundedRectangle(nameX+96, 64, 64, 18, 3)
 	dc.Fill()
-	if medFace != nil {
-		dc.SetFontFace(medFace)
-	}
-	dc.SetColor(color.RGBA{255, 255, 255, 255})
-	dc.DrawStringAnchored(req.Rank+" RANK", nameX+185, badgeY+16, 0.5, 0.5)
+	dc.SetColor(color.RGBA{255, 255, 255, 240})
+	dc.DrawStringAnchored(req.Rank+" RANK", nameX+128, 75, 0.5, 0.5)
 
-	// Guild
+	// Info lines (aka / guild / level+GP)
+	infoY := 96.0
+	if req.WhatsappName != "" && req.WhatsappName != req.Nickname {
+		dc.SetColor(color.RGBA{120, 120, 150, 180})
+		dc.DrawString("aka "+req.WhatsappName, nameX, infoY)
+		infoY += 13
+	}
 	if req.GuildName != "" {
-		if smallFace != nil {
-			dc.SetFontFace(smallFace)
-		}
 		dc.SetColor(color.RGBA{212, 175, 55, 180})
-		dc.DrawString("🏰 "+req.GuildName, nameX, badgeY+38)
+		dc.DrawString("🏰 "+req.GuildName, nameX, infoY)
+		infoY += 13
 	}
+	dc.SetColor(color.RGBA{212, 175, 55, 200})
+	dc.DrawString(fmt.Sprintf("LVL %d  ·  ⭐ %s GP", req.Level, formatNum(req.GP)), nameX, infoY)
 
-	// === Divider ===
-	divGrad := gg.NewLinearGradient(20, 0, float64(PROF_W-20), 0)
-	divGrad.AddColorStop(0, color.RGBA{212, 175, 55, 0})
-	divGrad.AddColorStop(0.2, color.RGBA{212, 175, 55, 150})
-	divGrad.AddColorStop(0.8, color.RGBA{212, 175, 55, 150})
-	divGrad.AddColorStop(1, color.RGBA{212, 175, 55, 0})
-	dc.SetStrokeStyle(divGrad)
-	dc.SetLineWidth(1)
-	dc.DrawLine(20, 170, float64(PROF_W-20), 170)
-	dc.Stroke()
+	// === Divider 1 ===
+	profDivider(dc, 124)
 
-	// === Level section ===
-	levelY := 190.0
-	if largeFace != nil {
-		dc.SetFontFace(largeFace)
-	}
-	dc.SetColor(color.RGBA{255, 215, 0, 255})
-	levelStr := fmt.Sprintf("%d", req.Level)
-	dc.DrawStringAnchored(levelStr, 80, levelY+40, 0.5, 0.5)
-	if medFace != nil {
-		dc.SetFontFace(medFace)
-	}
-	dc.SetColor(color.RGBA{150, 150, 180, 255})
-	dc.DrawStringAnchored("LEVEL", 80, levelY+65, 0.5, 0.5)
+	// === XP bar ===
+	const xpBarX, xpBarY, xpBarW, xpBarH = 44.0, 133.0, 440.0, 9.0
+	dc.SetColor(color.RGBA{110, 110, 150, 200})
+	dc.DrawString("XP", 16, xpBarY+8)
 
-	// === XP Bar ===
-	xpBarX := 150.0
-	xpBarW := float64(PROF_W) - xpBarX - 30
-	xpBarY := levelY + 15
-	xpBarH := 18.0
-
-	if medFace != nil {
-		dc.SetFontFace(medFace)
-	}
-	dc.SetColor(color.RGBA{180, 180, 220, 255})
-	dc.DrawString("XP PROGRESS", xpBarX, xpBarY-3)
-
-	// XP bar background
-	dc.SetColor(color.RGBA{255, 255, 255, 15})
+	dc.SetColor(color.RGBA{255, 255, 255, 12})
 	dc.DrawRoundedRectangle(xpBarX, xpBarY, xpBarW, xpBarH, xpBarH/2)
 	dc.Fill()
 
@@ -260,95 +186,80 @@ func GenerateProfileCard(c *gin.Context) {
 		xpPct = math.Min(1.0, float64(req.XP)/float64(req.XPNeeded))
 	}
 	if xpPct > 0 {
-		xpFillW := math.Max(xpBarH, xpPct*xpBarW)
-		xpGrad := gg.NewLinearGradient(xpBarX, 0, xpBarX+xpFillW, 0)
+		fw := math.Max(xpBarH, xpPct*xpBarW)
+		xpGrad := gg.NewLinearGradient(xpBarX, 0, xpBarX+fw, 0)
 		xpGrad.AddColorStop(0, color.RGBA{100, 100, 255, 255})
 		xpGrad.AddColorStop(1, color.RGBA{180, 100, 255, 255})
 		dc.SetFillStyle(xpGrad)
-		dc.DrawRoundedRectangle(xpBarX, xpBarY, xpFillW, xpBarH, xpBarH/2)
+		dc.DrawRoundedRectangle(xpBarX, xpBarY, fw, xpBarH, xpBarH/2)
 		dc.Fill()
 	}
-
-	dc.SetColor(color.RGBA{212, 175, 55, 80})
-	dc.SetLineWidth(1)
+	dc.SetColor(color.RGBA{100, 90, 140, 100})
+	dc.SetLineWidth(0.5)
 	dc.DrawRoundedRectangle(xpBarX, xpBarY, xpBarW, xpBarH, xpBarH/2)
 	dc.Stroke()
 
-	if smallFace != nil {
-		dc.SetFontFace(smallFace)
-	}
-	dc.SetColor(color.RGBA{180, 180, 220, 200})
-	xpText := fmt.Sprintf("%d / %d XP  (%.0f%%)", req.XP, req.XPNeeded, xpPct*100)
-	dc.DrawString(xpText, xpBarX, xpBarY+xpBarH+14)
+	dc.SetColor(color.RGBA{110, 110, 150, 200})
+	dc.DrawString(fmt.Sprintf("%d / %d XP  (%.0f%%)", req.XP, req.XPNeeded, xpPct*100), 16, xpBarY+xpBarH+14)
 
-	// GP display
-	if medFace != nil {
-		dc.SetFontFace(medFace)
-	}
-	dc.SetColor(color.RGBA{255, 215, 0, 200})
-	gpStr := fmt.Sprintf("⭐ %s GP", formatNum(req.GP))
-	dc.DrawString(gpStr, xpBarX+xpBarW-100, xpBarY+xpBarH+14)
+	// === Divider 2 ===
+	profDivider(dc, 162)
 
-	// === Stats grid ===
-	statsY := 285.0
-	dc.SetStrokeStyle(divGrad)
-	dc.SetLineWidth(1)
-	dc.DrawLine(20, statsY-10, float64(PROF_W-20), statsY-10)
-	dc.Stroke()
-
-	statCols := []struct {
+	// === Stats 3×2 grid ===
+	type stat struct {
 		label, value string
 		col          color.RGBA
-	}{
-		{"QUESTS", fmt.Sprintf("%d", req.QuestsWon), color.RGBA{100, 200, 100, 255}},
-		{"GAMES WON", fmt.Sprintf("%d", req.GamesWon), color.RGBA{100, 160, 255, 255}},
-		{"MESSAGES", fmt.Sprintf("%s", formatNum(req.MessageCount)), color.RGBA{200, 150, 255, 255}},
-		{"WALLET", fmt.Sprintf("%s%s", req.ZeniSymbol, formatNum(int(req.Wallet))), color.RGBA{100, 220, 130, 255}},
-		{"BANK", fmt.Sprintf("%s%s", req.ZeniSymbol, formatNum(int(req.Bank))), color.RGBA{130, 150, 255, 255}},
+	}
+	rows := [2][3]stat{
+		{
+			{"QUESTS", fmt.Sprintf("%d", req.QuestsWon), color.RGBA{80, 220, 130, 255}},
+			{"GAMES WON", fmt.Sprintf("%d", req.GamesWon), color.RGBA{100, 160, 255, 255}},
+			{"MESSAGES", formatNum(req.MessageCount), color.RGBA{200, 160, 255, 255}},
+		},
+		{
+			{"WALLET", fmt.Sprintf("%s%s", req.ZeniSymbol, formatNum(int(req.Wallet))), color.RGBA{80, 220, 130, 255}},
+			{"BANK", fmt.Sprintf("%s%s", req.ZeniSymbol, formatNum(int(req.Bank))), color.RGBA{130, 160, 255, 255}},
+			{"GP", fmt.Sprintf("⭐%s", formatNum(req.GP)), color.RGBA{255, 215, 0, 255}},
+		},
+	}
+	colCX := [3]float64{83, 250, 417}
+	rowValY := [2]float64{182, 226}
+	rowLblY := [2]float64{196, 240}
+
+	for r, row := range rows {
+		for c2, s := range row {
+			cx := colCX[c2]
+			if largeFace != nil {
+				dc.SetFontFace(largeFace)
+			}
+			dc.SetColor(s.col)
+			dc.DrawStringAnchored(s.value, cx, rowValY[r], 0.5, 0.5)
+			if smallFace != nil {
+				dc.SetFontFace(smallFace)
+			}
+			dc.SetColor(color.RGBA{100, 100, 130, 200})
+			dc.DrawStringAnchored(s.label, cx, rowLblY[r], 0.5, 0.5)
+		}
 	}
 
-	colW := float64(PROF_W-60) / float64(len(statCols))
-	for i, stat := range statCols {
-		cx := 30 + float64(i)*colW + colW/2
-
-		// Panel bg
-		panelGrad := gg.NewLinearGradient(cx-colW/2+5, statsY, cx+colW/2-5, statsY+75)
-		panelGrad.AddColorStop(0, color.RGBA{20, 20, 50, 180})
-		panelGrad.AddColorStop(1, color.RGBA{15, 15, 40, 180})
-		dc.SetFillStyle(panelGrad)
-		dc.DrawRoundedRectangle(cx-colW/2+5, statsY, colW-10, 75, 8)
-		dc.Fill()
-		dc.SetColor(color.RGBA{stat.col.R, stat.col.G, stat.col.B, 80})
-		dc.SetLineWidth(1)
-		dc.DrawRoundedRectangle(cx-colW/2+5, statsY, colW-10, 75, 8)
-		dc.Stroke()
-
-		// Value (large)
-		if medFace != nil {
-			dc.SetFontFace(medFace)
-		}
-		dc.SetColor(stat.col)
-		dc.DrawStringAnchored(stat.value, cx, statsY+38, 0.5, 0.5)
-
-		// Label (small)
-		if smallFace != nil {
-			dc.SetFontFace(smallFace)
-		}
-		dc.SetColor(color.RGBA{150, 150, 180, 200})
-		dc.DrawStringAnchored(stat.label, cx, statsY+60, 0.5, 0.5)
-	}
-
-	// === Footer ===
-	dc.SetStrokeStyle(divGrad)
+	// Vertical dividers
+	dc.SetColor(color.RGBA{42, 42, 74, 255})
 	dc.SetLineWidth(1)
-	dc.DrawLine(20, float64(PROF_H-35), float64(PROF_W-35), float64(PROF_H-35))
+	for _, vx := range [2]float64{166, 333} {
+		dc.DrawLine(vx, 162, vx, 252)
+		dc.Stroke()
+	}
+	// Horizontal mid divider
+	dc.DrawLine(16, 208, 484, 208)
 	dc.Stroke()
 
+	// === Footer ===
+	profDivider(dc, 252)
 	if smallFace != nil {
 		dc.SetFontFace(smallFace)
 	}
-	dc.SetColor(color.RGBA{212, 175, 55, 60})
-	dc.DrawStringAnchored("JOKER BOT", float64(PROF_W/2), float64(PROF_H-18), 0.5, 0.5)
+	dc.SetColor(color.RGBA{50, 50, 80, 255})
+	dc.DrawStringAnchored("JOKER BOT", PROF_W/2, 265, 0.5, 0.5)
 
 	buf, err := utils.EncodeImageToBuffer(dc.Image())
 	if err != nil {
@@ -358,13 +269,21 @@ func GenerateProfileCard(c *gin.Context) {
 	c.Data(200, "image/png", buf)
 }
 
+func profDivider(dc *gg.Context, y float64) {
+	dc.SetColor(color.RGBA{42, 42, 74, 255})
+	dc.SetLineWidth(1)
+	dc.DrawLine(16, y, 484, y)
+	dc.Stroke()
+}
+
 func formatNum(n int) string {
 	f := float64(n)
-	if f >= 1_000_000 {
+	switch {
+	case f >= 1_000_000:
 		return fmt.Sprintf("%.1fM", f/1_000_000)
-	}
-	if f >= 1_000 {
+	case f >= 1_000:
 		return fmt.Sprintf("%.1fK", f/1_000)
+	default:
+		return fmt.Sprintf("%d", n)
 	}
-	return fmt.Sprintf("%d", n)
 }
