@@ -21,6 +21,19 @@ func InitBrowser() {
 	browserOnce.Do(func() {
 		fmt.Println("🚀 Initializing Rod Browser Engine...")
 
+		browserlessURL := os.Getenv("BROWSERLESS_URL")
+		if browserlessURL != "" {
+			fmt.Printf("🌐 Connecting to Browserless.io: %s\n", browserlessURL)
+			browser = rod.New().
+				ControlURL(browserlessURL).
+				MustConnect()
+
+			// Cloud-based, can handle more concurrency
+			pagePool = make(chan *rod.Page, 10)
+			fmt.Println("✅ Rod Browser Engine (Browserless) Ready!")
+			return
+		}
+
 		chromePath := os.Getenv("CHROME_PATH")
 		if chromePath == "" {
 			chromePath = "/usr/bin/chromium-browser"
@@ -61,7 +74,7 @@ func InitBrowser() {
 		// 3 concurrent tabs — balanced for HF Spaces RAM
 		pagePool = make(chan *rod.Page, 3)
 
-		fmt.Println("✅ Rod Browser Engine Ready!")
+		fmt.Println("✅ Rod Browser Engine (Local) Ready!")
 	})
 }
 
