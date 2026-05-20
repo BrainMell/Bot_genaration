@@ -3,114 +3,82 @@ package scraper
 import (
 	"fmt"
 	"os"
-	"sync"
+	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
-	"github.com/go-rod/rod/lib/proto"
 )
 
-var (
-	browser     *rod.Browser
-	browserOnce sync.Once
-	pagePool    chan *rod.Page
-)
+// Browser is the shared remote/local browser instance used by all scrapers.
+var Browser *rod.Browser
 
-// InitBrowser initializes the global Rod browser instance.
+// InitBrowser connects to Browserless if BROWSERLESS_TOKEN is set,
+// otherwise falls back to a local Chromium launch (useful for local dev).
 func InitBrowser() {
-	browserOnce.Do(func() {
-		fmt.Println("🚀 Initializing Rod Browser Engine...")
+	token := os.Getenv("BROWSERLESS_TOKEN")
 
-		browserlessURL := os.Getenv("BROWSERLESS_URL")
-		if browserlessURL != "" {
-			fmt.Printf("🌐 Connecting to Browserless.io: %s\n", browserlessURL)
-			browser = rod.New().
-				ControlURL(browserlessURL).
-				MustConnect()
-
-			// Cloud-based, can handle more concurrency
-			pagePool = make(chan *rod.Page, 10)
-			fmt.Println("✅ Rod Browser Engine (Browserless) Ready!")
-			return
-		}
-
-		chromePath := os.Getenv("CHROME_PATH")
-		if chromePath == "" {
-			chromePath = "/usr/bin/chromium-browser"
-		}
-
-		fmt.Printf("📂 Using System Chromium: %s\n", chromePath)
-
-		// Rod's Set(name, value) requires NO "=" in the name.
-		// Boolean flags use Append("--flag-name").
-		l := launcher.New().
-			Bin(chromePath).
-			Headless(true).
-			NoSandbox(true).
-			Devtools(false).
-			// DNS-over-HTTPS: routes DNS through Cloudflare HTTPS (port 443)
-			// bypassing HF's broken UDP DNS resolver
-			Set("dns-over-https-mode", "secure").
-			Set("dns-over-https-templates", "https://cloudflare-dns.com/dns-query").
-			// Container stability
-			Append("--disable-dev-shm-usage").
-			Append("--disable-gpu").
-			Append("--no-first-run").
-			Append("--no-default-browser-check").
-			Append("--disable-extensions").
-			Append("--disable-sync").
-			Append("--mute-audio")
-
-		u, err := l.Launch()
-		if err != nil {
-			fmt.Printf("❌ Failed to launch system chromium: %v\n", err)
-			return
-		}
-
-		browser = rod.New().
-			ControlURL(u).
-			MustConnect()
-
-		// 3 concurrent tabs — balanced for HF Spaces RAM
-		pagePool = make(chan *rod.Page, 3)
-
-		fmt.Println("✅ Rod Browser Engine (Local) Ready!")
-	})
+	if token != "" {
+		connectBrowserless(token)
+	} else {
+		connectLocal()
+	}
 }
 
-// WithPage safely acquires a page from the pool and runs an action.
-// It recovers from panics so a single bad request can't crash the service.
-func WithPage(action func(*rod.Page) error) (err error) {
-	if browser == nil {
-		InitBrowser()
-	}
-
-	if browser == nil {
-		return fmt.Errorf("browser engine not initialized")
-	}
-
-	// Acquire concurrency slot
-	pagePool <- nil
-	defer func() { <-pagePool }()
-
-	// Recover from rod panics (e.g. MustNavigate on DNS failure)
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("browser panic: %v", r)
-		}
-	}()
-
-	page, createErr := browser.MustIncognito().Page(proto.TargetCreateTarget{URL: "about:blank"})
-	if createErr != nil {
-		return fmt.Errorf("failed to create page: %v", createErr)
-	}
-	defer page.MustClose()
-
-	return action(page)
-}
-
+// CloseBrowser gracefully disconnects from the browser.
 func CloseBrowser() {
-	if browser != nil {
-		browser.MustClose()
+	if Browser != nil {
+		Browser.MustClose()
 	}
+}
+
+// connectBrowserless connects Rod to a remote Browserless.io Chrome instance.
+// This uses zero local RAM — all browser work runs on Browserless servers.
+func connectBrowserless(token string) {
+	wsURL := fmt.Sprintf("wss://chrome.browserless.io?token=%s&timeout=60000", token)
+
+	fmt.Println("[BROWSER] Connecting to Browserless remote Chrome...")
+
+	var err error
+	for attempt := 1; attempt <= 3; attempt++ {
+		Browser, err = tryConnect(wsURL)
+		if err == nil {
+			fmt.Println("[BROWSER] ✅ Connected to Browserless.")
+			return
+		}
+		fmt.Printf("[BROWSER] Attempt %d failed: %v — retrying...\n", attempt, err)
+		time.Sleep(2 * time.Second)
+	}
+
+	// If Browserless is down, panic loudly so we know immediately.
+	panic(fmt.Sprintf("[BROWSER] ❌ Could not connect to Browserless after 3 attempts: %v", err))
+}
+
+// connectLocal launches a local headless Chromium (fallback for local dev).
+func connectLocal() {
+	fmt.Println("[BROWSER] BROWSERLESS_TOKEN not set — launching local Chromium (dev mode).")
+
+	u := launcher.New().
+		Headless(true).
+		NoSandbox(true).
+		Set("disable-dev-shm-usage").
+		MustLaunch()
+
+	Browser = rod.New().ControlURL(u).MustConnect()
+	fmt.Println("[BROWSER] ✅ Local Chromium launched.")
+}
+
+// tryConnect attempts a single WebSocket connection to the given URL.
+func tryConnect(wsURL string) (*rod.Browser, error) {
+	b := rod.New().ControlURL(wsURL)
+	if err := b.Connect(); err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// NewPage returns a fresh page from the shared browser.
+// Each call opens a new tab. Always call page.MustClose() when done
+// to avoid burning Browserless units unnecessarily.
+func NewPage() *rod.Page {
+	return Browser.MustPage("")
 }
