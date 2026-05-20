@@ -403,7 +403,7 @@ func main() {
 		api.POST("/cards/burn", cards.GenerateBurnGif)
 		api.POST("/cards/convert", cards.ConvertCard)
 		api.GET("/scrape/stickers", scraper.SearchStickers)
-		api.GET("/scrape/rule34", scraper.SearchRule34)
+		api.GET("/scrape/rule34", scraper.ScrapeRule34)
 		api.POST("/cards/economy", economy.GenerateEconomyCard)
 		api.POST("/cards/profile", profile.GenerateProfileCard)
 
