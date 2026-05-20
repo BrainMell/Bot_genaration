@@ -3,6 +3,7 @@ package scraper
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
@@ -14,7 +15,7 @@ var Browser *rod.Browser
 // InitBrowser connects to Browserless if BROWSERLESS_TOKEN is set,
 // otherwise falls back to a local Chromium launch (useful for local dev).
 func InitBrowser() {
-	token := os.Getenv("BROWSERLESS_TOKEN")
+	token := strings.TrimSpace(os.Getenv("BROWSERLESS_TOKEN"))
 	if token != "" {
 		connectBrowserless(token)
 	} else {
@@ -29,21 +30,27 @@ func CloseBrowser() {
 	}
 }
 
-// connectBrowserless connects Rod to Browserless using the managed launcher.
-// This hits /json/version first (HTTP) to resolve the actual CDP WebSocket URL,
-// which is required — directly passing a wss:// URL causes a bad handshake.
+// connectBrowserless connects Rod to Browserless v2 via raw WebSocket (CDP).
+// We use direct ControlURL because Rod's launcher.MustNewManaged is NOT 
+// compatible with Browserless v2's connection protocol.
 func connectBrowserless(token string) {
-	// Use the base HTTPS URL — launcher.MustNewManaged appends /json/version
-	// In Browserless v2, the /json/version endpoint is at the root.
-	serviceURL := fmt.Sprintf("https://production-sfo.browserless.io?token=%s", token)
+	// For Browserless v2, the path /chromium is the standard CDP endpoint.
+	wsURL := fmt.Sprintf("wss://production-sfo.browserless.io/chromium?token=%s", token)
 
-	fmt.Println("[BROWSER] Connecting to Browserless via managed launcher...")
+	fmt.Printf("[BROWSER] Connecting to Browserless: wss://production-sfo.browserless.io/chromium?token=%s...\n", token[:4])
 
-	l := launcher.MustNewManaged(serviceURL)
-	l.Headless(true)
-
-	Browser = rod.New().Client(l.MustClient()).MustConnect()
-	fmt.Println("[BROWSER] ✅ Connected to Browserless.")
+	// Initialize the browser with the WebSocket URL
+	Browser = rod.New().ControlURL(wsURL)
+	
+	// Attempt to connect and capture potential handshake errors
+	err := Browser.Connect()
+	if err != nil {
+		fmt.Printf("[BROWSER] ❌ Connection error: %v\n", err)
+		fmt.Println("[BROWSER] Troubleshooting: Ensure BROWSERLESS_TOKEN is correct and not expired.")
+		panic(err)
+	}
+	
+	fmt.Println("[BROWSER] ✅ Successfully connected to Browserless v2.")
 }
 
 // connectLocal launches a local headless Chromium (fallback for local dev).
