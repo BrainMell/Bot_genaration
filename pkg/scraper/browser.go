@@ -1,9 +1,12 @@
 package scraper
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
@@ -30,27 +33,46 @@ func CloseBrowser() {
 	}
 }
 
-// connectBrowserless connects Rod to Browserless v2 via raw WebSocket (CDP).
-// We use direct ControlURL because Rod's launcher.MustNewManaged is NOT 
-// compatible with Browserless v2's connection protocol.
+// connectBrowserless connects Rod to Browserless v2 by first fetching
+// /json/version to get the real CDP WebSocket debugger URL, then connecting
+// Rod to that URL. This is the correct approach per the Browserless docs for
+// Go libraries — direct wss:// connections fail due to WebSocket handshake
+// incompatibilities between Rod's nhooyr.io/websocket and Browserless v2.
 func connectBrowserless(token string) {
-	// For Browserless v2, the path /chromium is the standard CDP endpoint.
-	wsURL := fmt.Sprintf("wss://production-sfo.browserless.io/chromium?token=%s", token)
+	fmt.Println("[BROWSER] Fetching Browserless CDP endpoint via /json/version...")
 
-	fmt.Printf("[BROWSER] Connecting to Browserless: wss://production-sfo.browserless.io/chromium?token=%s...\n", token[:4])
+	// Step 1: GET /json/version to resolve the actual debugger WebSocket URL.
+	// Browserless mocks the Chrome DevTools /json/version payload and returns
+	// a webSocketDebuggerUrl that Rod can connect to via ControlURL.
+	versionURL := fmt.Sprintf("https://production-sfo.browserless.io/json/version?token=%s", token)
 
-	// Initialize the browser with the WebSocket URL
-	Browser = rod.New().ControlURL(wsURL)
-	
-	// Attempt to connect and capture potential handshake errors
-	err := Browser.Connect()
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Get(versionURL)
 	if err != nil {
-		fmt.Printf("[BROWSER] ❌ Connection error: %v\n", err)
-		fmt.Println("[BROWSER] Troubleshooting: Ensure BROWSERLESS_TOKEN is correct and not expired.")
-		panic(err)
+		panic(fmt.Sprintf("[BROWSER] ❌ Failed to reach Browserless /json/version: %v", err))
 	}
-	
-	fmt.Println("[BROWSER] ✅ Successfully connected to Browserless v2.")
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		panic(fmt.Sprintf("[BROWSER] ❌ /json/version returned HTTP %d — check your BROWSERLESS_TOKEN", resp.StatusCode))
+	}
+
+	var versionData struct {
+		WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&versionData); err != nil {
+		panic(fmt.Sprintf("[BROWSER] ❌ Failed to parse /json/version JSON: %v", err))
+	}
+
+	if versionData.WebSocketDebuggerURL == "" {
+		panic("[BROWSER] ❌ webSocketDebuggerUrl missing from /json/version response")
+	}
+
+	fmt.Printf("[BROWSER] Got debugger URL: %s\n", versionData.WebSocketDebuggerURL[:min(len(versionData.WebSocketDebuggerURL), 60)])
+
+	// Step 2: Connect Rod to the actual CDP debugger WebSocket URL.
+	Browser = rod.New().ControlURL(versionData.WebSocketDebuggerURL).MustConnect()
+	fmt.Println("[BROWSER] ✅ Connected to Browserless.")
 }
 
 // connectLocal launches a local headless Chromium (fallback for local dev).
@@ -71,4 +93,11 @@ func connectLocal() {
 // Always call page.MustClose() when done to avoid burning Browserless units.
 func NewPage() *rod.Page {
 	return Browser.MustPage("")
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
