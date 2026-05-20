@@ -71,7 +71,18 @@ func connectBrowserless(token string) {
 	fmt.Printf("[BROWSER] Got debugger URL: %s\n", versionData.WebSocketDebuggerURL[:min(len(versionData.WebSocketDebuggerURL), 60)])
 
 	// Step 2: Connect Rod to the actual CDP debugger WebSocket URL.
-	Browser = rod.New().ControlURL(versionData.WebSocketDebuggerURL).MustConnect()
+	// Browserless strips the token from the webSocketDebuggerUrl it returns,
+	// so we must re-append it or the connection gets a 401 Unauthorized.
+	debuggerURL := versionData.WebSocketDebuggerURL
+	if !strings.Contains(debuggerURL, "token=") {
+		sep := "?"
+		if strings.Contains(debuggerURL, "?") {
+			sep = "&"
+		}
+		debuggerURL = debuggerURL + sep + "token=" + token
+	}
+	fmt.Printf("[BROWSER] Connecting to debugger URL...\n")
+	Browser = rod.New().ControlURL(debuggerURL).MustConnect()
 	fmt.Println("[BROWSER] ✅ Connected to Browserless.")
 }
 
