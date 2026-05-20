@@ -34,7 +34,7 @@ func CloseBrowser() {
 // connectBrowserless connects Rod to a remote Browserless.io Chrome instance.
 // This uses zero local RAM — all browser work runs on Browserless servers.
 func connectBrowserless(token string) {
-	wsURL := fmt.Sprintf("wss://chrome.browserless.io?token=%s&timeout=60000", token)
+	wsURL := fmt.Sprintf("wss://production-sfo.browserless.io/chromium?token=%s", token)
 
 	fmt.Println("[BROWSER] Connecting to Browserless remote Chrome...")
 
