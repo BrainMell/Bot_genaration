@@ -387,8 +387,8 @@ func main() {
 
 	if mode == "hf" || mode == "full" {
 		fmt.Println("👁️  Loading Computer Vision Pre-processing Kernels...")
-		scraper.InitBrowser()
-		defer scraper.CloseBrowser()
+		// scraper.InitBrowser() // Disabled Go-Rod in favor of Puppeteer
+		// defer scraper.CloseBrowser()
 	}
 
 	if mode == "render" {
@@ -438,7 +438,7 @@ func main() {
 		api.POST("/cards/burn", cards.GenerateBurnGif)
 		api.POST("/cards/convert", cards.ConvertCard)
 		api.GET("/scrape/stickers", scraper.SearchStickers)
-		api.GET("/scrape/rule34", scraper.ScrapeRule34)
+		api.GET("/scrape/rule34", proxyToScraper)
 		api.POST("/cards/economy", economy.GenerateEconomyCard)
 		api.POST("/cards/profile", profile.GenerateProfileCard)
 

@@ -32,8 +32,12 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ready', engine: 'puppeteer' });
 });
 
+// API Router for proxied requests
+const api = express.Router();
+app.use('/api/scrape', api);
+
 // ── Pinterest Scraper ──────────────────────────────────────────────────
-app.get('/pinterest', async (req, res) => {
+api.get('/pinterest', async (req, res) => {
     const { query, count = 10 } = req.query;
     if (!query) return res.status(400).json({ error: 'Query required' });
 
@@ -80,7 +84,7 @@ app.get('/pinterest', async (req, res) => {
 });
 
 // ── PornPics Scraper ──────────────────────────────────────────────────
-app.get('/pornpics', async (req, res) => {
+api.get('/pornpics', async (req, res) => {
     const { query, count = 10 } = req.query;
     if (!query) return res.status(400).json({ error: 'Query required' });
 
@@ -132,7 +136,7 @@ app.get('/pornpics', async (req, res) => {
 });
 
 // ── Rule34 Deep Scraper ──────────────────────────────────────────────────
-app.get('/rule34/deep', async (req, res) => {
+api.get(['/rule34', '/rule34/deep'], async (req, res) => {
     const { query, count = 10 } = req.query;
     if (!query) return res.status(400).json({ error: 'Query required' });
 
@@ -176,7 +180,7 @@ app.get('/rule34/deep', async (req, res) => {
 });
 
 // ── Powerscale Search ──────────────────────────────────────────────────
-app.get('/powerscale', async (req, res) => {
+api.get('/powerscale', async (req, res) => {
     const { query } = req.query;
     if (!query) return res.status(400).json({ error: 'Query required' });
 
@@ -228,7 +232,7 @@ app.get('/powerscale', async (req, res) => {
 });
 
 // ── Powerscale Fetch ──────────────────────────────────────────────────
-app.get('/powerscale/fetch', async (req, res) => {
+api.get('/powerscale/fetch', async (req, res) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: 'URL required' });
 
@@ -302,7 +306,7 @@ app.get('/powerscale/fetch', async (req, res) => {
 });
 
 // ── Anikai Scraper ──────────────────────────────────────────────────
-app.get('/anikai', async (req, res) => {
+api.get('/anikai', async (req, res) => {
     const { title } = req.query;
     if (!title) return res.status(400).json({ error: 'Title required' });
 
@@ -330,7 +334,7 @@ app.get('/anikai', async (req, res) => {
 });
 
 // ── Anime News Scraper ──────────────────────────────────────────────────
-app.get('/news', async (req, res) => {
+api.get('/news', async (req, res) => {
     try {
         const b = await getBrowser();
         const page = await b.newPage();
