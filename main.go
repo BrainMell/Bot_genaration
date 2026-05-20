@@ -332,6 +332,41 @@ func handleHeavy(c *gin.Context) {
 	}()
 }
 
+func proxyToScraper(c *gin.Context) {
+	scraperPort := os.Getenv("SCRAPER_PORT")
+	if scraperPort == "" {
+		scraperPort = "7861"
+	}
+
+	targetURL := "http://localhost:" + scraperPort + c.Request.URL.Path
+	if c.Request.URL.RawQuery != "" {
+		targetURL += "?" + c.Request.URL.RawQuery
+	}
+
+	fmt.Printf("[PROXY] Forwarding to Puppeteer: %s\n", targetURL)
+
+	req, err := http.NewRequest(c.Request.Method, targetURL, c.Request.Body)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to create proxy request"})
+		return
+	}
+
+	// Copy headers
+	for k, v := range c.Request.Header {
+		req.Header[k] = v
+	}
+
+	resp, err := proxyClient.Do(req)
+	if err != nil {
+		c.JSON(502, gin.H{"error": "Puppeteer scraper unreachable", "details": err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), body)
+}
+
 // =============================================================================
 // MAIN ENGINE
 // =============================================================================
@@ -420,14 +455,14 @@ func main() {
 	if mode == "hf" || mode == "full" {
 		api.POST("/cards/gif", cards.GenerateCardGif)
 		scrape := api.Group("/scrape")
-		scrape.GET("/pinterest", scraper.ScrapePinterest)
-		scrape.GET("/powerscale", scraper.ScrapePowerscale)
-		scrape.GET("/powerscale/fetch", scraper.ScrapePowerscalePage)
-		scrape.GET("/pornpics", scraper.ScrapePornPics)
-		scrape.GET("/audio", scraper.ScrapeAudio)
-		scrape.GET("/anikai", scraper.ScrapeAnikai)
-		scrape.GET("/news", scraper.ScrapeAnimeNews)
-		scrape.GET("/rule34/deep", scraper.ScrapeRule34)
+		scrape.GET("/pinterest", proxyToScraper)
+		scrape.GET("/powerscale", proxyToScraper)
+		scrape.GET("/powerscale/fetch", proxyToScraper)
+		scrape.GET("/pornpics", proxyToScraper)
+		scrape.GET("/audio", scraper.ScrapeAudio) // Stays in Go (yt-dlp)
+		scrape.GET("/anikai", proxyToScraper)
+		scrape.GET("/news", proxyToScraper)
+		scrape.GET("/rule34/deep", proxyToScraper)
 	}
 
 	log.Printf("🚀 VDAP Inference Server starting on port %s [MODE=%s]", port, mode)

@@ -12,15 +12,19 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o image-service .
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
 
-# Install system dependencies
+# Install system dependencies (Node.js + Chrome + FFmpeg)
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
     ca-certificates \
     ffmpeg \
     curl \
-    --no-install-recommends && \
-    rm -rf /var/lib/apt/lists/*
+    python3 \
+    --no-install-recommends
+
+# Install Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs
 
 # Install real Google Chrome (avoids snap trap)
 RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
@@ -39,20 +43,26 @@ RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
 
 WORKDIR /app
 
+# Copy Go binary
 COPY --from=builder /build/image-service .
-COPY assets ./assets
+# Copy Node app
+COPY package.json scraper-api.js ./
+RUN npm install --production
 
+COPY assets ./assets
 RUN mkdir -p downloads && chmod 777 downloads
 
-# HF Space runs as MODE=hf (Chrome enabled, no orchestrator)
+# Environment variables
 ENV MODE=hf
 ENV PORT=7860
+ENV SCRAPER_PORT=7861
 ENV GIN_MODE=release
-ENV CHROME_PATH=/usr/bin/chromium-browser
+ENV CHROME_PATH=/usr/bin/google-chrome-stable
 
 EXPOSE 7860
+EXPOSE 7861
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:7860/health || exit 1
+# Start script to run both
+RUN echo '#!/bin/bash\nnpm start &\n./image-service' > start.sh && chmod +x start.sh
 
-CMD ["./image-service"]
+CMD ["./start.sh"]
