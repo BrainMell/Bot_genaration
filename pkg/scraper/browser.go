@@ -33,8 +33,9 @@ func CloseBrowser() {
 // This hits /json/version first (HTTP) to resolve the actual CDP WebSocket URL,
 // which is required — directly passing a wss:// URL causes a bad handshake.
 func connectBrowserless(token string) {
-	// Use HTTP URL — launcher.MustNewManaged resolves it to the real WS endpoint
-	serviceURL := fmt.Sprintf("wss://production-sfo.browserless.io?token=%s", token)
+	// Use HTTPS URL — launcher.MustNewManaged resolves it to the real WS endpoint
+	// Browserless v2 requires the /chromium path
+	serviceURL := fmt.Sprintf("https://production-sfo.browserless.io/chromium?token=%s", token)
 
 	fmt.Println("[BROWSER] Connecting to Browserless via managed launcher...")
 
