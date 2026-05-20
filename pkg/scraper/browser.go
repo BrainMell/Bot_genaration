@@ -3,7 +3,6 @@ package scraper
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
@@ -16,7 +15,6 @@ var Browser *rod.Browser
 // otherwise falls back to a local Chromium launch (useful for local dev).
 func InitBrowser() {
 	token := os.Getenv("BROWSERLESS_TOKEN")
-
 	if token != "" {
 		connectBrowserless(token)
 	} else {
@@ -31,26 +29,20 @@ func CloseBrowser() {
 	}
 }
 
-// connectBrowserless connects Rod to a remote Browserless.io Chrome instance.
-// This uses zero local RAM — all browser work runs on Browserless servers.
+// connectBrowserless connects Rod to Browserless using the managed launcher.
+// This hits /json/version first (HTTP) to resolve the actual CDP WebSocket URL,
+// which is required — directly passing a wss:// URL causes a bad handshake.
 func connectBrowserless(token string) {
-	wsURL := fmt.Sprintf("wss://production-sfo.browserless.io/chromium?token=%s", token)
+	// Use HTTP URL — launcher.MustNewManaged resolves it to the real WS endpoint
+	serviceURL := fmt.Sprintf("wss://production-sfo.browserless.io?token=%s", token)
 
-	fmt.Println("[BROWSER] Connecting to Browserless remote Chrome...")
+	fmt.Println("[BROWSER] Connecting to Browserless via managed launcher...")
 
-	var err error
-	for attempt := 1; attempt <= 3; attempt++ {
-		Browser, err = tryConnect(wsURL)
-		if err == nil {
-			fmt.Println("[BROWSER] ✅ Connected to Browserless.")
-			return
-		}
-		fmt.Printf("[BROWSER] Attempt %d failed: %v — retrying...\n", attempt, err)
-		time.Sleep(2 * time.Second)
-	}
+	l := launcher.MustNewManaged(serviceURL)
+	l.Headless(true)
 
-	// If Browserless is down, panic loudly so we know immediately.
-	panic(fmt.Sprintf("[BROWSER] ❌ Could not connect to Browserless after 3 attempts: %v", err))
+	Browser = rod.New().Client(l.MustClient()).MustConnect()
+	fmt.Println("[BROWSER] ✅ Connected to Browserless.")
 }
 
 // connectLocal launches a local headless Chromium (fallback for local dev).
@@ -67,18 +59,8 @@ func connectLocal() {
 	fmt.Println("[BROWSER] ✅ Local Chromium launched.")
 }
 
-// tryConnect attempts a single WebSocket connection to the given URL.
-func tryConnect(wsURL string) (*rod.Browser, error) {
-	b := rod.New().ControlURL(wsURL)
-	if err := b.Connect(); err != nil {
-		return nil, err
-	}
-	return b, nil
-}
-
 // NewPage returns a fresh page from the shared browser.
-// Each call opens a new tab. Always call page.MustClose() when done
-// to avoid burning Browserless units unnecessarily.
+// Always call page.MustClose() when done to avoid burning Browserless units.
 func NewPage() *rod.Page {
 	return Browser.MustPage("")
 }
