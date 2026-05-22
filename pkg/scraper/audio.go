@@ -78,6 +78,8 @@ func ScrapeAudio(c *gin.Context) {
 				"-x",
 				"--audio-format", "mp3",
 				"--audio-quality", "0",
+				"--extractor-args", "youtube:player_client=android",
+				"--no-check-certificate",
 				"-o", mp3Path,
 				watchURL,
 			)
