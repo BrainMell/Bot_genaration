@@ -28,6 +28,22 @@ async function getBrowser() {
     return browser;
 }
 
+// Sets a realistic user agent + headers on every page to avoid bot detection
+async function setupPage(browser) {
+    const page = await browser.newPage();
+    await page.setUserAgent(
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+    );
+    await page.setExtraHTTPHeaders({
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+    });
+    return page;
+}
+
 app.get('/health', (req, res) => {
     res.json({ status: 'ready', engine: 'puppeteer' });
 });
@@ -43,7 +59,7 @@ api.get('/pinterest', async (req, res) => {
 
     try {
         const b = await getBrowser();
-        const page = await b.newPage();
+        const page = await setupPage(b);
         const searchURL = `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`;
         
         console.log(`[Pinterest] Searching: ${searchURL}`);
@@ -90,7 +106,7 @@ api.get('/pornpics', async (req, res) => {
 
     try {
         const b = await getBrowser();
-        const page = await b.newPage();
+        const page = await setupPage(b);
         const searchURL = `https://www.pornpics.com/?q=${encodeURIComponent(query)}`;
         
         console.log(`[PornPics] Searching: ${searchURL}`);
@@ -142,7 +158,7 @@ api.get(['/rule34', '/rule34/deep'], async (req, res) => {
 
     try {
         const b = await getBrowser();
-        const page = await b.newPage();
+        const page = await setupPage(b);
         const tag = query.trim().replace(/\s+/g, '_');
         const searchURL = `https://rule34.xxx/index.php?page=post&s=list&tags=${encodeURIComponent(tag)}`;
         
@@ -186,11 +202,11 @@ api.get('/powerscale', async (req, res) => {
 
     try {
         const b = await getBrowser();
-        const page = await b.newPage();
+        const page = await setupPage(b);
         const searchURL = `https://vsbattles.fandom.com/wiki/Special:Search?scope=internal&navigationSearch=true&query=${encodeURIComponent(query)}`;
         
         await page.goto(searchURL, { waitUntil: 'networkidle2', timeout: 60000 });
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 4000));
 
         const characters = await page.evaluate(() => {
             const selectors = ['.unified-search__result a', 'article.unified-search__result a', 'li.unified-search__result a', '.unified-search__result__link'];
@@ -238,7 +254,7 @@ api.get('/powerscale/fetch', async (req, res) => {
 
     try {
         const b = await getBrowser();
-        const page = await b.newPage();
+        const page = await setupPage(b);
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
         
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2));
@@ -312,7 +328,7 @@ api.get('/anikai', async (req, res) => {
 
     try {
         const b = await getBrowser();
-        const page = await b.newPage();
+        const page = await setupPage(b);
         const searchURL = `https://anikai.to/browser?keyword=${encodeURIComponent(title)}`;
         
         await page.goto(searchURL, { waitUntil: 'networkidle2', timeout: 60000 });
@@ -337,7 +353,7 @@ api.get('/anikai', async (req, res) => {
 api.get('/news', async (req, res) => {
     try {
         const b = await getBrowser();
-        const page = await b.newPage();
+        const page = await setupPage(b);
         const newsURL = 'https://animecorner.me/category/anime-news/';
         
         await page.goto(newsURL, { waitUntil: 'networkidle2', timeout: 60000 });
