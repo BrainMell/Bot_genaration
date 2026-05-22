@@ -1,6 +1,7 @@
 package scraper
 
 import (
+	"crypto/md5"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,85 +29,123 @@ func ScrapeAudio(c *gin.Context) {
 		return
 	}
 
-	httpClient := &http.Client{Timeout: 10 * time.Second}
-
-	// Step 1: Get YouTube video ID via r.jina.ai
 	fmt.Printf("[Audio] Searching for: %s\n", query)
-	searchURL := "https://r.jina.ai/http://www.youtube.com/results?search_query=" + url.QueryEscape(query)
-	resp, err := httpClient.Get(searchURL)
-	if err != nil {
-		c.JSON(500, gin.H{"error": "search failed"})
-		return
-	}
-	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
-
-	re := regexp.MustCompile(`watch\?v=([A-Za-z0-9_\-]{11})`)
-	match := re.FindStringSubmatch(string(body))
-	if len(match) < 2 {
-		c.JSON(500, gin.H{"error": "no video found on YouTube"})
-		return
-	}
-	videoID := match[1]
-	fmt.Printf("[Audio] Video ID: %s\n", videoID)
-
-	thumbnail := fmt.Sprintf("https://i.ytimg.com/vi/%s/hqdefault.jpg", videoID)
-	watchURL := "https://www.youtube.com/watch?v=" + videoID
 
 	_ = os.MkdirAll("downloads", 0755)
-	mp3Path := fmt.Sprintf("downloads/%s.mp3", videoID)
 
-	// Step 2: Download via SoundCloud (often faster/less blocked)
+	// Use a stable filename based on query (so cache hits work)
+	hash := fmt.Sprintf("%x", md5.Sum([]byte(query)))[:12]
+	mp3Path := fmt.Sprintf("downloads/%s.mp3", hash)
+
+	// Get YouTube video ID for thumbnail (best effort)
+	videoID := ""
+	thumbnail := ""
+	watchURL := ""
+	httpClient := &http.Client{Timeout: 10 * time.Second}
+	searchURL := "https://r.jina.ai/http://www.youtube.com/results?search_query=" + url.QueryEscape(query)
+	if resp, err := httpClient.Get(searchURL); err == nil {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		re := regexp.MustCompile(`watch\?v=([A-Za-z0-9_\-]{11})`)
+		if match := re.FindStringSubmatch(string(body)); len(match) >= 2 {
+			videoID = match[1]
+			thumbnail = fmt.Sprintf("https://i.ytimg.com/vi/%s/hqdefault.jpg", videoID)
+			watchURL = "https://www.youtube.com/watch?v=" + videoID
+		}
+	}
+	fmt.Printf("[Audio] Video ID: %s\n", videoID)
+
 	if _, err := os.Stat(mp3Path); os.IsNotExist(err) {
-		fmt.Printf("[Audio] Downloading via SoundCloud for query: %s\n", query)
-		// We use -o to specify the exact path. yt-dlp might still behave weird if we don't specify the extension carefully.
+		downloaded := false
+
+		// Attempt 1: SoundCloud search
+		fmt.Printf("[Audio] Trying SoundCloud for: %s\n", query)
 		cmd := exec.Command(
 			"yt-dlp",
 			"scsearch1:"+query,
-			"-x",
-			"--audio-format", "mp3",
-			"--audio-quality", "0",
-			"-o", mp3Path,
+			"-x", "--audio-format", "mp3", "--audio-quality", "0",
 			"--no-playlist",
+			"-o", mp3Path,
 		)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			fmt.Printf("[Audio] SoundCloud failed: %v\n%s\n", err, string(out))
-			// Fallback to YouTube if SoundCloud search fails
-			fmt.Printf("[Audio] Falling back to YouTube download for: %s\n", videoID)
+		} else {
+			downloaded = true
+		}
+
+		// Attempt 2: YouTube with TV client (less blocked than android in datacenters)
+		if !downloaded && videoID != "" {
+			fmt.Printf("[Audio] Trying YouTube TV client for: %s\n", videoID)
 			cmdYt := exec.Command(
 				"yt-dlp",
-				"-x",
-				"--audio-format", "mp3",
-				"--audio-quality", "0",
-				"--extractor-args", "youtube:player_client=android",
+				"-x", "--audio-format", "mp3", "--audio-quality", "0",
+				"--extractor-args", "youtube:player_client=tv",
 				"--no-check-certificate",
 				"-o", mp3Path,
 				watchURL,
 			)
-			if outYt, errYt := cmdYt.CombinedOutput(); errYt != nil {
-				fmt.Printf("[Audio] YouTube fallback failed: %v\n%s\n", errYt, string(outYt))
-				c.JSON(500, gin.H{"error": "all download attempts failed"})
-				return
+			if out, err := cmdYt.CombinedOutput(); err != nil {
+				fmt.Printf("[Audio] YouTube TV failed: %v\n%s\n", err, string(out))
+			} else {
+				downloaded = true
 			}
+		}
+
+		// Attempt 3: YouTube with web_embedded client
+		if !downloaded && videoID != "" {
+			fmt.Printf("[Audio] Trying YouTube web_embedded for: %s\n", videoID)
+			cmdEmbed := exec.Command(
+				"yt-dlp",
+				"-x", "--audio-format", "mp3", "--audio-quality", "0",
+				"--extractor-args", "youtube:player_client=web_embedded",
+				"--no-check-certificate",
+				"-o", mp3Path,
+				watchURL,
+			)
+			if out, err := cmdEmbed.CombinedOutput(); err != nil {
+				fmt.Printf("[Audio] YouTube web_embedded failed: %v\n%s\n", err, string(out))
+			} else {
+				downloaded = true
+			}
+		}
+
+		// Attempt 4: yt-dlp YouTube search directly (bypasses video ID)
+		if !downloaded {
+			fmt.Printf("[Audio] Trying yt-dlp ytsearch for: %s\n", query)
+			cmdSearch := exec.Command(
+				"yt-dlp",
+				"ytsearch1:"+query,
+				"-x", "--audio-format", "mp3", "--audio-quality", "0",
+				"--extractor-args", "youtube:player_client=tv",
+				"--no-check-certificate",
+				"--no-playlist",
+				"-o", mp3Path,
+			)
+			if out, err := cmdSearch.CombinedOutput(); err != nil {
+				fmt.Printf("[Audio] yt-dlp ytsearch failed: %v\n%s\n", err, string(out))
+			} else {
+				downloaded = true
+			}
+		}
+
+		if !downloaded {
+			c.JSON(500, gin.H{"error": "all download attempts failed"})
+			return
 		}
 	}
 
-	// Final verification
 	if _, err := os.Stat(mp3Path); os.IsNotExist(err) {
-		fmt.Printf("[Audio] Critical Error: mp3 file not found after download process for %s\n", videoID)
 		c.JSON(500, gin.H{"error": "audio file not generated"})
 		return
 	}
 
 	fmt.Printf("[Audio] mp3 ready: %s\n", mp3Path)
 
-	// Determine host dynamically
 	scheme := "http"
 	if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
 		scheme = "https"
 	}
-	host := c.Request.Host
-	baseURL := fmt.Sprintf("%s://%s", scheme, host)
+	baseURL := fmt.Sprintf("%s://%s", scheme, c.Request.Host)
 
 	c.JSON(200, gin.H{
 		"metadata": AudioMetadata{
@@ -116,6 +155,6 @@ func ScrapeAudio(c *gin.Context) {
 			Duration:  "",
 			URL:       watchURL,
 		},
-		"audioURL": fmt.Sprintf("%s/downloads/%s.mp3", baseURL, videoID),
+		"audioURL": fmt.Sprintf("%s/downloads/%s.mp3", baseURL, hash),
 	})
 }
