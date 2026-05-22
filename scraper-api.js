@@ -100,50 +100,56 @@ api.get('/pinterest', async (req, res) => {
 });
 
 // ── PornPics Scraper ──────────────────────────────────────────────────
+// Uses direct HTTP fetch — site blocks Chrome from datacenter IPs but
+// accepts plain requests with proper headers.
 api.get('/pornpics', async (req, res) => {
     const { query, count = 10 } = req.query;
     if (!query) return res.status(400).json({ error: 'Query required' });
 
-    try {
-        const b = await getBrowser();
-        const page = await setupPage(b);
-        const searchURL = `https://www.pornpics.com/?q=${encodeURIComponent(query)}`;
-        
-        console.log(`[PornPics] Searching: ${searchURL}`);
-        await page.goto(searchURL, { waitUntil: 'networkidle2', timeout: 60000 });
+    const maxCount = parseInt(count);
+    const searchURL = `https://www.pornpics.com/?q=${encodeURIComponent(query)}`;
+    console.log(`[PornPics] Fetching: ${searchURL}`);
 
-        const scrolls = Math.min(Math.max(Math.floor(count / 5), 2), 5);
-        for (let i = 0; i < scrolls; i++) {
-            await page.evaluate(() => window.scrollBy(0, Math.round(window.innerHeight * 1.2)));
-            await new Promise(r => setTimeout(r, 1000));
+    try {
+        const response = await fetch(searchURL, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Cache-Control': 'no-cache',
+            },
+            signal: AbortSignal.timeout(30000),
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const html = await response.text();
+        const images = [];
+        const seen = new Set();
+
+        // pornpics stores image URLs in data-src on lazy-loaded imgs
+        const regex = /data-src="(https?:\/\/[^"]+\.(?:jpg|jpeg|png))"/gi;
+        let match;
+        while ((match = regex.exec(html)) !== null) {
+            const url = match[1];
+            if (!seen.has(url) && !url.includes('logo') && !url.includes('icon')) {
+                seen.add(url);
+                images.push(url);
+            }
+            if (images.length >= maxCount) break;
         }
 
-        const images = await page.evaluate((maxCount) => {
-            const candidates = [];
-            const selectors = ['img.ll-loaded', 'img[data-src]', 'article img', 'div.thumb img', 'img'];
-            const seen = new Set();
-
-            for (const sel of selectors) {
-                const nodes = document.querySelectorAll(sel);
-                for (const img of nodes) {
-                    let url = img.src || img.getAttribute('data-src') || img.getAttribute('data-original');
-                    if (!url || !url.startsWith('http') || seen.has(url)) continue;
-                    seen.add(url);
-
-                    const score = (img.naturalWidth || img.width || 0) * (img.naturalHeight || img.height || 0);
-                    candidates.push({ url, score });
-                }
+        // Fallback: src attributes
+        if (images.length === 0) {
+            const fallback = /src="(https?:\/\/[^"]+cdn[^"]+\.(?:jpg|jpeg))"/gi;
+            while ((match = fallback.exec(html)) !== null) {
+                const url = match[1];
+                if (!seen.has(url)) { seen.add(url); images.push(url); }
+                if (images.length >= maxCount) break;
             }
-            
-            return candidates
-                .sort((a, b) => b.score - a.score)
-                .slice(1) // Skip first weird file
-                .filter(c => c.score > 40000)
-                .slice(0, maxCount)
-                .map(c => c.url);
-        }, parseInt(count));
+        }
 
-        await page.close();
+        console.log(`[PornPics] Found ${images.length} images`);
         res.json({ images, count: images.length });
     } catch (err) {
         console.error('[PornPics] Error:', err.message);
@@ -196,50 +202,42 @@ api.get(['/rule34', '/rule34/deep'], async (req, res) => {
 });
 
 // ── Powerscale Search ──────────────────────────────────────────────────
+// Uses Fandom's MediaWiki API instead of scraping the search page —
+// much more reliable, no browser needed, returns clean JSON.
 api.get('/powerscale', async (req, res) => {
     const { query } = req.query;
     if (!query) return res.status(400).json({ error: 'Query required' });
 
+    console.log(`[Powerscale] Searching API for: ${query}`);
+
     try {
-        const b = await getBrowser();
-        const page = await setupPage(b);
-        const searchURL = `https://vsbattles.fandom.com/wiki/Special:Search?scope=internal&navigationSearch=true&query=${encodeURIComponent(query)}`;
-        
-        await page.goto(searchURL, { waitUntil: 'networkidle2', timeout: 60000 });
-        await new Promise(r => setTimeout(r, 4000));
-
-        const characters = await page.evaluate(() => {
-            const selectors = ['.unified-search__result a', 'article.unified-search__result a', 'li.unified-search__result a', '.unified-search__result__link'];
-            let linkEls = [];
-            for (const sel of selectors) {
-                const els = document.querySelectorAll(sel);
-                if (els.length > 0) {
-                    linkEls = Array.from(els);
-                    break;
-                }
-            }
-
-            const seen = new Set();
-            const results = [];
-            let id = 1;
-
-            for (const el of linkEls) {
-                const url = el.href;
-                if (!url.includes('/wiki/') || url.includes('Special:') || url.includes('Category:') || url.includes('Talk:') || url.includes('User:') || url.includes('File:')) continue;
-                if (seen.has(url)) continue;
-                seen.add(url);
-
-                const parts = url.split('/wiki/');
-                let rawName = parts[1].split('?')[0];
-                const name = decodeURIComponent(rawName).replace(/_/g, ' ');
-
-                results.push({ id: id++, name, url });
-                if (results.length >= 10) break;
-            }
-            return results;
+        const apiURL = `https://vsbattles.fandom.com/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=10&namespace=0&format=json`;
+        const response = await fetch(apiURL, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept': 'application/json',
+            },
+            signal: AbortSignal.timeout(15000),
         });
 
-        await page.close();
+        if (!response.ok) throw new Error(`Fandom API returned HTTP ${response.status}`);
+
+        // opensearch format: [query, [titles], [descriptions], [urls]]
+        const data = await response.json();
+        const titles = data[1] || [];
+        const urls = data[3] || [];
+
+        const junk = ['Special:', 'Category:', 'Talk:', 'User:', 'File:', 'Template:'];
+        const characters = titles
+            .map((name, i) => ({ id: i + 1, name, url: urls[i] }))
+            .filter(c => c.url && c.url.includes('/wiki/') && !junk.some(j => c.url.includes(j)));
+
+        console.log(`[Powerscale] Found ${characters.length} results`);
+
+        if (characters.length === 0) {
+            return res.status(404).json({ error: `No results found for '${query}'` });
+        }
+
         res.json({ characters });
     } catch (err) {
         console.error('[Powerscale] Error:', err.message);
