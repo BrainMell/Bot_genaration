@@ -290,7 +290,8 @@ api.get('/powerscale/fetch', async (req, res) => {
             // Stats
             const stats = {};
             const statFields = ["Tier", "Attack Potency", "Speed", "Durability", "Stamina", "Range", "Striking Strength", "Lifting Strength", "Intelligence", "Standard Equipment"];
-            const pageText = document.querySelector('#mw-content-text').innerText;
+            const contentNode = document.querySelector('#mw-content-text');
+            const pageText = contentNode ? contentNode.innerText : document.body.innerText;
             
             for (const field of statFields) {
                 const re = new RegExp(`${field}\\s*:\\s*(.+)`, 'i');
