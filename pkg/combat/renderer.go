@@ -227,7 +227,7 @@ func GenerateCombatImage(c *gin.Context) {
 			croppedSprite := imaging.Crop(pSprite, image.Rect(0, 0, bounds.Dx(), cropH))
 			
 			// Position at normX(-660), normY(220) - cropH
-			dc.DrawImage(croppedSprite, normX(-660), normY(220)-cropH)
+			dc.DrawImage(croppedSprite, normX(-660), normY(220)-cropH+40)
 			
 			// 6. Second Sprite (Small full-body on battlefield) - PvE only
 			if req.CombatType != "PVP" {
@@ -262,7 +262,7 @@ func GenerateCombatImage(c *gin.Context) {
 			text = "PVP MATCH"
 		}
 		
-				fontPath := filepath.Join(assetsPath, "rpgasset", "ui", "fantesy.ttf")
+				fontPath := filepath.Join(assetsPath, "rpgasset", "ui", "Inter-Bold.ttf")
 				face, err := utils.LoadFont(fontPath, 40) // 40pt (smaller as requested)
 				if err == nil {
 					dc.SetFontFace(face)
@@ -272,8 +272,8 @@ func GenerateCombatImage(c *gin.Context) {
 					bx, by := float64(normX(-582)), float64(normY(-410))
 					bw, bh := 800.0, 160.0
 		
-					// Draw centered in the new 800x160 banner
-					dc.DrawStringAnchored(text, bx+bw/2, by+bh/2, 0.5, 0.5)
+					// Draw centered in the new 800x160 banner, shifted up 30px
+					dc.DrawStringAnchored(text, bx+bw/2, by+bh/2-30, 0.5, 0.5)
 				}			        }
 
 	// Encode
