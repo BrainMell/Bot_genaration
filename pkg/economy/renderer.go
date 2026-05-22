@@ -7,13 +7,14 @@ import (
 
 	"image-service/pkg/utils"
 
+	"github.com/disintegration/imaging"
 	"github.com/fogleman/gg"
 	"github.com/gin-gonic/gin"
 )
 
 const (
-	CARD_W = 500
-	CARD_H = 258
+	CARD_W = 600
+	CARD_H = 300
 )
 
 type EconomyCardRequest struct {
@@ -25,6 +26,7 @@ type EconomyCardRequest struct {
 	ZeniSymbol string  `json:"zeniSymbol"`
 	Rank       string  `json:"rank"`
 	Level      int     `json:"level"`
+	PfpUrl     string  `json:"pfpUrl"`
 }
 
 func GenerateEconomyCard(c *gin.Context) {
@@ -42,127 +44,126 @@ func GenerateEconomyCard(c *gin.Context) {
 
 	dc := gg.NewContext(CARD_W, CARD_H)
 
-	// Flat dark background
-	dc.SetColor(color.RGBA{15, 15, 26, 255})
-	dc.DrawRectangle(0, 0, CARD_W, CARD_H)
-	dc.Fill()
+	// Draw Background
+	bgPath := utils.GetAssetPath("rpgasset", "ui", "econ_bg.png")
+	bgImg, err := utils.LoadImage(bgPath)
+	if err == nil {
+		// Stretch/Resize bg to fit
+		bgImg = imaging.Fill(bgImg, CARD_W, CARD_H, imaging.Center, imaging.Lanczos)
+		dc.DrawImage(bgImg, 0, 0)
+	} else {
+		// Fallback Flat dark background
+		dc.SetColor(color.RGBA{15, 16, 23, 255})
+		dc.DrawRectangle(0, 0, CARD_W, CARD_H)
+		dc.Fill()
+	}
 
 	rankColors := map[string]color.RGBA{
 		"F": {100, 100, 120, 255}, "E": {100, 149, 237, 255},
 		"D": {50, 205, 50, 255}, "C": {255, 215, 0, 255},
 		"B": {255, 140, 0, 255}, "A": {255, 60, 60, 255},
-		"S": {220, 20, 220, 255}, "SS": {255, 20, 147, 255},
+		"S": {250, 199, 117, 255}, "SS": {255, 20, 147, 255},
 		"SSS": {255, 69, 0, 255},
 	}
 	rankColor, ok := rankColors[req.Rank]
 	if !ok {
-		rankColor = color.RGBA{150, 150, 180, 255}
+		rankColor = color.RGBA{250, 199, 117, 255}
 	}
 
 	// Left accent bar
 	dc.SetColor(rankColor)
-	dc.DrawRectangle(0, 0, 3, CARD_H)
+	dc.DrawRectangle(0, 0, 4, CARD_H)
 	dc.Fill()
 
-	fontPath := utils.GetAssetPath("rpgasset", "ui", "fantesy.ttf")
-	totalFace, err0 := utils.LoadFont(fontPath, 26)
-	largeFace, err1 := utils.LoadFont(fontPath, 18)
-	medFace, err2 := utils.LoadFont(fontPath, 15)
-	smallFace, err3 := utils.LoadFont(fontPath, 10)
-
-	if err0 != nil || err1 != nil || err2 != nil || err3 != nil {
-		fmt.Printf("Font Load Error: %v, %v, %v, %v\nPath: %s\n", err0, err1, err2, err3, fontPath)
-		c.JSON(500, gin.H{"error": "Font loading failed. Ensure assets are correctly placed."})
-		return
-	}
+	fontBold := utils.GetAssetPath("rpgasset", "ui", "Inter-Bold.ttf")
+	fontSemi := utils.GetAssetPath("rpgasset", "ui", "Inter-SemiBold.ttf")
+	fontMed := utils.GetAssetPath("rpgasset", "ui", "Inter-Medium.ttf")
 
 	// === Header ===
-	if medFace != nil {
-		dc.SetFontFace(medFace)
-	}
-	dc.SetColor(color.RGBA{240, 240, 250, 255})
-	dc.DrawString(req.Nickname, 22, 38)
+	textX := 40.0
+	// If PfpUrl is provided, fetch and draw it as a circle
+	if req.PfpUrl != "" {
+		pfpImg, pfpErr := utils.DownloadImage(req.PfpUrl)
+		if pfpErr == nil {
+			pfpSize := 60
+			pfpImg = imaging.Fill(pfpImg, pfpSize, pfpSize, imaging.Center, imaging.Lanczos)
+			
+			// Draw circular PFP
+			dc.DrawCircle(70, 65, float64(pfpSize)/2)
+			dc.Clip()
+			dc.DrawImageAnchored(pfpImg, 70, 65, 0.5, 0.5)
+			dc.ResetClip()
 
-	if smallFace != nil {
-		dc.SetFontFace(smallFace)
+			// Add a subtle border to PFP
+			dc.SetColor(rankColor)
+			dc.DrawCircle(70, 65, float64(pfpSize)/2)
+			dc.SetLineWidth(2)
+			dc.Stroke()
+			
+			textX = 115.0
+		}
 	}
+
+	if err := dc.LoadFontFace(fontBold, 26); err == nil {
+		dc.SetColor(color.RGBA{250, 250, 255, 255})
+		dc.DrawString(req.Nickname, textX, 55)
+	}
+
+	if err := dc.LoadFontFace(fontMed, 14); err == nil {
+		dc.SetColor(color.RGBA{200, 200, 220, 255})
+		dc.DrawString(fmt.Sprintf("LVL %d", req.Level), textX, 80)
+	}
+
+	// Rank Badge (Top Right)
+	badgeW := 80.0
+	badgeH := 26.0
+	badgeX := float64(CARD_W) - 40 - badgeW
+	badgeY := 45.0
+
 	dc.SetColor(rankColor)
-	dc.DrawRoundedRectangle(338, 20, 66, 18, 3)
+	dc.DrawRoundedRectangle(badgeX, badgeY, badgeW, badgeH, badgeH/2)
 	dc.Fill()
-	dc.SetColor(color.RGBA{255, 255, 255, 240})
-	dc.DrawStringAnchored(req.Rank+" RANK", 371, 31, 0.5, 0.5)
 
-	dc.SetColor(color.RGBA{120, 120, 155, 200})
-	dc.DrawString(fmt.Sprintf("· LVL %d", req.Level), 410, 32)
-
-	// === Divider 1 ===
-	econDivider(dc, 50)
-
-	// === Total wealth ===
-	if smallFace != nil {
-		dc.SetFontFace(smallFace)
+	if err := dc.LoadFontFace(fontBold, 13); err == nil {
+		dc.SetColor(color.RGBA{20, 20, 30, 255})
+		dc.DrawStringAnchored(req.Rank+" RANK", badgeX+(badgeW/2), badgeY+(badgeH/2)-1, 0.5, 0.5)
 	}
-	dc.SetColor(color.RGBA{100, 100, 130, 200})
-	dc.DrawStringAnchored("TOTAL WEALTH", CARD_W/2, 68, 0.5, 0.5)
 
-	if totalFace != nil {
-		dc.SetFontFace(totalFace)
-	}
-	dc.SetColor(color.RGBA{250, 199, 117, 255})
-	dc.DrawStringAnchored(
-		fmt.Sprintf("%s%s", req.ZeniSymbol, formatNumber(req.Total)),
-		CARD_W/2, 98, 0.5, 0.5,
-	)
-
-	// === Divider 2 ===
-	econDivider(dc, 114)
-
-	// === Wallet ===
-	if largeFace != nil {
-		dc.SetFontFace(largeFace)
-	}
-	dc.SetColor(color.RGBA{80, 220, 140, 255})
-	dc.DrawStringAnchored(
-		fmt.Sprintf("%s%s", req.ZeniSymbol, formatNumber(req.Wallet)),
-		125, 146, 0.5, 0.5,
-	)
-	if smallFace != nil {
-		dc.SetFontFace(smallFace)
-	}
-	dc.SetColor(color.RGBA{90, 90, 120, 200})
-	dc.DrawStringAnchored("WALLET", 125, 162, 0.5, 0.5)
-
-	// Column divider
-	dc.SetColor(color.RGBA{42, 42, 74, 255})
-	dc.SetLineWidth(1)
-	dc.DrawLine(250, 122, 250, 173)
+	// Separator
+	dc.SetColor(color.RGBA{255, 255, 255, 30})
+	dc.DrawLine(40, 115, float64(CARD_W)-40, 115)
 	dc.Stroke()
 
-	// === Bank ===
-	if largeFace != nil {
-		dc.SetFontFace(largeFace)
+	// === Middle Section (Wealth Dashboard) ===
+	if err := dc.LoadFontFace(fontSemi, 11); err == nil {
+		dc.SetColor(color.RGBA{200, 200, 220, 255})
+		dc.DrawString("TOTAL WEALTH", 40, 145)
+		dc.DrawString("WALLET", 280, 145)
+		dc.DrawString("BANK", 420, 145)
 	}
-	dc.SetColor(color.RGBA{130, 160, 255, 255})
-	dc.DrawStringAnchored(
-		fmt.Sprintf("%s%s", req.ZeniSymbol, formatNumber(req.Bank)),
-		375, 146, 0.5, 0.5,
-	)
-	if smallFace != nil {
-		dc.SetFontFace(smallFace)
+
+	// Total Wealth
+	if err := dc.LoadFontFace(fontBold, 32); err == nil {
+		dc.SetColor(rankColor)
+		dc.DrawString(fmt.Sprintf("%s%s", req.ZeniSymbol, formatNumber(req.Total)), 40, 185)
 	}
-	dc.SetColor(color.RGBA{90, 90, 120, 200})
-	dc.DrawStringAnchored("BANK", 375, 162, 0.5, 0.5)
 
-	// === Divider 3 ===
-	econDivider(dc, 178)
+	// Wallet & Bank
+	if err := dc.LoadFontFace(fontSemi, 24); err == nil {
+		dc.SetColor(color.RGBA{60, 210, 130, 255})
+		dc.DrawString(fmt.Sprintf("%s%s", req.ZeniSymbol, formatNumber(req.Wallet)), 280, 182)
 
-	// === Distribution bar ===
-	dc.SetColor(color.RGBA{100, 100, 130, 200})
-	dc.DrawString("DISTRIBUTION", 16, 196)
+		dc.SetColor(color.RGBA{80, 160, 255, 255})
+		dc.DrawString(fmt.Sprintf("%s%s", req.ZeniSymbol, formatNumber(req.Bank)), 420, 182)
+	}
 
-	const barX, barY, barW, barH = 16.0, 201.0, 468.0, 10.0
+	// === Bottom Section (Distribution Bar) ===
+	barX := 40.0
+	barY := 225.0
+	barW := float64(CARD_W) - 80.0
+	barH := 12.0
 
-	dc.SetColor(color.RGBA{255, 255, 255, 12})
+	dc.SetColor(color.RGBA{255, 255, 255, 20})
 	dc.DrawRoundedRectangle(barX, barY, barW, barH, barH/2)
 	dc.Fill()
 
@@ -171,39 +172,35 @@ func GenerateEconomyCard(c *gin.Context) {
 		walletPct = math.Min(1, req.Wallet/req.Total)
 		bankPct = math.Min(1-walletPct, req.Bank/req.Total)
 	}
+
 	if walletPct > 0 {
-		fw := math.Max(barH, walletPct*barW)
-		dc.SetColor(color.RGBA{30, 158, 117, 255})
-		dc.DrawRoundedRectangle(barX, barY, fw, barH, barH/2)
+		w := math.Max(barH, barW*walletPct)
+		dc.SetColor(color.RGBA{60, 210, 130, 255})
+		dc.DrawRoundedRectangle(barX, barY, w, barH, barH/2)
 		dc.Fill()
 	}
+
 	if bankPct > 0 {
-		startX := barX + walletPct*barW
-		fw := math.Max(0, bankPct*barW)
-		dc.SetColor(color.RGBA{55, 138, 221, 255})
-		dc.DrawRoundedRectangle(startX, barY, fw, barH, barH/2)
+		startX := barX + (barW * walletPct)
+		w := math.Max(barH, barW*bankPct)
+		dc.SetColor(color.RGBA{80, 160, 255, 255})
+		dc.DrawRoundedRectangle(startX, barY, w, barH, barH/2)
 		dc.Fill()
 	}
 
-	// Percentage labels
-	dc.SetColor(color.RGBA{80, 220, 140, 200})
-	dc.DrawString(fmt.Sprintf("Wallet %.0f%%", walletPct*100), 16, 226)
-	dc.SetColor(color.RGBA{130, 160, 255, 200})
-	dc.DrawStringAnchored(fmt.Sprintf("Bank %.0f%%", bankPct*100), CARD_W/2, 226, 0.5, 0)
-	if req.Frozen > 0 {
-		dc.SetColor(color.RGBA{160, 190, 255, 200})
-		dc.DrawStringAnchored(
-			fmt.Sprintf("Frozen: %s%s", req.ZeniSymbol, formatNumber(req.Frozen)),
-			CARD_W-16, 226, 1, 0,
-		)
+	if err := dc.LoadFontFace(fontMed, 12); err == nil {
+		dc.SetColor(color.RGBA{60, 210, 130, 255})
+		dc.DrawString(fmt.Sprintf("Wallet %.0f%%", walletPct*100), 40, 255)
+
+		dc.SetColor(color.RGBA{80, 160, 255, 255})
+		dc.DrawStringAnchored(fmt.Sprintf("Bank %.0f%%", bankPct*100), float64(CARD_W)-40, 255, 1.0, 0)
 	}
 
-	// === Divider 4 ===
-	econDivider(dc, 236)
-
-	// === Watermark ===
-	dc.SetColor(color.RGBA{50, 50, 80, 255})
-	dc.DrawStringAnchored("JOKER BOT", CARD_W/2, 250, 0.5, 0.5)
+	// Watermark
+	if err := dc.LoadFontFace(fontSemi, 10); err == nil {
+		dc.SetColor(color.RGBA{255, 255, 255, 60})
+		dc.DrawStringAnchored("JOKER BOT", float64(CARD_W)/2, float64(CARD_H)-20, 0.5, 0.5)
+	}
 
 	buf, err := utils.EncodeImageToBuffer(dc.Image())
 	if err != nil {
@@ -211,13 +208,6 @@ func GenerateEconomyCard(c *gin.Context) {
 		return
 	}
 	c.Data(200, "image/png", buf)
-}
-
-func econDivider(dc *gg.Context, y float64) {
-	dc.SetColor(color.RGBA{42, 42, 74, 255})
-	dc.SetLineWidth(1)
-	dc.DrawLine(16, y, 484, y)
-	dc.Stroke()
 }
 
 func formatNumber(n float64) string {
