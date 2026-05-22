@@ -5,64 +5,75 @@ WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY pkg/ ./pkg/
-COPY main.go ./
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o image-service .
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o image-service .
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
 
-# Install system dependencies (Node.js + Chrome + FFmpeg)
-RUN apt-get update && apt-get install -y \
+# System deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
     wget \
     gnupg \
-    ca-certificates \
-    ffmpeg \
-    curl \
     python3 \
-    --no-install-recommends
-
-# Install Node.js
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs
-
-# Install real Google Chrome (avoids snap trap)
-RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" \
-       > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable --no-install-recommends \
+    python3-pip \
+    ffmpeg \
+    fonts-liberation \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libx11-6 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxrandr2 \
+    libxshmfence1 \
+    xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Symlink so browser.go finds it
-RUN ln -sf /usr/bin/google-chrome-stable /usr/bin/chromium-browser
+# Google Chrome
+RUN wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && apt-get install -y /tmp/chrome.deb \
+    && rm /tmp/chrome.deb
 
-# Install yt-dlp
-RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
-    -o /usr/local/bin/yt-dlp && chmod a+rx /usr/local/bin/yt-dlp
+# Node.js 20 LTS
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# yt-dlp
+RUN pip3 install --break-system-packages yt-dlp
 
 WORKDIR /app
 
 # Copy Go binary
 COPY --from=builder /build/image-service .
-# Copy Node app
-COPY package.json scraper-api.js ./
-RUN npm install --production
 
-COPY assets ./assets
-RUN mkdir -p downloads && chmod 777 downloads
+# Copy Node.js scraper files
+COPY scraper-api.js package.json ./
+RUN npm install --omit=dev
 
-# Environment variables
-ENV MODE=hf
+# Copy startup script
+COPY start.sh .
+RUN chmod +x start.sh
+
+
+ENV MODE=full
 ENV PORT=7860
 ENV SCRAPER_PORT=7861
 ENV GIN_MODE=release
-ENV CHROME_PATH=/usr/bin/google-chrome-stable
 
 EXPOSE 7860
-EXPOSE 7861
-
-# Start script to run both
-RUN echo '#!/bin/bash\nnpm start &\n./image-service' > start.sh && chmod +x start.sh
 
 CMD ["./start.sh"]

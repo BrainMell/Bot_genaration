@@ -428,6 +428,7 @@ func main() {
 
 	api := r.Group("/api")
 
+	// ── Non-scraper routes (all modes except hf-only) ──────────────────────
 	if mode == "render" || mode == "full" {
 		api.POST("/combat", combat.GenerateCombatImage)
 		api.POST("/combat/endscreen", combat.GenerateEndScreen)
@@ -438,31 +439,36 @@ func main() {
 		api.POST("/cards/burn", cards.GenerateBurnGif)
 		api.POST("/cards/convert", cards.ConvertCard)
 		api.GET("/scrape/stickers", scraper.SearchStickers)
-		api.GET("/scrape/rule34", proxyToScraper)
 		api.POST("/cards/economy", economy.GenerateEconomyCard)
 		api.POST("/cards/profile", profile.GenerateProfileCard)
+	}
 
+	// ── Scraper routes: proxyToScraper (hf + full) ─────────────────────────
+	// In full/hf mode, the Puppeteer sidecar on port 7861 handles browser work.
+	if mode == "hf" || mode == "full" {
+		api.POST("/cards/gif", cards.GenerateCardGif)
+		scrape := api.Group("/scrape")
+		scrape.GET("/rule34", proxyToScraper)
+		scrape.GET("/rule34/deep", proxyToScraper)
+		scrape.GET("/pinterest", proxyToScraper)
+		scrape.GET("/powerscale", proxyToScraper)
+		scrape.GET("/powerscale/fetch", proxyToScraper)
+		scrape.GET("/pornpics", proxyToScraper)
+		scrape.GET("/audio", scraper.ScrapeAudio) // yt-dlp stays in Go
+		scrape.GET("/anikai", proxyToScraper)
+		scrape.GET("/news", proxyToScraper)
+	}
+
+	// ── render mode: forward heavy routes to HF Space ──────────────────────
+	// Only used when deploying a lightweight Render → HF Space architecture.
+	if mode == "render" {
+		api.POST("/cards/gif", handleHeavy)
+		api.GET("/scrape/rule34", proxyToScraper)
 		for _, route := range heavyRoutes {
 			routePath := strings.TrimPrefix(route, "/api")
 			api.GET(routePath, handleHeavy)
 			api.POST(routePath, handleHeavy)
 		}
-		if mode == "render" {
-			api.POST("/cards/gif", handleHeavy)
-		}
-	}
-
-	if mode == "hf" || mode == "full" {
-		api.POST("/cards/gif", cards.GenerateCardGif)
-		scrape := api.Group("/scrape")
-		scrape.GET("/pinterest", proxyToScraper)
-		scrape.GET("/powerscale", proxyToScraper)
-		scrape.GET("/powerscale/fetch", proxyToScraper)
-		scrape.GET("/pornpics", proxyToScraper)
-		scrape.GET("/audio", scraper.ScrapeAudio) // Stays in Go (yt-dlp)
-		scrape.GET("/anikai", proxyToScraper)
-		scrape.GET("/news", proxyToScraper)
-		scrape.GET("/rule34/deep", proxyToScraper)
 	}
 
 	log.Printf("🚀 VDAP Inference Server starting on port %s [MODE=%s]", port, mode)
