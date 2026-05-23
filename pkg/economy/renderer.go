@@ -46,18 +46,10 @@ func GenerateEconomyCard(c *gin.Context) {
 	dc := gg.NewContext(CARD_W, CARD_H)
 
 	// Draw Background
-	bgPath := utils.GetAssetPath("rpgasset", "ui", "econ_bg.png")
-	bgImg, err := utils.LoadImage(bgPath)
-	if err == nil {
-		// Stretch/Resize bg to fit
-		bgImg = imaging.Fill(bgImg, CARD_W, CARD_H, imaging.Center, imaging.Lanczos)
-		dc.DrawImage(bgImg, 0, 0)
-	} else {
-		// Fallback Flat dark background
-		dc.SetColor(color.RGBA{15, 16, 23, 255})
-		dc.DrawRectangle(0, 0, CARD_W, CARD_H)
-		dc.Fill()
-	}
+	// Draw solid background
+	dc.SetColor(color.RGBA{15, 16, 23, 255})
+	dc.DrawRectangle(0, 0, CARD_W, CARD_H)
+	dc.Fill()
 
 	rankColors := map[string]color.RGBA{
 		"F": {100, 100, 120, 255}, "E": {100, 149, 237, 255},
