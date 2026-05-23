@@ -127,7 +127,7 @@ func GenerateEconomyCard(c *gin.Context) {
 	}
 
 	// Separator
-	dc.SetColor(color.RGBA{255, 255, 255, 30})
+	dc.SetColor(color.RGBA{255, 255, 255, 255})
 	dc.DrawLine(40, 115, float64(CARD_W)-40, 115)
 	dc.Stroke()
 

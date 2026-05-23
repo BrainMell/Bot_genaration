@@ -440,6 +440,7 @@ func main() {
 		api.POST("/cards/convert", cards.ConvertCard)
 		api.GET("/scrape/stickers", scraper.SearchStickers)
 		api.POST("/cards/economy", economy.GenerateEconomyCard)
+		api.POST("/cards/transaction", economy.GenerateTransactionCard)
 		api.POST("/cards/profile", profile.GenerateProfileCard)
 	}
 
