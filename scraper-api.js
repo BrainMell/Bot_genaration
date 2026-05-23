@@ -261,9 +261,17 @@ api.get('/powerscale/fetch', async (req, res) => {
         const data = await page.evaluate((pageURL) => {
             // Image
             let imageURL = '';
-            const imgEl = document.querySelector('img.pi-image-thumbnail');
-            if (imgEl) {
-                imageURL = imgEl.getAttribute('data-src') || imgEl.src;
+            const imgEls = Array.from(document.querySelectorAll('img.pi-image-thumbnail'));
+            // Fandom wikis sometimes put the series logo as the first image. 
+            // Try to find an image that isn't a symbol or logo.
+            let bestImg = imgEls.find(img => {
+                const src = (img.getAttribute('data-src') || img.src).toLowerCase();
+                const alt = (img.getAttribute('alt') || '').toLowerCase();
+                return !src.includes('symbol') && !src.includes('logo') && !alt.includes('symbol') && !alt.includes('logo');
+            }) || imgEls[0];
+
+            if (bestImg) {
+                imageURL = bestImg.getAttribute('data-src') || bestImg.src;
                 if (imageURL && imageURL.includes('/revision/')) {
                     imageURL = imageURL.split('/revision/')[0];
                 }
