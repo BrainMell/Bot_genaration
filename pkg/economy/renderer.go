@@ -3,6 +3,7 @@ package economy
 import (
 	"fmt"
 	"image/color"
+	"log"
 	"math"
 
 	"image-service/pkg/utils"
@@ -107,11 +108,15 @@ func GenerateEconomyCard(c *gin.Context) {
 	if err := dc.LoadFontFace(fontBold, 26); err == nil {
 		dc.SetColor(color.RGBA{250, 250, 255, 255})
 		dc.DrawString(req.Nickname, textX, 55)
+	} else {
+		log.Printf("failed to load fontBold (%s): %v", fontBold, err)
 	}
 
 	if err := dc.LoadFontFace(fontMed, 14); err == nil {
 		dc.SetColor(color.RGBA{200, 200, 220, 255})
 		dc.DrawString(fmt.Sprintf("LVL %d", req.Level), textX, 80)
+	} else {
+		log.Printf("failed to load fontMed (%s): %v", fontMed, err)
 	}
 
 	// Rank Badge (Top Right)
