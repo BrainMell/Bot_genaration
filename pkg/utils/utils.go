@@ -160,10 +160,17 @@ func EncodeImageToBuffer(img image.Image) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// GetAssetPath helper to find assets relative to the binary
 func GetAssetPath(parts ...string) string {
-	// Assume "assets" folder is in CWD
-	base, _ := os.Getwd()
-	pathParts := append([]string{base, "assets"}, parts...)
-	return filepath.Join(pathParts...)
+    // Resolve assets relative to the executable's directory.
+    var base string
+    if exePath, err := os.Executable(); err == nil {
+        base = filepath.Dir(exePath)
+    } else {
+        // Fallback to current working directory if Exec path fails
+        cwd, _ := os.Getwd()
+        base = cwd
+    }
+    // Build full path to assets directory
+    allParts := append([]string{base, "assets"}, parts...)
+    return filepath.Join(allParts...)
 }
