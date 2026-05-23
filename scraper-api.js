@@ -267,7 +267,7 @@ api.get('/powerscale/fetch', async (req, res) => {
             let bestImg = imgEls.find(img => {
                 const src = (img.getAttribute('data-src') || img.src).toLowerCase();
                 const alt = (img.getAttribute('alt') || '').toLowerCase();
-                return !src.includes('symbol') && !src.includes('logo') && !alt.includes('symbol') && !alt.includes('logo');
+                return !src.includes('symbol') && !src.includes('logo') && !src.includes('icon') && !alt.includes('symbol') && !alt.includes('logo') && !alt.includes('icon');
             }) || imgEls[0];
 
             if (bestImg) {
