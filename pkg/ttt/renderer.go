@@ -143,7 +143,7 @@ func RenderLeaderboard(c *gin.Context) {
 	}
 
 	fontPath := utils.GetAssetPath("rpgasset", "ui", "fantesy.ttf")
-	
+
 	// Title
 	titleFace, err := utils.LoadFont(fontPath, 60)
 	if err == nil {
@@ -162,16 +162,22 @@ func RenderLeaderboard(c *gin.Context) {
 				break
 			}
 			y := startY + float64(i)*70
-			
+
 			// Medal/Rank
 			rankStr := fmt.Sprintf("%d.", i+1)
-			if i == 0 { rankStr = "🥇" }
-			if i == 1 { rankStr = "🥈" }
-			if i == 2 { rankStr = "🥉" }
-			
+			if i == 0 {
+				rankStr = "🥇"
+			}
+			if i == 1 {
+				rankStr = "🥈"
+			}
+			if i == 2 {
+				rankStr = "🥉"
+			}
+
 			dc.SetColor(color.White)
 			dc.DrawString(rankStr, 100, y)
-			
+
 			// Name (clean JID)
 			name := entry.Name
 			if name == "" || name == "User" || name == "Player" {
@@ -181,7 +187,7 @@ func RenderLeaderboard(c *gin.Context) {
 				}
 			}
 			dc.DrawString(name, 200, y)
-			
+
 			// Score
 			scoreStr := fmt.Sprintf("%d pts", entry.Score)
 			dc.DrawStringAnchored(scoreStr, 700, y, 1, 0)
@@ -198,13 +204,21 @@ func RenderLeaderboard(c *gin.Context) {
 }
 
 func gridLineWidth(grid int) float64 {
-	if grid <= 3 { return 10 }
-	if grid <= 8 { return 5 }
+	if grid <= 3 {
+		return 10
+	}
+	if grid <= 8 {
+		return 5
+	}
 	return 3
 }
 
 func fontSize(grid int) float64 {
-	if grid <= 3 { return 40 }
-	if grid <= 8 { return 20 }
+	if grid <= 3 {
+		return 40
+	}
+	if grid <= 8 {
+		return 20
+	}
 	return 12
 }
