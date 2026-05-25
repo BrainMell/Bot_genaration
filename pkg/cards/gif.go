@@ -79,57 +79,59 @@ func GenerateCardGif(c *gin.Context) {
 		return
 	}
 
-	outputPath := filepath.Join(tempDir, "output.mp4")
-
-	// Build FFmpeg command
-	var args []string
-	// Input 0: Background
-	args = append(args, "-loop", "1", "-t", fmt.Sprintf("%f", float64(len(localInputs))*2.0), "-i", bgPath)
-	
-	// Card Inputs
-	for _, input := range localInputs {
-		if input.IsAnimated {
-			// Loop animated cards for the duration of the slide
-			args = append(args, "-stream_loop", "-1", "-t", "2.0", "-i", input.Path)
-		} else {
-			args = append(args, "-loop", "1", "-t", "2.0", "-i", input.Path)
-		}
-	}
-
-	filterParts := []string{}
-	// Prepare background
-	filterParts = append(filterParts, "[0:v]scale=800:800,format=yuv420p[bg]")
-
-	// Process each card input
-	for i := 1; i <= len(localInputs); i++ {
-		// Scale and pad card, then overlay on BG
-		// We use format=yuv420p here to ensure compatibility for xfade
-		cardRef := fmt.Sprintf("[%d:v]", i)
-		preparedCard := fmt.Sprintf("[c%d]", i)
-		slide := fmt.Sprintf("[s%d]", i)
+	// Generate slide videos for each card
+	var slidePaths []string
+	for i, input := range localInputs {
+		slidePath := filepath.Join(tempDir, fmt.Sprintf("slide_%d.mp4", i))
+		var slideArgs []string
 		
-		filterParts = append(filterParts, fmt.Sprintf("%sscale=740:740:force_original_aspect_ratio=decrease,pad=740:740:(740-iw)/2:(740-ih)/2:color=black@0%s", cardRef, preparedCard))
-		filterParts = append(filterParts, fmt.Sprintf("[bg]%soverlay=30:30:shortest=1,format=yuv420p%s", preparedCard, slide))
-	}
-
-	// Apply transitions
-	lastStream := "[s1]"
-	if len(localInputs) > 1 {
-		for i := 2; i <= len(localInputs); i++ {
-			outStream := fmt.Sprintf("[v%d]", i)
-			offset := float64(i-1) * 1.5 // 1.5s offset for a 2s slide gives 0.5s overlap
-			filterParts = append(filterParts, fmt.Sprintf("%s[s%d]xfade=transition=slideright:duration=0.5:offset=%f%s", lastStream, i, offset, outStream))
-			lastStream = outStream
+		if input.IsAnimated {
+			slideArgs = append(slideArgs, "-stream_loop", "-1", "-t", "2.0", "-i", input.Path)
+		} else {
+			slideArgs = append(slideArgs, "-loop", "1", "-t", "2.0", "-i", input.Path)
 		}
+		slideArgs = append(slideArgs, "-loop", "1", "-t", "2.0", "-i", bgPath)
+		
+		filterStr := "[0:v]scale=740:740:force_original_aspect_ratio=decrease,pad=740:740:(740-iw)/2:(740-ih)/2:color=black@0[c];[1:v][c]overlay=30:30:shortest=1"
+		
+		slideArgs = append(slideArgs, 
+			"-filter_complex", filterStr,
+			"-c:v", "libx264",
+			"-pix_fmt", "yuv420p",
+			"-r", "25",
+			"-g", "50",
+			"-preset", "ultrafast",
+			"-y", slidePath,
+		)
+		
+		cmd := exec.Command("ffmpeg", slideArgs...)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			fmt.Printf("[Cards] FFmpeg slide_%d error: %v\nOutput: %s\n", i, err, string(output))
+			c.JSON(500, gin.H{"error": fmt.Sprintf("Failed to generate slide %d", i)})
+			return
+		}
+		slidePaths = append(slidePaths, slidePath)
 	}
 
-	args = append(args, "-filter_complex", strings.Join(filterParts, ";")+"; "+lastStream+"scale=800:800,format=yuv420p[out]", "-map", "[out]")
-	args = append(args, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "28", "-preset", "ultrafast", "-movflags", "+faststart", "-y", outputPath)
+	// Write concatenation text file
+	concatTxtPath := filepath.Join(tempDir, "concat.txt")
+	concatFile, err := os.Create(concatTxtPath)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to create concat file"})
+		return
+	}
+	for _, path := range slidePaths {
+		escapedPath := strings.ReplaceAll(path, "'", "'\\''")
+		fmt.Fprintf(concatFile, "file '%s'\n", escapedPath)
+	}
+	concatFile.Close()
 
-	cmd := exec.Command("ffmpeg", args...)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		fmt.Printf("[Cards] FFmpeg error: %v\nOutput: %s\n", err, string(output))
-		c.JSON(500, gin.H{"error": "Video processing failed"})
+	// Concatenate slides
+	outputPath := filepath.Join(tempDir, "output.mp4")
+	concatCmd := exec.Command("ffmpeg", "-f", "concat", "-safe", "0", "-i", concatTxtPath, "-c", "copy", "-y", outputPath)
+	if output, err := concatCmd.CombinedOutput(); err != nil {
+		fmt.Printf("[Cards] FFmpeg concat error: %v\nOutput: %s\n", err, string(output))
+		c.JSON(500, gin.H{"error": "Video concatenation failed"})
 		return
 	}
 
