@@ -192,48 +192,14 @@ func GenerateCardGif(c *gin.Context) {
 		})
 	}
 
-	// 3. Run jobs with a concurrency limit of 4 to prevent CPU overload
-	type jobResult struct {
-		job renderJob
-		err error
-	}
-	jobCh := make(chan jobResult, len(jobs))
-	sem := make(chan struct{}, 4)
-
+	// 3. Run jobs sequentially to prevent memory spike and OOM crashes
 	for _, job := range jobs {
-		go func(j renderJob) {
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			cmd := exec.Command("ffmpeg", j.args...)
-			if output, err := cmd.CombinedOutput(); err != nil {
-				jobCh <- jobResult{
-					job: j,
-					err: fmt.Errorf("ffmpeg error on job (isTrans=%t, idx=%d): %v, output: %s", j.isTransition, j.index, err, string(output)),
-				}
-			} else {
-				jobCh <- jobResult{
-					job: j,
-					err: nil,
-				}
-			}
-		}(job)
-	}
-
-	var jobErrors []error
-	for range jobs {
-		res := <-jobCh
-		if res.err != nil {
-			jobErrors = append(jobErrors, res.err)
+		cmd := exec.Command("ffmpeg", job.args...)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			fmt.Printf("[Cards] FFmpeg error on job (isTrans=%t, idx=%d): %v\nOutput: %s\n", job.isTransition, job.index, err, string(output))
+			c.JSON(500, gin.H{"error": "Failed to render showcase animation"})
+			return
 		}
-	}
-
-	if len(jobErrors) > 0 {
-		for _, err := range jobErrors {
-			fmt.Printf("[Cards] Render error: %v\n", err)
-		}
-		c.JSON(500, gin.H{"error": "Failed to render showcase animation"})
-		return
 	}
 
 	// 4. Write concatenation text file in order: slide_0, trans_0, slide_1, trans_1, ..., slide_last
