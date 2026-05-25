@@ -50,7 +50,7 @@ func GenerateCardGif(c *gin.Context) {
 	defer os.RemoveAll(tempDir)
 
 	bgPath := filepath.Join(tempDir, "bg.png")
-	if err := generateRandomGradient(bgPath, 800, 800); err != nil {
+	if err := generateRandomGradient(bgPath, 500, 500); err != nil {
 		fmt.Printf("[Cards] BG Gen failed: %v\n", err)
 	}
 
@@ -130,7 +130,7 @@ func GenerateCardGif(c *gin.Context) {
 		}
 		args = append(args, "-loop", "1", "-t", fmt.Sprintf("%.1f", duration), "-i", bgPath)
 		
-		filterStr := "[0:v]scale=740:740:force_original_aspect_ratio=decrease,pad=740:740:(740-iw)/2:(740-ih)/2:color=black@0[c];[1:v][c]overlay=30:30:shortest=1"
+		filterStr := "[0:v]scale=460:460:force_original_aspect_ratio=decrease,pad=460:460:(460-iw)/2:(460-ih)/2:color=black@0[c];[1:v][c]overlay=20:20:shortest=1"
 		
 		args = append(args, 
 			"-filter_complex", filterStr,
@@ -169,8 +169,8 @@ func GenerateCardGif(c *gin.Context) {
 		}
 		args = append(args, "-loop", "1", "-t", "0.5", "-i", bgPath)
 
-		filterStr := "[0:v]scale=740:740:force_original_aspect_ratio=decrease,pad=740:740:(740-iw)/2:(740-ih)/2:color=black@0[c1];[2:v][c1]overlay=30:30,format=yuv420p[s1];" +
-			"[1:v]scale=740:740:force_original_aspect_ratio=decrease,pad=740:740:(740-iw)/2:(740-ih)/2:color=black@0[c2];[2:v][c2]overlay=30:30,format=yuv420p[s2];" +
+		filterStr := "[0:v]scale=460:460:force_original_aspect_ratio=decrease,pad=460:460:(460-iw)/2:(460-ih)/2:color=black@0[c1];[2:v][c1]overlay=20:20,format=yuv420p[s1];" +
+			"[1:v]scale=460:460:force_original_aspect_ratio=decrease,pad=460:460:(460-iw)/2:(460-ih)/2:color=black@0[c2];[2:v][c2]overlay=20:20,format=yuv420p[s2];" +
 			"[s1][s2]xfade=transition=slideright:duration=0.5:offset=0[out]"
 
 		args = append(args, 
