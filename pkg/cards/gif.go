@@ -62,15 +62,42 @@ func GenerateCardGif(c *gin.Context) {
 	}
 	var localInputs []CardInput
 
+	// Download images in parallel
+	type downloadResult struct {
+		index      int
+		filePath   string
+		isAnimated bool
+		err        error
+	}
+	dlCh := make(chan downloadResult, len(req.Images))
+
 	for i, url := range req.Images {
-		filePath := filepath.Join(tempDir, fmt.Sprintf("card_%d", i))
-		if err := downloadFile(client, url, filePath); err == nil {
+		go func(index int, downloadUrl string) {
+			filePath := filepath.Join(tempDir, fmt.Sprintf("card_%d", index))
+			err := downloadFile(client, downloadUrl, filePath)
+			dlCh <- downloadResult{
+				index:      index,
+				filePath:   filePath,
+				isAnimated: isAnimated(downloadUrl),
+				err:        err,
+			}
+		}(i, url)
+	}
+
+	dlResults := make([]downloadResult, len(req.Images))
+	for range req.Images {
+		res := <-dlCh
+		dlResults[res.index] = res
+	}
+
+	for _, res := range dlResults {
+		if res.err == nil {
 			localInputs = append(localInputs, CardInput{
-				Path:       filePath,
-				IsAnimated: isAnimated(url),
+				Path:       res.filePath,
+				IsAnimated: res.isAnimated,
 			})
 		} else {
-			fmt.Printf("[Cards] Failed to download %s: %v\n", url, err)
+			fmt.Printf("[Cards] Failed to download card: %v\n", res.err)
 		}
 	}
 
@@ -79,38 +106,69 @@ func GenerateCardGif(c *gin.Context) {
 		return
 	}
 
-	// Generate slide videos for each card
-	var slidePaths []string
+	// Generate slide videos for each card in parallel
+	type slideResult struct {
+		index int
+		path  string
+		err   error
+	}
+	slideCh := make(chan slideResult, len(localInputs))
+
 	for i, input := range localInputs {
-		slidePath := filepath.Join(tempDir, fmt.Sprintf("slide_%d.mp4", i))
-		var slideArgs []string
-		
-		if input.IsAnimated {
-			slideArgs = append(slideArgs, "-stream_loop", "-1", "-t", "2.0", "-i", input.Path)
-		} else {
-			slideArgs = append(slideArgs, "-loop", "1", "-t", "2.0", "-i", input.Path)
-		}
-		slideArgs = append(slideArgs, "-loop", "1", "-t", "2.0", "-i", bgPath)
-		
-		filterStr := "[0:v]scale=740:740:force_original_aspect_ratio=decrease,pad=740:740:(740-iw)/2:(740-ih)/2:color=black@0[c];[1:v][c]overlay=30:30:shortest=1"
-		
-		slideArgs = append(slideArgs, 
-			"-filter_complex", filterStr,
-			"-c:v", "libx264",
-			"-pix_fmt", "yuv420p",
-			"-r", "25",
-			"-g", "50",
-			"-preset", "ultrafast",
-			"-y", slidePath,
-		)
-		
-		cmd := exec.Command("ffmpeg", slideArgs...)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			fmt.Printf("[Cards] FFmpeg slide_%d error: %v\nOutput: %s\n", i, err, string(output))
+		go func(index int, cardInput CardInput) {
+			slidePath := filepath.Join(tempDir, fmt.Sprintf("slide_%d.mp4", index))
+			var slideArgs []string
+			
+			if cardInput.IsAnimated {
+				slideArgs = append(slideArgs, "-stream_loop", "-1", "-t", "2.0", "-i", cardInput.Path)
+			} else {
+				slideArgs = append(slideArgs, "-loop", "1", "-t", "2.0", "-i", cardInput.Path)
+			}
+			slideArgs = append(slideArgs, "-loop", "1", "-t", "2.0", "-i", bgPath)
+			
+			filterStr := "[0:v]scale=740:740:force_original_aspect_ratio=decrease,pad=740:740:(740-iw)/2:(740-ih)/2:color=black@0[c];[1:v][c]overlay=30:30:shortest=1"
+			
+			slideArgs = append(slideArgs, 
+				"-filter_complex", filterStr,
+				"-c:v", "libx264",
+				"-pix_fmt", "yuv420p",
+				"-r", "25",
+				"-g", "50",
+				"-preset", "ultrafast",
+				"-y", slidePath,
+			)
+			
+			cmd := exec.Command("ffmpeg", slideArgs...)
+			if output, err := cmd.CombinedOutput(); err != nil {
+				slideCh <- slideResult{
+					index: index,
+					path:  "",
+					err:   fmt.Errorf("ffmpeg slide_%d error: %v, output: %s", index, err, string(output)),
+				}
+			} else {
+				slideCh <- slideResult{
+					index: index,
+					path:  slidePath,
+					err:   nil,
+				}
+			}
+		}(i, input)
+	}
+
+	slideResults := make([]slideResult, len(localInputs))
+	for range localInputs {
+		res := <-slideCh
+		slideResults[res.index] = res
+	}
+
+	var slidePaths []string
+	for i, res := range slideResults {
+		if res.err != nil {
+			fmt.Printf("[Cards] %v\n", res.err)
 			c.JSON(500, gin.H{"error": fmt.Sprintf("Failed to generate slide %d", i)})
 			return
 		}
-		slidePaths = append(slidePaths, slidePath)
+		slidePaths = append(slidePaths, res.path)
 	}
 
 	// Write concatenation text file
