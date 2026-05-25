@@ -106,85 +106,157 @@ func GenerateCardGif(c *gin.Context) {
 		return
 	}
 
-	// Generate slide videos for each card in parallel
-	type slideResult struct {
-		index int
-		path  string
-		err   error
+	type renderJob struct {
+		isTransition bool
+		index        int
+		outputPath   string
+		args         []string
 	}
-	slideCh := make(chan slideResult, len(localInputs))
+	var jobs []renderJob
 
+	// 1. Create jobs for slides (1.5s duration, or 2.0s for the last one)
 	for i, input := range localInputs {
-		go func(index int, cardInput CardInput) {
-			slidePath := filepath.Join(tempDir, fmt.Sprintf("slide_%d.mp4", index))
-			var slideArgs []string
-			
-			if cardInput.IsAnimated {
-				slideArgs = append(slideArgs, "-stream_loop", "-1", "-t", "2.0", "-i", cardInput.Path)
-			} else {
-				slideArgs = append(slideArgs, "-loop", "1", "-t", "2.0", "-i", cardInput.Path)
-			}
-			slideArgs = append(slideArgs, "-loop", "1", "-t", "2.0", "-i", bgPath)
-			
-			filterStr := "[0:v]scale=740:740:force_original_aspect_ratio=decrease,pad=740:740:(740-iw)/2:(740-ih)/2:color=black@0[c];[1:v][c]overlay=30:30:shortest=1"
-			
-			slideArgs = append(slideArgs, 
-				"-filter_complex", filterStr,
-				"-c:v", "libx264",
-				"-pix_fmt", "yuv420p",
-				"-r", "25",
-				"-g", "50",
-				"-preset", "ultrafast",
-				"-y", slidePath,
-			)
-			
-			cmd := exec.Command("ffmpeg", slideArgs...)
-			if output, err := cmd.CombinedOutput(); err != nil {
-				slideCh <- slideResult{
-					index: index,
-					path:  "",
-					err:   fmt.Errorf("ffmpeg slide_%d error: %v, output: %s", index, err, string(output)),
-				}
-			} else {
-				slideCh <- slideResult{
-					index: index,
-					path:  slidePath,
-					err:   nil,
-				}
-			}
-		}(i, input)
-	}
-
-	slideResults := make([]slideResult, len(localInputs))
-	for range localInputs {
-		res := <-slideCh
-		slideResults[res.index] = res
-	}
-
-	var slidePaths []string
-	for i, res := range slideResults {
-		if res.err != nil {
-			fmt.Printf("[Cards] %v\n", res.err)
-			c.JSON(500, gin.H{"error": fmt.Sprintf("Failed to generate slide %d", i)})
-			return
+		slidePath := filepath.Join(tempDir, fmt.Sprintf("slide_%d.mp4", i))
+		duration := 1.5
+		if i == len(localInputs)-1 {
+			duration = 2.0
 		}
-		slidePaths = append(slidePaths, res.path)
+
+		var args []string
+		if input.IsAnimated {
+			args = append(args, "-stream_loop", "-1", "-t", fmt.Sprintf("%.1f", duration), "-i", input.Path)
+		} else {
+			args = append(args, "-loop", "1", "-t", fmt.Sprintf("%.1f", duration), "-i", input.Path)
+		}
+		args = append(args, "-loop", "1", "-t", fmt.Sprintf("%.1f", duration), "-i", bgPath)
+		
+		filterStr := "[0:v]scale=740:740:force_original_aspect_ratio=decrease,pad=740:740:(740-iw)/2:(740-ih)/2:color=black@0[c];[1:v][c]overlay=30:30:shortest=1"
+		
+		args = append(args, 
+			"-filter_complex", filterStr,
+			"-c:v", "libx264",
+			"-pix_fmt", "yuv420p",
+			"-r", "25",
+			"-g", "50",
+			"-preset", "ultrafast",
+			"-y", slidePath,
+		)
+
+		jobs = append(jobs, renderJob{
+			isTransition: false,
+			index:        i,
+			outputPath:   slidePath,
+			args:         args,
+		})
 	}
 
-	// Write concatenation text file
+	// 2. Create jobs for transitions (0.5s duration from i to i+1)
+	for i := 0; i < len(localInputs)-1; i++ {
+		transPath := filepath.Join(tempDir, fmt.Sprintf("trans_%d.mp4", i))
+		input1 := localInputs[i]
+		input2 := localInputs[i+1]
+
+		var args []string
+		if input1.IsAnimated {
+			args = append(args, "-stream_loop", "-1", "-t", "0.5", "-i", input1.Path)
+		} else {
+			args = append(args, "-loop", "1", "-t", "0.5", "-i", input1.Path)
+		}
+		if input2.IsAnimated {
+			args = append(args, "-stream_loop", "-1", "-t", "0.5", "-i", input2.Path)
+		} else {
+			args = append(args, "-loop", "1", "-t", "0.5", "-i", input2.Path)
+		}
+		args = append(args, "-loop", "1", "-t", "0.5", "-i", bgPath)
+
+		filterStr := "[0:v]scale=740:740:force_original_aspect_ratio=decrease,pad=740:740:(740-iw)/2:(740-ih)/2:color=black@0[c1];[2:v][c1]overlay=30:30,format=yuv420p[s1];" +
+			"[1:v]scale=740:740:force_original_aspect_ratio=decrease,pad=740:740:(740-iw)/2:(740-ih)/2:color=black@0[c2];[2:v][c2]overlay=30:30,format=yuv420p[s2];" +
+			"[s1][s2]xfade=transition=slideright:duration=0.5:offset=0[out]"
+
+		args = append(args, 
+			"-filter_complex", filterStr,
+			"-map", "[out]",
+			"-c:v", "libx264",
+			"-pix_fmt", "yuv420p",
+			"-r", "25",
+			"-g", "50",
+			"-preset", "ultrafast",
+			"-y", transPath,
+		)
+
+		jobs = append(jobs, renderJob{
+			isTransition: true,
+			index:        i,
+			outputPath:   transPath,
+			args:         args,
+		})
+	}
+
+	// 3. Run jobs with a concurrency limit of 4 to prevent CPU overload
+	type jobResult struct {
+		job renderJob
+		err error
+	}
+	jobCh := make(chan jobResult, len(jobs))
+	sem := make(chan struct{}, 4)
+
+	for _, job := range jobs {
+		go func(j renderJob) {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			cmd := exec.Command("ffmpeg", j.args...)
+			if output, err := cmd.CombinedOutput(); err != nil {
+				jobCh <- jobResult{
+					job: j,
+					err: fmt.Errorf("ffmpeg error on job (isTrans=%t, idx=%d): %v, output: %s", j.isTransition, j.index, err, string(output)),
+				}
+			} else {
+				jobCh <- jobResult{
+					job: j,
+					err: nil,
+				}
+			}
+		}(job)
+	}
+
+	var jobErrors []error
+	for range jobs {
+		res := <-jobCh
+		if res.err != nil {
+			jobErrors = append(jobErrors, res.err)
+		}
+	}
+
+	if len(jobErrors) > 0 {
+		for _, err := range jobErrors {
+			fmt.Printf("[Cards] Render error: %v\n", err)
+		}
+		c.JSON(500, gin.H{"error": "Failed to render showcase animation"})
+		return
+	}
+
+	// 4. Write concatenation text file in order: slide_0, trans_0, slide_1, trans_1, ..., slide_last
 	concatTxtPath := filepath.Join(tempDir, "concat.txt")
 	concatFile, err := os.Create(concatTxtPath)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to create concat file"})
 		return
 	}
-	for _, path := range slidePaths {
-		escapedPath := strings.ReplaceAll(path, "'", "'\\''")
-		fmt.Fprintf(concatFile, "file '%s'\n", escapedPath)
+	for i := 0; i < len(localInputs); i++ {
+		slidePath := filepath.Join(tempDir, fmt.Sprintf("slide_%d.mp4", i))
+		escapedSlide := strings.ReplaceAll(slidePath, "'", "'\\''")
+		fmt.Fprintf(concatFile, "file '%s'\n", escapedSlide)
+
+		if i < len(localInputs)-1 {
+			transPath := filepath.Join(tempDir, fmt.Sprintf("trans_%d.mp4", i))
+			escapedTrans := strings.ReplaceAll(transPath, "'", "'\\''")
+			fmt.Fprintf(concatFile, "file '%s'\n", escapedTrans)
+		}
 	}
 	concatFile.Close()
 
-	// Concatenate slides
+	// 5. Concatenate slides
 	outputPath := filepath.Join(tempDir, "output.mp4")
 	concatCmd := exec.Command("ffmpeg", "-f", "concat", "-safe", "0", "-i", concatTxtPath, "-c", "copy", "-y", outputPath)
 	if output, err := concatCmd.CombinedOutput(); err != nil {
