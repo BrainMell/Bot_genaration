@@ -10,11 +10,12 @@ import (
 	"github.com/disintegration/imaging"
 	"github.com/fogleman/gg"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/image/font"
 )
 
 const (
-	PROF_W = 500
-	PROF_H = 272
+	PROF_W = 800
+	PROF_H = 460
 )
 
 type ProfileCardRequest struct {
@@ -36,6 +37,35 @@ type ProfileCardRequest struct {
 	MessageCount int     `json:"messageCount"`
 	PfpUrl       string  `json:"pfpUrl"`
 	Title        string  `json:"title"`
+
+	// RPG Stats
+	HP      float64 `json:"hp"`
+	ATK     float64 `json:"atk"`
+	DEF     float64 `json:"def"`
+	MAG     float64 `json:"mag"`
+	SPD     float64 `json:"spd"`
+	Luck    float64 `json:"luck"`
+	Crit    float64 `json:"crit"`
+	Evasion float64 `json:"evasion"`
+
+	// Gear Stats
+	EquipHP   float64 `json:"equipHp"`
+	EquipATK  float64 `json:"equipAtk"`
+	EquipDEF  float64 `json:"equipDef"`
+	EquipMAG  float64 `json:"equipMag"`
+	EquipSPD  float64 `json:"equipSpd"`
+	EquipLuck float64 `json:"equipLuck"`
+
+	// Gear Item Names
+	GearMainHand string `json:"gearMainHand"`
+	GearOffHand  string `json:"gearOffHand"`
+	GearArmor    string `json:"gearArmor"`
+	GearHelmet   string `json:"gearHelmet"`
+	GearBoots    string `json:"gearBoots"`
+	GearRing     string `json:"gearRing"`
+	GearAmulet   string `json:"gearAmulet"`
+	GearCloak    string `json:"gearCloak"`
+	GearGloves   string `json:"gearGloves"`
 }
 
 func GenerateProfileCard(c *gin.Context) {
@@ -78,22 +108,28 @@ func GenerateProfileCard(c *gin.Context) {
 
 	// Left accent bar
 	dc.SetColor(rankColor)
-	dc.DrawRectangle(0, 0, 3, PROF_H)
+	dc.DrawRectangle(0, 0, 4, PROF_H)
 	dc.Fill()
 
-	fontPath := utils.GetAssetPath("rpgasset", "ui", "fantesy.ttf")
-	largeFace, err1 := utils.LoadFont(fontPath, 18)
-	medFace, err2 := utils.LoadFont(fontPath, 16)
-	smallFace, err3 := utils.LoadFont(fontPath, 10)
+	// Load Fonts
+	fontBold := utils.GetAssetPath("rpgasset", "ui", "Inter-Bold.ttf")
+	fontSemi := utils.GetAssetPath("rpgasset", "ui", "Inter-SemiBold.ttf")
+	fontMed := utils.GetAssetPath("rpgasset", "ui", "Inter-Medium.ttf")
 
-	if err1 != nil || err2 != nil || err3 != nil {
-		fmt.Printf("Font Load Error: %v, %v, %v\nPath: %s\n", err1, err2, err3, fontPath)
-		c.JSON(500, gin.H{"error": "Font loading failed. Ensure assets are correctly placed."})
+	bold22, err1 := utils.LoadFont(fontBold, 22)
+	bold14, err2 := utils.LoadFont(fontBold, 14)
+	semi12, err3 := utils.LoadFont(fontSemi, 12)
+	med10, err4 := utils.LoadFont(fontMed, 10)
+	med8, err5 := utils.LoadFont(fontMed, 8)
+
+	if err1 != nil || err2 != nil || err3 != nil || err4 != nil || err5 != nil {
+		fmt.Printf("Font Load Error: %v, %v, %v, %v, %v\n", err1, err2, err3, err4, err5)
+		c.JSON(500, gin.H{"error": "Font loading failed. Ensure Inter fonts are present in assets/rpgasset/ui/"})
 		return
 	}
 
-	// === Avatar ===
-	const avCX, avCY, avR = 58.0, 65.0, 38.0
+	// === Left Panel: Avatar & Identity ===
+	const avCX, avCY, avR = 135.0, 75.0, 46.0
 	pfpLoaded := false
 	if req.PfpUrl != "" {
 		if img, err := utils.DownloadImage(req.PfpUrl); err == nil {
@@ -111,77 +147,78 @@ func GenerateProfileCard(c *gin.Context) {
 		dc.SetColor(color.RGBA{rankColor.R / 4, rankColor.G / 4, rankColor.B / 4, 255})
 		dc.DrawCircle(avCX, avCY, avR)
 		dc.Fill()
-		if largeFace != nil {
-			dc.SetFontFace(largeFace)
-		}
+		dc.SetFontFace(bold22)
 		dc.SetColor(color.RGBA{220, 220, 230, 200})
 		dc.DrawStringAnchored(string([]rune(req.Nickname)[0:1]), avCX, avCY+2, 0.5, 0.5)
 	}
+	// PFP border
 	dc.SetColor(rankColor)
-	dc.SetLineWidth(2)
+	dc.SetLineWidth(3)
 	dc.DrawCircle(avCX, avCY, avR)
 	dc.Stroke()
 
-	// === Name block ===
-	const nameX = 112.0
-	if medFace != nil {
-		dc.SetFontFace(medFace)
-	}
-	dc.SetColor(color.RGBA{240, 240, 250, 255})
-	dc.DrawString(req.Nickname, nameX, 44)
+	// Nickname
+	dc.SetFontFace(bold22)
+	dc.SetColor(color.RGBA{245, 245, 255, 255})
+	dc.DrawStringAnchored(req.Nickname, avCX, 150, 0.5, 0.5)
 
+	// Title
+	textY := 172.0
 	if req.Title != "" {
-		if smallFace != nil {
-			dc.SetFontFace(smallFace)
-		}
-		dc.SetColor(color.RGBA{212, 175, 55, 210})
-		dc.DrawString("✦ "+req.Title, nameX, 59)
+		dc.SetFontFace(semi12)
+		dc.SetColor(color.RGBA{212, 175, 55, 255}) // Gold
+		dc.DrawStringAnchored("✦ "+req.Title+" ✦", avCX, textY, 0.5, 0.5)
+		textY += 22
 	}
 
-	// Class badge
-	if smallFace != nil {
-		dc.SetFontFace(smallFace)
-	}
-	dc.SetColor(color.RGBA{30, 30, 58, 255})
-	dc.DrawRoundedRectangle(nameX, 64, 90, 18, 3)
+	// Class Badge
+	dc.SetColor(color.RGBA{22, 22, 42, 255})
+	dc.DrawRoundedRectangle(avCX-75, textY-12, 150, 20, 4)
 	dc.Fill()
-	dc.SetColor(color.RGBA{83, 74, 183, 180})
-	dc.SetLineWidth(0.8)
-	dc.DrawRoundedRectangle(nameX, 64, 90, 18, 3)
+	dc.SetColor(color.RGBA{83, 74, 183, 200})
+	dc.SetLineWidth(1)
+	dc.DrawRoundedRectangle(avCX-75, textY-12, 150, 20, 4)
 	dc.Stroke()
-	dc.SetColor(color.RGBA{175, 169, 236, 255})
-	dc.DrawStringAnchored(req.ClassIcon+" "+req.Class, nameX+45, 75, 0.5, 0.5)
 
-	// Rank badge
+	dc.SetFontFace(semi12)
+	dc.SetColor(color.RGBA{185, 180, 245, 255})
+	dc.DrawStringAnchored(req.ClassIcon+" "+req.Class, avCX, textY-2, 0.5, 0.5)
+	textY += 26
+
+	// Rank Badge
 	dc.SetColor(rankColor)
-	dc.DrawRoundedRectangle(nameX+96, 64, 64, 18, 3)
+	dc.DrawRoundedRectangle(avCX-55, textY-12, 110, 20, 4)
 	dc.Fill()
-	dc.SetColor(color.RGBA{255, 255, 255, 240})
-	dc.DrawStringAnchored(req.Rank+" RANK", nameX+128, 75, 0.5, 0.5)
+	dc.SetFontFace(bold14)
+	dc.SetColor(color.RGBA{20, 20, 30, 255})
+	dc.DrawStringAnchored(req.Rank+" RANK", avCX, textY-2, 0.5, 0.5)
+	textY += 26
 
-	// Info lines (aka / guild / level+GP)
-	infoY := 96.0
+	// Guild & Whatsapp Name info
+	dc.SetFontFace(med10)
 	if req.WhatsappName != "" && req.WhatsappName != req.Nickname {
-		dc.SetColor(color.RGBA{120, 120, 150, 180})
-		dc.DrawString("aka "+req.WhatsappName, nameX, infoY)
-		infoY += 13
+		dc.SetColor(color.RGBA{120, 120, 155, 255})
+		dc.DrawStringAnchored("aka "+req.WhatsappName, avCX, textY, 0.5, 0.5)
+		textY += 16
 	}
 	if req.GuildName != "" {
-		dc.SetColor(color.RGBA{212, 175, 55, 180})
-		dc.DrawString("🏰 "+req.GuildName, nameX, infoY)
-		infoY += 13
+		dc.SetColor(color.RGBA{212, 175, 55, 200}) // Goldish
+		dc.DrawStringAnchored("🏰 "+req.GuildName, avCX, textY, 0.5, 0.5)
+		textY += 16
 	}
-	dc.SetColor(color.RGBA{212, 175, 55, 200})
-	dc.DrawString(fmt.Sprintf("LVL %d  ·  ⭐ %s GP", req.Level, formatNum(req.GP)), nameX, infoY)
 
-	// === Divider 1 ===
-	profDivider(dc, 124)
+	// Level & GP stats
+	dc.SetFontFace(semi12)
+	dc.SetColor(color.RGBA{212, 175, 55, 255})
+	dc.DrawStringAnchored(fmt.Sprintf("LVL %d  ·  ⭐ %s GP", req.Level, formatNum(req.GP)), avCX, 305, 0.5, 0.5)
 
 	// === XP bar ===
-	const xpBarX, xpBarY, xpBarW, xpBarH = 44.0, 133.0, 440.0, 9.0
-	dc.SetColor(color.RGBA{110, 110, 150, 200})
-	dc.DrawString("XP", 16, xpBarY+8)
+	const xpBarX, xpBarY, xpBarW, xpBarH = 30.0, 335.0, 210.0, 8.0
+	dc.SetFontFace(med8)
+	dc.SetColor(color.RGBA{120, 120, 150, 255})
+	dc.DrawString("XP PROGRESS", xpBarX, xpBarY-6)
 
+	// Bar BG
 	dc.SetColor(color.RGBA{255, 255, 255, 12})
 	dc.DrawRoundedRectangle(xpBarX, xpBarY, xpBarW, xpBarH, xpBarH/2)
 	dc.Fill()
@@ -204,67 +241,73 @@ func GenerateProfileCard(c *gin.Context) {
 	dc.DrawRoundedRectangle(xpBarX, xpBarY, xpBarW, xpBarH, xpBarH/2)
 	dc.Stroke()
 
-	dc.SetColor(color.RGBA{110, 110, 150, 200})
-	dc.DrawString(fmt.Sprintf("%d / %d XP  (%.0f%%)", req.XP, req.XPNeeded, xpPct*100), 16, xpBarY+xpBarH+14)
+	dc.SetFontFace(med10)
+	dc.SetColor(color.RGBA{140, 140, 170, 255})
+	dc.DrawStringAnchored(fmt.Sprintf("%d / %d XP  (%.1f%%)", req.XP, req.XPNeeded, xpPct*100), avCX, xpBarY+20, 0.5, 0.5)
 
-	// === Divider 2 ===
-	profDivider(dc, 162)
-
-	// === Stats 3×2 grid ===
-	type stat struct {
-		label, value string
-		col          color.RGBA
-	}
-	rows := [2][3]stat{
-		{
-			{"QUESTS", fmt.Sprintf("%d", req.QuestsWon), color.RGBA{80, 220, 130, 255}},
-			{"GAMES WON", fmt.Sprintf("%d", req.GamesWon), color.RGBA{100, 160, 255, 255}},
-			{"MESSAGES", formatNum(req.MessageCount), color.RGBA{200, 160, 255, 255}},
-		},
-		{
-			{"WALLET", fmt.Sprintf("%s%s", req.ZeniSymbol, formatNum(int(req.Wallet))), color.RGBA{80, 220, 130, 255}},
-			{"BANK", fmt.Sprintf("%s%s", req.ZeniSymbol, formatNum(int(req.Bank))), color.RGBA{130, 160, 255, 255}},
-			{"GP", fmt.Sprintf("⭐%s", formatNum(req.GP)), color.RGBA{255, 215, 0, 255}},
-		},
-	}
-	colCX := [3]float64{83, 250, 417}
-	rowValY := [2]float64{182, 226}
-	rowLblY := [2]float64{196, 240}
-
-	for r, row := range rows {
-		for c2, s := range row {
-			cx := colCX[c2]
-			if largeFace != nil {
-				dc.SetFontFace(largeFace)
-			}
-			dc.SetColor(s.col)
-			dc.DrawStringAnchored(s.value, cx, rowValY[r], 0.5, 0.5)
-			if smallFace != nil {
-				dc.SetFontFace(smallFace)
-			}
-			dc.SetColor(color.RGBA{100, 100, 130, 200})
-			dc.DrawStringAnchored(s.label, cx, rowLblY[r], 0.5, 0.5)
-		}
-	}
-
-	// Vertical dividers
+	// === Vertical Divider ===
 	dc.SetColor(color.RGBA{42, 42, 74, 255})
-	dc.SetLineWidth(1)
-	for _, vx := range [2]float64{166, 333} {
-		dc.DrawLine(vx, 162, vx, 252)
-		dc.Stroke()
-	}
-	// Horizontal mid divider
-	dc.DrawLine(16, 208, 484, 208)
+	dc.SetLineWidth(1.5)
+	dc.DrawLine(265, 20, 265, PROF_H-20)
 	dc.Stroke()
 
-	// === Footer ===
-	profDivider(dc, 252)
-	if smallFace != nil {
-		dc.SetFontFace(smallFace)
-	}
-	dc.SetColor(color.RGBA{50, 50, 80, 255})
-	dc.DrawStringAnchored("JOKER BOT", PROF_W/2, 265, 0.5, 0.5)
+	// === Right Panel: Stats & Gear ===
+	// Title for Stats
+	dc.SetFontFace(bold14)
+	dc.SetColor(rankColor)
+	dc.DrawString("📊 CHARACTER STATS", 295, 38)
+
+	// 2 Column, 4 Row Stats Layout
+	rowY := [4]float64{70, 105, 140, 175}
+	colX1 := 295.0
+	colX2 := 545.0
+
+	// Draw Column 1
+	drawStatRow(dc, semi12, bold14, colX1, rowY[0], "❤️", "HP", req.HP, req.EquipHP, false)
+	drawStatRow(dc, semi12, bold14, colX1, rowY[1], "🛡️", "DEF", req.DEF, req.EquipDEF, false)
+	drawStatRow(dc, semi12, bold14, colX1, rowY[2], "💨", "SPD", req.SPD, req.EquipSPD, false)
+	drawStatRow(dc, semi12, bold14, colX1, rowY[3], "💥", "CRIT", req.Crit, 0, true)
+
+	// Draw Column 2
+	drawStatRow(dc, semi12, bold14, colX2, rowY[0], "⚔️", "ATK", req.ATK, req.EquipATK, false)
+	drawStatRow(dc, semi12, bold14, colX2, rowY[1], "🔮", "MAG", req.MAG, req.EquipMAG, false)
+	drawStatRow(dc, semi12, bold14, colX2, rowY[2], "🍀", "LCK", req.Luck, req.EquipLuck, false)
+	drawStatRow(dc, semi12, bold14, colX2, rowY[3], "🕊️", "EVA", req.Evasion, 0, true)
+
+	// === Horizontal Divider ===
+	dc.SetColor(color.RGBA{42, 42, 74, 255})
+	dc.SetLineWidth(1.5)
+	dc.DrawLine(295, 205, 770, 205)
+	dc.Stroke()
+
+	// Title for Gear
+	dc.SetFontFace(bold14)
+	dc.SetColor(color.RGBA{170, 170, 195, 255})
+	dc.DrawString("🛡️ EQUIPPED GEAR", 295, 235)
+
+	// 3x3 Gear Card layout
+	gearColX := [3]float64{295, 453, 611}
+	gearRowY := [3]float64{252, 312, 372}
+
+	// Row 1
+	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[0], "⚔️", "MAIN HAND", req.GearMainHand)
+	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[0], "🗡️", "OFF HAND", req.GearOffHand)
+	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[0], "👕", "ARMOR", req.GearArmor)
+
+	// Row 2
+	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[1], "⛑️", "HELMET", req.GearHelmet)
+	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[1], "🧤", "GLOVES", req.GearGloves)
+	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[1], "👢", "BOOTS", req.GearBoots)
+
+	// Row 3
+	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[2], "💍", "RING", req.GearRing)
+	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[2], "📿", "AMULET", req.GearAmulet)
+	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[2], "🧥", "CLOAK", req.GearCloak)
+
+	// Watermark
+	dc.SetFontFace(med8)
+	dc.SetColor(color.RGBA{45, 45, 75, 255})
+	dc.DrawStringAnchored("JOKER BOT RPG SYSTEM", PROF_W-20, PROF_H-12, 1.0, 0.5)
 
 	buf, err := utils.EncodeImageToBuffer(dc.Image())
 	if err != nil {
@@ -274,11 +317,70 @@ func GenerateProfileCard(c *gin.Context) {
 	c.Data(200, "image/png", buf)
 }
 
-func profDivider(dc *gg.Context, y float64) {
-	dc.SetColor(color.RGBA{42, 42, 74, 255})
-	dc.SetLineWidth(1)
-	dc.DrawLine(16, y, 484, y)
+func drawStatRow(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, statIcon, statName string, baseVal, bonusVal float64, isPercent bool) {
+	// Label
+	dc.SetFontFace(fontLabel)
+	dc.SetColor(color.RGBA{160, 160, 185, 255})
+	dc.DrawString(statIcon+" "+statName, x, y)
+
+	// Base Value
+	dc.SetFontFace(fontVal)
+	valStr := ""
+	if isPercent {
+		valStr = fmt.Sprintf("%.1f%%", baseVal)
+	} else {
+		valStr = fmt.Sprintf("%.0f", baseVal)
+	}
+
+	wStr, _ := dc.MeasureString(valStr)
+
+	dc.SetColor(color.RGBA{245, 245, 250, 255})
+	dc.DrawString(valStr, x+90, y)
+
+	// Bonus Value
+	if bonusVal > 0 {
+		dc.SetColor(color.RGBA{60, 210, 130, 255}) // Green
+		bonusStr := fmt.Sprintf(" (+%.0f)", bonusVal)
+		dc.DrawString(bonusStr, x+90+wStr+4, y)
+	} else if bonusVal < 0 {
+		dc.SetColor(color.RGBA{240, 70, 70, 255}) // Red
+		bonusStr := fmt.Sprintf(" (-%.0f)", math.Abs(bonusVal))
+		dc.DrawString(bonusStr, x+90+wStr+4, y)
+	}
+}
+
+func drawGearSlot(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, slotIcon, slotLabel, itemName string) {
+	w := 148.0
+	h := 50.0
+
+	// BG Card
+	dc.SetColor(color.RGBA{22, 22, 38, 255})
+	dc.DrawRoundedRectangle(x, y, w, h, 4)
+	dc.Fill()
+	dc.SetColor(color.RGBA{45, 45, 75, 255})
+	dc.SetLineWidth(0.8)
+	dc.DrawRoundedRectangle(x, y, w, h, 4)
 	dc.Stroke()
+
+	// Slot Title
+	dc.SetFontFace(fontLabel)
+	dc.SetColor(color.RGBA{120, 120, 150, 255})
+	dc.DrawString(slotIcon+" "+slotLabel, x+8, y+16)
+
+	// Item Value
+	dc.SetFontFace(fontVal)
+	if itemName == "" || itemName == "None" {
+		dc.SetColor(color.RGBA{70, 70, 95, 255})
+		dc.DrawString("Empty", x+8, y+36)
+	} else {
+		dc.SetColor(color.RGBA{240, 240, 255, 255})
+		// Simple truncation if too long for card
+		runes := []rune(itemName)
+		if len(runes) > 19 {
+			itemName = string(runes[:16]) + "..."
+		}
+		dc.DrawString(itemName, x+8, y+36)
+	}
 }
 
 func formatNum(n int) string {

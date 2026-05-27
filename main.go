@@ -372,6 +372,12 @@ func proxyToScraper(c *gin.Context) {
 // =============================================================================
 
 func main() {
+	// Add local bin directory to PATH so yt-dlp, ffmpeg, and ffprobe can be found locally
+	if cwd, err := os.Getwd(); err == nil {
+		path := os.Getenv("PATH")
+		os.Setenv("PATH", cwd+"/bin:"+path)
+	}
+
 	mode = os.Getenv("MODE")
 	hfSpaceID = os.Getenv("HF_SPACE_ID")
 	hfToken = os.Getenv("HF_TOKEN")
