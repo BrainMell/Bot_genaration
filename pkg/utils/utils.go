@@ -171,6 +171,16 @@ func GetAssetPath(parts ...string) string {
         base = cwd
     }
     // Build full path to assets directory
-    allParts := append([]string{base, "assets"}, parts...)
-    return filepath.Join(allParts...)
+    fullPath := filepath.Join(append([]string{base, "assets"}, parts...)...)
+    
+    // Check if the asset exists in the executable folder; if not, look in working directory
+    if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+        cwd, _ := os.Getwd()
+        fallbackPath := filepath.Join(append([]string{cwd, "assets"}, parts...)...)
+        if _, err := os.Stat(fallbackPath); err == nil {
+            return fallbackPath
+        }
+    }
+    
+    return fullPath
 }

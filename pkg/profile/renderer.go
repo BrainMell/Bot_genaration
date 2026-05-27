@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"net/url"
 
 	"image-service/pkg/utils"
 
 	"github.com/disintegration/imaging"
 	"github.com/fogleman/gg"
 	"github.com/gin-gonic/gin"
-	"golang.org/x/image/font"
+	"log"
 )
 
 const (
@@ -150,6 +151,7 @@ func GenerateProfileCard(c *gin.Context) {
 	fontBold := utils.GetAssetPath("rpgasset", "ui", "Inter-Bold.ttf")
 	fontSemi := utils.GetAssetPath("rpgasset", "ui", "Inter-SemiBold.ttf")
 	fontMed := utils.GetAssetPath("rpgasset", "ui", "Inter-Medium.ttf")
+	log.Printf("Font paths - Bold: %s, Semi: %s, Med: %s", fontBold, fontSemi, fontMed)
 
 	bold22, err1 := utils.LoadFont(fontBold, 22)
 	bold14, err2 := utils.LoadFont(fontBold, 14)
@@ -165,27 +167,43 @@ func GenerateProfileCard(c *gin.Context) {
 
 	// === Left Panel: Avatar & Identity ===
 	const avCX, avCY, avR = 135.0, 75.0, 46.0
-	pfpLoaded := false
-	if req.PfpUrl != "" {
-		if img, err := utils.DownloadImage(req.PfpUrl); err == nil {
-			img = imaging.Fill(img, int(avR*2), int(avR*2), imaging.Center, imaging.Lanczos)
-			dc.Push()
-			dc.DrawCircle(avCX, avCY, avR)
-			dc.Clip()
-			dc.DrawImage(img, int(avCX-avR), int(avCY-avR))
-			dc.ResetClip()
-			dc.Pop()
-			pfpLoaded = true
-		}
-	}
-	if !pfpLoaded {
-		dc.SetColor(color.RGBA{rankColor.R / 4, rankColor.G / 4, rankColor.B / 4, 255})
-		dc.DrawCircle(avCX, avCY, avR)
-		dc.Fill()
-		dc.SetFontFace(bold22)
-		dc.SetColor(color.RGBA{220, 220, 230, 200})
-		dc.DrawStringAnchored(string([]rune(req.Nickname)[0:1]), avCX, avCY+2, 0.5, 0.5)
-	}
+    // Avatar handling with fallback
+    pfpLoaded := false
+    if req.PfpUrl != "" {
+        if img, err := utils.DownloadImage(req.PfpUrl); err == nil {
+            img = imaging.Fill(img, int(avR*2), int(avR*2), imaging.Center, imaging.Lanczos)
+            dc.Push()
+            dc.DrawCircle(avCX, avCY, avR)
+            dc.Clip()
+            dc.DrawImage(img, int(avCX-avR), int(avCY-avR))
+            dc.ResetClip()
+            dc.Pop()
+            pfpLoaded = true
+        }
+    }
+    if !pfpLoaded {
+        // Try UI Avatars placeholder based on nickname
+        placeholderURL := "https://ui-avatars.com/api/?name=" + url.QueryEscape(req.Nickname) + "&size=92&background=random&color=fff&bold=true&format=png"
+        if img, err := utils.DownloadImage(placeholderURL); err == nil {
+            img = imaging.Fill(img, int(avR*2), int(avR*2), imaging.Center, imaging.Lanczos)
+            dc.Push()
+            dc.DrawCircle(avCX, avCY, avR)
+            dc.Clip()
+            dc.DrawImage(img, int(avCX-avR), int(avCY-avR))
+            dc.ResetClip()
+            dc.Pop()
+            pfpLoaded = true
+        }
+    }
+    if !pfpLoaded {
+        // Solid circle with initial fallback
+        dc.SetColor(color.RGBA{rankColor.R / 4, rankColor.G / 4, rankColor.B / 4, 255})
+        dc.DrawCircle(avCX, avCY, avR)
+        dc.Fill()
+        dc.SetFontFace(bold22)
+        dc.SetColor(color.RGBA{220, 220, 230, 200})
+        dc.DrawStringAnchored(string([]rune(req.Nickname)[0:1]), avCX, avCY+2, 0.5, 0.5)
+    }
 	// PFP border
 	dc.SetColor(rankColor)
 	dc.SetLineWidth(3)
@@ -195,7 +213,7 @@ func GenerateProfileCard(c *gin.Context) {
 	// Nickname
 	dc.SetFontFace(bold22)
 	dc.SetColor(color.RGBA{245, 245, 255, 255})
-	dc.DrawStringAnchored(req.Nickname, avCX, 150, 0.5, 0.5)
+	dc.DrawStringAnchored(req.Nickname, avCX, 143, 0.5, 0.5)
 
 	// Title
 	textY := 172.0
@@ -231,7 +249,7 @@ func GenerateProfileCard(c *gin.Context) {
 	dc.Fill()
 	dc.SetFontFace(bold14)
 	dc.SetColor(color.RGBA{20, 20, 30, 255})
-	dc.DrawStringAnchored(req.Rank+" RANK", avCX, textY-3, 0.5, 0.5) // Offset to center perfectly
+	dc.DrawStringAnchored(req.Rank+" RANK", avCX, textY-5, 0.5, 0.5) // Adjusted upward
 	textY += 26
 
 	// Guild & Whatsapp Name info
@@ -347,7 +365,7 @@ func GenerateProfileCard(c *gin.Context) {
 	// Watermark
 	dc.SetFontFace(med8)
 	dc.SetColor(color.RGBA{45, 45, 75, 255})
-	dc.DrawStringAnchored("JOKER BOT RPG SYSTEM", PROF_W-20, PROF_H-12, 1.0, 0.5)
+	dc.DrawStringAnchored("Made By Mellow™", PROF_W-20, PROF_H-12, 1.0, 0.5)
 
 	buf, err := utils.EncodeImageToBuffer(dc.Image())
 	if err != nil {
@@ -389,12 +407,46 @@ func drawStatRow(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, sta
 	}
 }
 
-func drawGearSlot(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, slotIcon, slotLabel, itemName string, borderColor color.RGBA) {
+	// BG Card
+	dc.SetColor(color.RGBA{22, 22, 38, 255})
+	dc.DrawRoundedRectangle(x, y, w, h, 4)
+	dc.Fill()
+	// Determine border color based on occupancy
+	occupied := itemName != "" && itemName != "None"
+	border := borderColor
+	if occupied {
+		border = color.RGBA{60, 210, 130, 255}
+	}
+	dc.SetColor(border)
+	dc.SetLineWidth(0.8)
+	dc.DrawRoundedRectangle(x, y, w, h, 4)
+	dc.Stroke()
+
+	// Slot Title
+	dc.SetFontFace(fontLabel)
+	dc.SetColor(color.RGBA{120, 120, 150, 255})
+	dc.DrawString(slotIcon+" "+slotLabel, x+8, y+16)
+
+	// Item Value
+	dc.SetFontFace(fontVal)
+	if itemName == "" || itemName == "None" {
+		dc.SetColor(color.RGBA{70, 70, 95, 255})
+		dc.DrawString("Empty", x+8, y+36)
+	} else {
+		dc.SetColor(color.RGBA{240, 240, 255, 255})
+		// Simple truncation if too long for card
+		runes := []rune(itemName)
+		if len(runes) > 17 {
+			itemName = string(runes[:14]) + "..."
+		}
+		dc.DrawString(slotIcon+" "+itemName, x+8, y+36)
+	}
+
 	w := 148.0
 	h := 50.0
 
-	// BG Card
-	dc.SetColor(color.RGBA{22, 22, 38, 255})
+
+
 	dc.DrawRoundedRectangle(x, y, w, h, 4)
 	dc.Fill()
 	dc.SetColor(borderColor)
