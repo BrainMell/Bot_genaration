@@ -12,6 +12,7 @@ import (
 	"github.com/fogleman/gg"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/image/font"
+	"log"
 )
 
 
@@ -407,7 +408,7 @@ func drawStatRow(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, sta
 		bonusStr := fmt.Sprintf(" (-%.0f)", math.Abs(bonusVal))
 		dc.DrawString(bonusStr, x+90+wStr+4, y)
 	}
-
+}
 
 func drawGearSlot(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, slotIcon, slotLabel, itemName string, borderColor color.RGBA) {
 	w := 148.0
