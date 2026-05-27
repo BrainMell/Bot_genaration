@@ -94,16 +94,51 @@ func GenerateProfileCard(c *gin.Context) {
 	dc.DrawRectangle(0, 0, PROF_W, PROF_H)
 	dc.Fill()
 
+	// Rank Color Themes
 	rankColors := map[string]color.RGBA{
-		"F": {100, 100, 120, 255}, "E": {100, 149, 237, 255},
-		"D": {50, 205, 50, 255}, "C": {255, 215, 0, 255},
-		"B": {255, 140, 0, 255}, "A": {255, 60, 60, 255},
-		"S": {220, 20, 220, 255}, "SS": {255, 20, 147, 255},
-		"SSS": {255, 69, 0, 255},
+		"F":   {140, 140, 160, 255}, // Gray/Stone
+		"E":   {100, 180, 255, 255}, // Light Blue/Sky
+		"D":   {60, 220, 130, 255},  // Green/Emerald
+		"C":   {255, 220, 80, 255},  // Gold/Yellow
+		"B":   {255, 140, 0, 255},   // Orange/Fiery
+		"A":   {255, 70, 70, 255},    // Crimson/Red
+		"S":   {180, 100, 255, 255},  // Royal Purple/Amethyst
+		"SS":  {255, 60, 180, 255},   // Deep Pink/Rose
+		"SSS": {255, 50, 50, 255},    // Hellfire/Dragon Red
 	}
+	rankSecColors := map[string]color.RGBA{
+		"F":   {180, 180, 200, 255},
+		"E":   {160, 210, 255, 255},
+		"D":   {120, 245, 170, 255},
+		"C":   {255, 240, 150, 255},
+		"B":   {255, 190, 80, 255},
+		"A":   {255, 130, 130, 255},
+		"S":   {220, 160, 255, 255},
+		"SS":  {255, 140, 210, 255},
+		"SSS": {255, 120, 120, 255},
+	}
+
 	rankColor, ok := rankColors[req.Rank]
 	if !ok {
-		rankColor = color.RGBA{150, 150, 180, 255}
+		rankColor = color.RGBA{180, 100, 255, 255}
+	}
+	rankSecColor, ok2 := rankSecColors[req.Rank]
+	if !ok2 {
+		rankSecColor = color.RGBA{220, 160, 255, 255}
+	}
+
+	// Dynamic theme borders/dividers tinted with Rank Color
+	dividerColor := color.RGBA{
+		R: uint8(math.Max(25, float64(rankColor.R)/4.5)),
+		G: uint8(math.Max(25, float64(rankColor.G)/4.5)),
+		B: uint8(math.Max(38, float64(rankColor.B)/4.5)),
+		A: 255,
+	}
+	cardBorderColor := color.RGBA{
+		R: uint8(math.Max(30, float64(rankColor.R)/4.0)),
+		G: uint8(math.Max(30, float64(rankColor.G)/4.0)),
+		B: uint8(math.Max(45, float64(rankColor.B)/4.0)),
+		A: 255,
 	}
 
 	// Left accent bar
@@ -175,14 +210,19 @@ func GenerateProfileCard(c *gin.Context) {
 	dc.SetColor(color.RGBA{22, 22, 42, 255})
 	dc.DrawRoundedRectangle(avCX-75, textY-12, 150, 20, 4)
 	dc.Fill()
-	dc.SetColor(color.RGBA{83, 74, 183, 200})
+	dc.SetColor(color.RGBA{rankColor.R / 2, rankColor.G / 2, rankColor.B / 2, 200})
 	dc.SetLineWidth(1)
 	dc.DrawRoundedRectangle(avCX-75, textY-12, 150, 20, 4)
 	dc.Stroke()
 
 	dc.SetFontFace(semi12)
-	dc.SetColor(color.RGBA{185, 180, 245, 255})
-	dc.DrawStringAnchored(req.ClassIcon+" "+req.Class, avCX, textY-2, 0.5, 0.5)
+	dc.SetColor(color.RGBA{
+		R: uint8(math.Min(255, float64(rankColor.R)*0.8+50)),
+		G: uint8(math.Min(255, float64(rankColor.G)*0.8+50)),
+		B: uint8(math.Min(255, float64(rankColor.B)*0.8+50)),
+		A: 255,
+	})
+	dc.DrawStringAnchored(req.ClassIcon+" "+req.Class, avCX, textY-3, 0.5, 0.5) // Offset to center perfectly
 	textY += 26
 
 	// Rank Badge
@@ -191,7 +231,7 @@ func GenerateProfileCard(c *gin.Context) {
 	dc.Fill()
 	dc.SetFontFace(bold14)
 	dc.SetColor(color.RGBA{20, 20, 30, 255})
-	dc.DrawStringAnchored(req.Rank+" RANK", avCX, textY-2, 0.5, 0.5)
+	dc.DrawStringAnchored(req.Rank+" RANK", avCX, textY-3, 0.5, 0.5) // Offset to center perfectly
 	textY += 26
 
 	// Guild & Whatsapp Name info
@@ -230,8 +270,8 @@ func GenerateProfileCard(c *gin.Context) {
 	if xpPct > 0 {
 		fw := math.Max(xpBarH, xpPct*xpBarW)
 		xpGrad := gg.NewLinearGradient(xpBarX, 0, xpBarX+fw, 0)
-		xpGrad.AddColorStop(0, color.RGBA{100, 100, 255, 255})
-		xpGrad.AddColorStop(1, color.RGBA{180, 100, 255, 255})
+		xpGrad.AddColorStop(0, rankColor)
+		xpGrad.AddColorStop(1, rankSecColor)
 		dc.SetFillStyle(xpGrad)
 		dc.DrawRoundedRectangle(xpBarX, xpBarY, fw, xpBarH, xpBarH/2)
 		dc.Fill()
@@ -246,7 +286,7 @@ func GenerateProfileCard(c *gin.Context) {
 	dc.DrawStringAnchored(fmt.Sprintf("%d / %d XP  (%.1f%%)", req.XP, req.XPNeeded, xpPct*100), avCX, xpBarY+20, 0.5, 0.5)
 
 	// === Vertical Divider ===
-	dc.SetColor(color.RGBA{42, 42, 74, 255})
+	dc.SetColor(dividerColor)
 	dc.SetLineWidth(1.5)
 	dc.DrawLine(265, 20, 265, PROF_H-20)
 	dc.Stroke()
@@ -275,7 +315,7 @@ func GenerateProfileCard(c *gin.Context) {
 	drawStatRow(dc, semi12, bold14, colX2, rowY[3], "🕊️", "EVA", req.Evasion, 0, true)
 
 	// === Horizontal Divider ===
-	dc.SetColor(color.RGBA{42, 42, 74, 255})
+	dc.SetColor(dividerColor)
 	dc.SetLineWidth(1.5)
 	dc.DrawLine(295, 205, 770, 205)
 	dc.Stroke()
@@ -290,19 +330,19 @@ func GenerateProfileCard(c *gin.Context) {
 	gearRowY := [3]float64{252, 312, 372}
 
 	// Row 1
-	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[0], "⚔️", "MAIN HAND", req.GearMainHand)
-	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[0], "🗡️", "OFF HAND", req.GearOffHand)
-	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[0], "👕", "ARMOR", req.GearArmor)
+	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[0], "⚔️", "MAIN HAND", req.GearMainHand, cardBorderColor)
+	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[0], "🗡️", "OFF HAND", req.GearOffHand, cardBorderColor)
+	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[0], "👕", "ARMOR", req.GearArmor, cardBorderColor)
 
 	// Row 2
-	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[1], "⛑️", "HELMET", req.GearHelmet)
-	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[1], "🧤", "GLOVES", req.GearGloves)
-	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[1], "👢", "BOOTS", req.GearBoots)
+	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[1], "⛑️", "HELMET", req.GearHelmet, cardBorderColor)
+	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[1], "🧤", "GLOVES", req.GearGloves, cardBorderColor)
+	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[1], "👢", "BOOTS", req.GearBoots, cardBorderColor)
 
 	// Row 3
-	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[2], "💍", "RING", req.GearRing)
-	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[2], "📿", "AMULET", req.GearAmulet)
-	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[2], "🧥", "CLOAK", req.GearCloak)
+	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[2], "💍", "RING", req.GearRing, cardBorderColor)
+	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[2], "📿", "AMULET", req.GearAmulet, cardBorderColor)
+	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[2], "🧥", "CLOAK", req.GearCloak, cardBorderColor)
 
 	// Watermark
 	dc.SetFontFace(med8)
@@ -349,7 +389,7 @@ func drawStatRow(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, sta
 	}
 }
 
-func drawGearSlot(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, slotIcon, slotLabel, itemName string) {
+func drawGearSlot(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, slotIcon, slotLabel, itemName string, borderColor color.RGBA) {
 	w := 148.0
 	h := 50.0
 
@@ -357,7 +397,7 @@ func drawGearSlot(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, sl
 	dc.SetColor(color.RGBA{22, 22, 38, 255})
 	dc.DrawRoundedRectangle(x, y, w, h, 4)
 	dc.Fill()
-	dc.SetColor(color.RGBA{45, 45, 75, 255})
+	dc.SetColor(borderColor)
 	dc.SetLineWidth(0.8)
 	dc.DrawRoundedRectangle(x, y, w, h, 4)
 	dc.Stroke()
