@@ -11,8 +11,10 @@ import (
 	"github.com/disintegration/imaging"
 	"github.com/fogleman/gg"
 	"github.com/gin-gonic/gin"
-	"log"
+	"golang.org/x/image/font"
 )
+
+
 
 const (
 	PROF_W = 800
@@ -405,16 +407,20 @@ func drawStatRow(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, sta
 		bonusStr := fmt.Sprintf(" (-%.0f)", math.Abs(bonusVal))
 		dc.DrawString(bonusStr, x+90+wStr+4, y)
 	}
-}
+
+
+func drawGearSlot(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, slotIcon, slotLabel, itemName string, borderColor color.RGBA) {
+	w := 148.0
+	h := 50.0
 
 	// BG Card
 	dc.SetColor(color.RGBA{22, 22, 38, 255})
 	dc.DrawRoundedRectangle(x, y, w, h, 4)
 	dc.Fill()
-	// Determine border color based on occupancy
-	occupied := itemName != "" && itemName != "None"
+
+	// Green border for occupied slots, dim border for empty
 	border := borderColor
-	if occupied {
+	if itemName != "" && itemName != "None" {
 		border = color.RGBA{60, 210, 130, 255}
 	}
 	dc.SetColor(border)
@@ -434,46 +440,15 @@ func drawStatRow(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, sta
 		dc.DrawString("Empty", x+8, y+36)
 	} else {
 		dc.SetColor(color.RGBA{240, 240, 255, 255})
-		// Simple truncation if too long for card
 		runes := []rune(itemName)
 		if len(runes) > 17 {
 			itemName = string(runes[:14]) + "..."
 		}
 		dc.DrawString(slotIcon+" "+itemName, x+8, y+36)
 	}
-
-	w := 148.0
-	h := 50.0
-
-
-
-	dc.DrawRoundedRectangle(x, y, w, h, 4)
-	dc.Fill()
-	dc.SetColor(borderColor)
-	dc.SetLineWidth(0.8)
-	dc.DrawRoundedRectangle(x, y, w, h, 4)
-	dc.Stroke()
-
-	// Slot Title
-	dc.SetFontFace(fontLabel)
-	dc.SetColor(color.RGBA{120, 120, 150, 255})
-	dc.DrawString(slotIcon+" "+slotLabel, x+8, y+16)
-
-	// Item Value
-	dc.SetFontFace(fontVal)
-	if itemName == "" || itemName == "None" {
-		dc.SetColor(color.RGBA{70, 70, 95, 255})
-		dc.DrawString("Empty", x+8, y+36)
-	} else {
-		dc.SetColor(color.RGBA{240, 240, 255, 255})
-		// Simple truncation if too long for card
-		runes := []rune(itemName)
-		if len(runes) > 19 {
-			itemName = string(runes[:16]) + "..."
-		}
-		dc.DrawString(itemName, x+8, y+36)
-	}
 }
+
+
 
 func formatNum(n int) string {
 	f := float64(n)
