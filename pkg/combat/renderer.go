@@ -32,10 +32,10 @@ func GenerateCombatImage(c *gin.Context) {
 
 	// Create Canvas
 	dc := gg.NewContext(CANVAS_W, CANVAS_H)
-	
+
 	// 1. Background - FIXED
 	assetsPath := "assets"
-	
+
 	// Try to load background
 	var bgPath string
 	if req.Background != "" {
@@ -46,7 +46,7 @@ func GenerateCombatImage(c *gin.Context) {
 			bgPath = filepath.Join(assetsPath, "rpgasset", "environment", req.Background)
 		}
 	}
-	
+
 	// If no background specified or doesn't exist, get random one
 	if bgPath == "" || !fileExists(bgPath) {
 		bgPath = getRandomEnvironment(assetsPath)
@@ -89,91 +89,91 @@ func GenerateCombatImage(c *gin.Context) {
 		avgLevel = sum / len(req.Players)
 	}
 
-	        type RenderItem struct {
-	                img image.Image
-	                x, y float64
-	                hpPercent float64
-	        }
-	        var mobQueue []RenderItem
-	
-	        for i, enemy := range req.Enemies {
-	                if enemy.CurrentHP <= 0 && !enemy.JustDied {
-	                        continue
-	                }
-	
-	                spritePath := GetEnemySpritePath(avgLevel, i, enemy.IsBoss, assetsPath)
-	                eSprite, err := utils.LoadImage(spritePath)
-	                if err != nil {
-	                        continue
-	                }
-	
-	                // Resize
-	                eW := enemySpriteSize
-	                if enemy.IsBoss {
-	                        eW = enemySpriteSize * 1.5
-	                }
-	                eSprite = imaging.Resize(eSprite, int(eW), 0, imaging.Lanczos)
-	
-	                // Tint Red if dead
-	                if enemy.CurrentHP <= 0 {
-	                        eSprite = utils.TintImage(eSprite, color.RGBA{255, 0, 0, 100})
-	                }
-	
-	                // Calculate Position
-	                ex, ey := startX, startY
-	                sub := i % 4
-	                if sub == 1 || sub == 2 {
-	                        ex -= spX
-	                } else if sub == 3 {
-	                        ex -= spX * 2
-	                }
-	                if sub == 1 || sub == 3 {
-	                        ey += spY
-	                }
-	                ex += float64(i/4) * -250.0
-	
-	                                        hpPerc := 0.0
-	                                        if enemy.MaxHP > 0 {
-	                                                hpPerc = float64(enemy.CurrentHP) / float64(enemy.MaxHP)
-	                                        }	
-	                mobQueue = append(mobQueue, RenderItem{eSprite, ex, ey, hpPerc})
-	        }
+	type RenderItem struct {
+		img       image.Image
+		x, y      float64
+		hpPercent float64
+	}
+	var mobQueue []RenderItem
+
+	for i, enemy := range req.Enemies {
+		if enemy.CurrentHP <= 0 && !enemy.JustDied {
+			continue
+		}
+
+		spritePath := GetEnemySpritePath(avgLevel, i, enemy.IsBoss, assetsPath)
+		eSprite, err := utils.LoadImage(spritePath)
+		if err != nil {
+			continue
+		}
+
+		// Resize
+		eW := enemySpriteSize
+		if enemy.IsBoss {
+			eW = enemySpriteSize * 1.5
+		}
+		eSprite = imaging.Resize(eSprite, int(eW), 0, imaging.Lanczos)
+
+		// Tint Red if dead
+		if enemy.CurrentHP <= 0 {
+			eSprite = utils.TintImage(eSprite, color.RGBA{255, 0, 0, 100})
+		}
+
+		// Calculate Position
+		ex, ey := startX, startY
+		sub := i % 4
+		if sub == 1 || sub == 2 {
+			ex -= spX
+		} else if sub == 3 {
+			ex -= spX * 2
+		}
+		if sub == 1 || sub == 3 {
+			ey += spY
+		}
+		ex += float64(i/4) * -250.0
+
+		hpPerc := 0.0
+		if enemy.MaxHP > 0 {
+			hpPerc = float64(enemy.CurrentHP) / float64(enemy.MaxHP)
+		}
+		mobQueue = append(mobQueue, RenderItem{eSprite, ex, ey, hpPerc})
+	}
 	// Sort by Y (Painter's Algorithm)
 	sort.Slice(mobQueue, func(i, j int) bool {
 		return mobQueue[i].y < mobQueue[j].y
 	})
 
-	        // Draw Mobs
-	        for _, mob := range mobQueue {
-	                // Shadow
-	                utils.DrawShadow(dc, mob.x + float64(mob.img.Bounds().Dx())/2, mob.y + float64(mob.img.Bounds().Dy()) - 10, float64(mob.img.Bounds().Dx())*0.4, 0.6)
-	                // Sprite
-	                dc.DrawImage(mob.img, int(mob.x), int(mob.y))
-	
-	                // ENEMY HP BAR - Stretched hp5.png
-	                if mob.hpPercent > 0 {
-	                        uiPath := func(f string) string { return filepath.Join(assetsPath, "rpgasset", "ui", f) }
-	                        hpBarImg, err := utils.LoadImage(uiPath("hp5.png"))
-	                        if err == nil {
-	                                barW := 100.0
-	                                barH := 12.0
-	                                // Stretch hp5.png to current HP width
-	                                currentBarW := int(barW * mob.hpPercent)
-	                                if currentBarW < 1 {
-	                                        currentBarW = 1
-	                                }
-	                                hpBarImg = imaging.Resize(hpBarImg, currentBarW, int(barH), imaging.NearestNeighbor)
-	
-	                                // Position above head
-	                                bx := mob.x + (float64(mob.img.Bounds().Dx())-barW)/2
-	                                by := mob.y - 15
-	                                dc.DrawImage(hpBarImg, int(bx), int(by))
-	                        }
-	                }
-	        }
+	// Draw Mobs
+	for _, mob := range mobQueue {
+		// Shadow
+		utils.DrawShadow(dc, mob.x+float64(mob.img.Bounds().Dx())/2, mob.y+float64(mob.img.Bounds().Dy())-10, float64(mob.img.Bounds().Dx())*0.4, 0.6)
+		// Sprite
+		dc.DrawImage(mob.img, int(mob.x), int(mob.y))
+
+		// ENEMY HP BAR - Stretched hp5.png
+		if mob.hpPercent > 0 {
+			uiPath := func(f string) string { return filepath.Join(assetsPath, "rpgasset", "ui", f) }
+			hpBarImg, err := utils.LoadImage(uiPath("hp5.png"))
+			if err == nil {
+				barW := 100.0
+				barH := 12.0
+				// Stretch hp5.png to current HP width
+				currentBarW := int(barW * mob.hpPercent)
+				if currentBarW < 1 {
+					currentBarW = 1
+				}
+				hpBarImg = imaging.Resize(hpBarImg, currentBarW, int(barH), imaging.NearestNeighbor)
+
+				// Position above head
+				bx := mob.x + (float64(mob.img.Bounds().Dx())-barW)/2
+				by := mob.y - 15
+				dc.DrawImage(hpBarImg, int(bx), int(by))
+			}
+		}
+	}
 	// 3. UI Base Layer
 	uiPath := func(f string) string { return filepath.Join(assetsPath, "rpgasset", "ui", f) }
-	
+
 	drawImage := func(path string, x, y, w, h int) {
 		img, err := utils.LoadImage(path)
 		if err == nil {
@@ -185,16 +185,16 @@ func GenerateCombatImage(c *gin.Context) {
 	}
 
 	// UI elements
-			drawImage(uiPath("player_state.png"), -716, 113, 453, 244)
-			drawImage(uiPath("heart.png"), -678, 209, 38, 47)
-			drawImage(uiPath("mana.png"), -673, 256, 29, 44)
-			drawImage(uiPath("Options_menu.png"), -97, 99, 443, 258)
-					drawImage(uiPath("banner.png"), -582, -410, 800, 160)
-			
-					// 4. UI Bars (Main Player)
-					if len(req.Players) > 0 {
-						p := req.Players[0]
-		
+	drawImage(uiPath("player_state.png"), -716, 113, 453, 244)
+	drawImage(uiPath("heart.png"), -678, 209, 38, 47)
+	drawImage(uiPath("mana.png"), -673, 256, 29, 44)
+	drawImage(uiPath("Options_menu.png"), -97, 99, 443, 258)
+	drawImage(uiPath("banner.png"), -582, -410, 800, 160)
+
+	// 4. UI Bars (Main Player)
+	if len(req.Players) > 0 {
+		p := req.Players[0]
+
 		// Draw HP and Energy Bars
 		hpCoords := []int{-640, -550, -459}
 		enCoords := []int{-644, -555, -465}
@@ -202,10 +202,10 @@ func GenerateCombatImage(c *gin.Context) {
 		enSeg := float64(p.MaxEnergy) / 3.0
 
 		for i := 0; i < 3; i++ {
-			hCur := math.Max(0, math.Min(hpSeg, float64(p.CurrentHP) - (float64(i)*hpSeg)))
+			hCur := math.Max(0, math.Min(hpSeg, float64(p.CurrentHP)-(float64(i)*hpSeg)))
 			drawBar(dc, uiPath, normX(hpCoords[i]), normY(209), hCur, hpSeg, "hp", 121, 47)
 
-			eCur := math.Max(0, math.Min(enSeg, float64(p.Energy) - (float64(i)*enSeg)))
+			eCur := math.Max(0, math.Min(enSeg, float64(p.Energy)-(float64(i)*enSeg)))
 			drawBar(dc, uiPath, normX(enCoords[i]), normY(256), eCur, enSeg, "mana", 119, 42)
 		}
 
@@ -216,31 +216,68 @@ func GenerateCombatImage(c *gin.Context) {
 			if p.CurrentHP <= 0 {
 				pSprite = utils.TintImage(pSprite, color.RGBA{255, 0, 0, 100})
 			}
-			
+
 			// Resize to 314px width
 			s1W := 314
 			pSprite = imaging.Resize(pSprite, s1W, 0, imaging.Lanczos)
-			
+
 			// Crop TOP 30% - CRITICAL FIX
 			bounds := pSprite.Bounds()
 			cropH := int(float64(bounds.Dy()) * 0.3)
 			croppedSprite := imaging.Crop(pSprite, image.Rect(0, 0, bounds.Dx(), cropH))
-			
+
 			// Position at normX(-660), normY(220) - cropH
 			dc.DrawImage(croppedSprite, normX(-660), normY(220)-cropH+40)
-			
-			// 6. Second Sprite (Small full-body on battlefield) - PvE only
-			if req.CombatType != "PVP" {
+
+			// 6. Small full-body sprites on battlefield
+			if req.CombatType == "PVP" {
+				drawPvPFighter := func(player Player, x, y int, flip bool) {
+					path := GetCharacterSpritePath(player.Class, player.SpriteIndex, assetsPath)
+					sprite, err := utils.LoadImage(path)
+					if err != nil {
+						return
+					}
+					if player.CurrentHP <= 0 {
+						sprite = utils.TintImage(sprite, color.RGBA{255, 0, 0, 100})
+					}
+					sprite = imaging.Resize(sprite, 160, 0, imaging.Lanczos)
+					if flip {
+						sprite = imaging.FlipH(sprite)
+					}
+
+					utils.DrawShadow(dc, float64(x)+80, float64(y)+float64(sprite.Bounds().Dy()), 165, 0.6)
+					dc.DrawImage(sprite, x, y)
+
+					hpPercent := 0.0
+					if player.MaxHP > 0 {
+						hpPercent = math.Max(0, math.Min(1, float64(player.CurrentHP)/float64(player.MaxHP)))
+					}
+					hpBarImg, err := utils.LoadImage(uiPath("hp5.png"))
+					if err == nil && hpPercent > 0 {
+						barW := int(120 * hpPercent)
+						if barW < 1 {
+							barW = 1
+						}
+						hpBarImg = imaging.Resize(hpBarImg, barW, 12, imaging.NearestNeighbor)
+						dc.DrawImage(hpBarImg, x+20, y-18)
+					}
+				}
+
+				drawPvPFighter(p, int(startX-560), int(startY+50), false)
+				if len(req.Players) > 1 {
+					drawPvPFighter(req.Players[1], int(startX-170), int(startY+50), true)
+				}
+			} else {
 				s2Size := 122
 				smallSprite := imaging.Resize(pSprite, s2Size, 0, imaging.Lanczos)
-				
+
 				// Position: startX - 500, startY + 30
 				s2X := int(startX - 500)
 				s2Y := int(startY + 30)
-				
+
 				// Shadow
 				utils.DrawShadow(dc, float64(s2X)+float64(s2Size)/2, float64(s2Y)+float64(smallSprite.Bounds().Dy()), 150, 0.6)
-				
+
 				// Draw sprite
 				dc.DrawImage(smallSprite, s2X, s2Y)
 			}
@@ -257,24 +294,25 @@ func GenerateCombatImage(c *gin.Context) {
 			text = "F"
 		}
 		text = text + " RANK"
-		
+
 		if req.CombatType == "PVP" {
 			text = "PVP MATCH"
 		}
-		
-				fontPath := filepath.Join(assetsPath, "rpgasset", "ui", "Inter-Bold.ttf")
-				face, err := utils.LoadFont(fontPath, 40) // 40pt (smaller as requested)
-				if err == nil {
-					dc.SetFontFace(face)
-					dc.SetColor(color.RGBA{0, 0, 0, 255}) // Black
-		
-					// Center text in banner at normX(-582), normY(-410)
-					bx, by := float64(normX(-582)), float64(normY(-410))
-					bw, bh := 800.0, 160.0
-		
-					// Draw centered in the new 800x160 banner, shifted up 30px
-					dc.DrawStringAnchored(text, bx+bw/2, by+bh/2-30, 0.5, 0.5)
-				}			        }
+
+		fontPath := filepath.Join(assetsPath, "rpgasset", "ui", "Inter-Bold.ttf")
+		face, err := utils.LoadFont(fontPath, 40) // 40pt (smaller as requested)
+		if err == nil {
+			dc.SetFontFace(face)
+			dc.SetColor(color.RGBA{0, 0, 0, 255}) // Black
+
+			// Center text in banner at normX(-582), normY(-410)
+			bx, by := float64(normX(-582)), float64(normY(-410))
+			bw, bh := 800.0, 160.0
+
+			// Draw centered in the new 800x160 banner, shifted up 30px
+			dc.DrawStringAnchored(text, bx+bw/2, by+bh/2-30, 0.5, 0.5)
+		}
+	}
 
 	// Encode
 	buf, err := utils.EncodeImageToBuffer(dc.Image())
@@ -319,11 +357,13 @@ func GenerateEndScreen(c *gin.Context) {
 func normX(x int) int { return x + OFF_X }
 func normY(y int) int { return y + OFF_Y }
 
-func drawBar(dc *gg.Context, uiPath func(string)string, x, y int, current, max float64, typePrefix string, w, h int) {
-	if max <= 0 { max = 1 }
+func drawBar(dc *gg.Context, uiPath func(string) string, x, y int, current, max float64, typePrefix string, w, h int) {
+	if max <= 0 {
+		max = 1
+	}
 	percent := current / max
 	spriteNum := int(math.Min(5, math.Max(1, math.Round(percent*4)+1)))
-	
+
 	filename := fmt.Sprintf("%s%d.png", typePrefix, spriteNum)
 	img, err := utils.LoadImage(uiPath(filename))
 	if err == nil {
@@ -339,12 +379,12 @@ func fileExists(path string) bool {
 
 func getRandomEnvironment(assetsPath string) string {
 	envPath := filepath.Join(assetsPath, "rpgasset", "environment")
-	
+
 	entries, err := os.ReadDir(envPath)
 	if err != nil {
 		return ""
 	}
-	
+
 	var files []string
 	for _, entry := range entries {
 		if !entry.IsDir() {
@@ -355,11 +395,11 @@ func getRandomEnvironment(assetsPath string) string {
 			}
 		}
 	}
-	
+
 	if len(files) == 0 {
 		return ""
 	}
-	
+
 	// Return first one (or could randomize)
 	return files[0]
 }
