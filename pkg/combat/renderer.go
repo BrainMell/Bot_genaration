@@ -263,9 +263,9 @@ func GenerateCombatImage(c *gin.Context) {
 					}
 				}
 
-				drawPvPFighter(p, int(startX-560), int(startY+50), false)
+				drawPvPFighter(p, int(startX-560), int(startY-30), false)
 				if len(req.Players) > 1 {
-					drawPvPFighter(req.Players[1], int(startX-170), int(startY+50), true)
+					drawPvPFighter(req.Players[1], int(startX-170), int(startY-30), true)
 				}
 			} else {
 				s2Size := 122
