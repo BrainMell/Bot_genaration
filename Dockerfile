@@ -9,7 +9,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN git lfs pull
+RUN if [ -d .git ]; then git lfs pull; else echo "Skipping git lfs pull: .git directory not found in build context"; fi
 RUN CGO_ENABLED=0 GOOS=linux go build -o image-service .
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
