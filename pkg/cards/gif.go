@@ -21,6 +21,8 @@ import (
 	"strings"
 	"time"
 
+	_ "golang.org/x/image/webp"
+
 	"image-service/pkg/utils"
 
 	"github.com/disintegration/imaging"
@@ -375,35 +377,68 @@ type CardInput struct {
 	Path string
 }
 
-func GenerateCardGridImage(inputs []CardInput) ([]byte, error) {
-	cols := 5
+func GenerateCardGridImage(inputs []CardInput, title string) ([]byte, error) {
 	n := len(inputs)
 	if n == 0 {
 		return nil, fmt.Errorf("no input cards")
 	}
-	if n < 5 {
+
+	// 4 columns as standard, dynamic rows
+	cols := 4
+	if n < 4 {
 		cols = n
 	}
-
 	rows := (n + cols - 1) / cols
-	cardW := 200
-	cardH := 300
-	spacing := 4
 
-	canvasW := cols*cardW + (cols-1)*spacing
-	canvasH := rows*cardH + (rows-1)*spacing
+	cardW := 240
+	cardH := 360
+	spacing := 20
+	padX := 30
+	padY := 30
+	headerH := 0
+	if title != "" {
+		headerH = 80
+	}
+
+	canvasW := cols*cardW + (cols-1)*spacing + padX*2
+	canvasH := rows*cardH + (rows-1)*spacing + padY*2 + headerH
 
 	dc := gg.NewContext(canvasW, canvasH)
-	
-	// Set a deep, elegant dark neutral background
-	dc.SetHexColor("#121212")
-	dc.Clear()
 
+	// Premium dark background gradient
+	grad := gg.NewLinearGradient(0, 0, 0, float64(canvasH))
+	grad.AddColorStop(0, utils.ParseHexColor("#0f1015"))
+	grad.AddColorStop(1, utils.ParseHexColor("#060709"))
+	dc.SetFillStyle(grad)
+	dc.DrawRectangle(0, 0, float64(canvasW), float64(canvasH))
+	dc.Fill()
+
+	// Optional title header
+	if title != "" {
+		fontBoldPath := utils.GetAssetPath("rpgasset", "ui", "Inter-Bold.ttf")
+		if err := dc.LoadFontFace(fontBoldPath, 28); err == nil {
+			// Title shadow
+			dc.SetHexColor("#000000")
+			dc.DrawStringAnchored(title, float64(canvasW)/2+2, 45+2, 0.5, 0.5)
+
+			// Modern title soft gold
+			dc.SetHexColor("#e5c158")
+			dc.DrawStringAnchored(title, float64(canvasW)/2, 45, 0.5, 0.5)
+		}
+
+		// Divider line under header
+		dc.SetHexColor("#1e2330")
+		dc.SetLineWidth(2)
+		dc.DrawLine(30, 75, float64(canvasW-30), 75)
+		dc.Stroke()
+	}
+
+	// Render cards
 	for i, input := range inputs {
 		col := i % cols
 		row := i / cols
-		x := col * (cardW + spacing)
-		y := row * (cardH + spacing)
+		x := float64(padX + col*(cardW+spacing))
+		y := float64(padY + headerH + row*(cardH+spacing))
 
 		// Decode the downloaded image
 		file, err := os.Open(input.Path)
@@ -418,11 +453,21 @@ func GenerateCardGridImage(inputs []CardInput) ([]byte, error) {
 			continue
 		}
 
-		// Resize to portrait 2:3 aspect ratio
-		resized := imaging.Resize(img, cardW, cardH, imaging.Lanczos)
+		// Resize to portrait 2:3 aspect ratio without stretching
+		resized := imaging.Fill(img, cardW, cardH, imaging.Center, imaging.Lanczos)
 
-		// Draw onto canvas edge to edge
-		dc.DrawImage(resized, x, y)
+		// Draw card art with rounded corners
+		dc.Push()
+		dc.DrawRoundedRectangle(x, y, float64(cardW), float64(cardH), 12)
+		dc.Clip()
+		dc.DrawImage(resized, int(x), int(y))
+		dc.Pop()
+
+		// Sleek border overlay
+		dc.DrawRoundedRectangle(x, y, float64(cardW), float64(cardH), 12)
+		dc.SetHexColor("#2a2f3d")
+		dc.SetLineWidth(1.5)
+		dc.Stroke()
 	}
 
 	var buf bytes.Buffer
@@ -529,7 +574,7 @@ func GenerateCardGif(c *gin.Context) {
 	}
 
 	fmt.Printf("[Cards] Rendering %d cards in fallback grid layout...\n", len(localInputs))
-	gridData, err := GenerateCardGridImage(localInputs)
+	gridData, err := GenerateCardGridImage(localInputs, req.Title)
 	if err != nil {
 		fmt.Printf("[Cards] Grid image generation failed: %v\n", err)
 		c.JSON(500, gin.H{"error": "Grid fallback generation failed"})
