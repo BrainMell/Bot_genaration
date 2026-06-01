@@ -1,9 +1,17 @@
 package cards
 
 import (
+	"bytes"
+	"crypto/sha1"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
+	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,6 +34,187 @@ func isAnimated(url string) bool {
 	return strings.HasSuffix(lower, ".webm") || strings.HasSuffix(lower, ".gif") || strings.HasSuffix(lower, ".webp")
 }
 
+type CloudinaryUploadResponse struct {
+	PublicID  string `json:"public_id"`
+	SecureURL string `json:"secure_url"`
+	Error     struct {
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+func generateSignature(publicID, tags, timestamp, apiSecret string) string {
+	rawStr := fmt.Sprintf("public_id=%s&tags=%s&timestamp=%s%s", publicID, tags, timestamp, apiSecret)
+	h := sha1.New()
+	h.Write([]byte(rawStr))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func uploadToCloudinary(client *http.Client, cloudName, apiKey, apiSecret, fileURL, publicID, tag string) (string, error) {
+	timestamp := fmt.Sprintf("%d", time.Now().Unix())
+	signature := generateSignature(publicID, tag, timestamp, apiSecret)
+
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+
+	_ = w.WriteField("file", fileURL)
+	_ = w.WriteField("public_id", publicID)
+	_ = w.WriteField("tags", tag)
+	_ = w.WriteField("timestamp", timestamp)
+	_ = w.WriteField("api_key", apiKey)
+	_ = w.WriteField("signature", signature)
+	w.Close()
+
+	uploadURL := fmt.Sprintf("https://api.cloudinary.com/v1_1/%s/image/upload", cloudName)
+	req, err := http.NewRequest("POST", uploadURL, &buf)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", w.FormDataContentType())
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var res CloudinaryUploadResponse
+	if err := json.Unmarshal(body, &res); err != nil {
+		return "", err
+	}
+
+	if res.Error.Message != "" {
+		return "", fmt.Errorf("error: %s", res.Error.Message)
+	}
+
+	return res.PublicID, nil
+}
+
+func deleteFromCloudinary(client *http.Client, cloudName, apiKey, apiSecret string, publicIDs []string) error {
+	deleteURL := fmt.Sprintf("https://api.cloudinary.com/v1_1/%s/resources/image/upload", cloudName)
+
+	u, err := url.Parse(deleteURL)
+	if err != nil {
+		return err
+	}
+	q := u.Query()
+	for _, pid := range publicIDs {
+		q.Add("public_ids[]", pid)
+	}
+	u.RawQuery = q.Encode()
+
+	req, err := http.NewRequest("DELETE", u.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	auth := apiKey + ":" + apiSecret
+	encodedAuth := base64.StdEncoding.EncodeToString([]byte(auth))
+	req.Header.Set("Authorization", "Basic "+encodedAuth)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+func GenerateCloudinarySlideshow(images []string, cloudName, apiKey, apiSecret string) ([]byte, error) {
+	client := &http.Client{Timeout: 60 * time.Second}
+	tag := fmt.Sprintf("deck_%d_%d", time.Now().Unix(), rand.Intn(10000))
+	
+	type uploadResult struct {
+		index    int
+		publicID string
+		err      error
+	}
+	ch := make(chan uploadResult, len(images))
+	publicIDs := make([]string, len(images))
+
+	for i, imgURL := range images {
+		go func(index int, urlStr string) {
+			publicID := fmt.Sprintf("%s_%03d", tag, index)
+			pid, err := uploadToCloudinary(client, cloudName, apiKey, apiSecret, urlStr, publicID, tag)
+			ch <- uploadResult{index: index, publicID: pid, err: err}
+		}(i, imgURL)
+	}
+
+	var uploadErrors []error
+	for range images {
+		res := <-ch
+		if res.err != nil {
+			uploadErrors = append(uploadErrors, res.err)
+		} else {
+			publicIDs[res.index] = res.publicID
+		}
+	}
+
+	if len(uploadErrors) > 0 {
+		var toDelete []string
+		for _, pid := range publicIDs {
+			if pid != "" {
+				toDelete = append(toDelete, pid)
+			}
+		}
+		if len(toDelete) > 0 {
+			_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, toDelete)
+		}
+		return nil, fmt.Errorf("cloudinary upload failed: %v", uploadErrors[0])
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString(fmt.Sprintf("https://res.cloudinary.com/%s/image/upload/w_500,h_500,c_fill,du_1.5/", cloudName))
+	for i := 1; i < len(publicIDs); i++ {
+		buf.WriteString(fmt.Sprintf("fl_splice:transition_(name_slideright;du_0.5),l_%s/w_500,h_500,c_fill,du_1.5/fl_layer_apply/", publicIDs[i]))
+	}
+	buf.WriteString(fmt.Sprintf("%s.mp4", publicIDs[0]))
+	spliceURL := buf.String()
+
+	fmt.Printf("[Cloudinary] Splicing URL on Go server: %s\n", spliceURL)
+
+	resp, err := client.Get(spliceURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch spliced video: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("spliced video fetch failed with status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	videoBuffer, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read video response: %w", err)
+	}
+
+	go func() {
+		cleanupClient := &http.Client{Timeout: 30 * time.Second}
+		_ = deleteFromCloudinary(cleanupClient, cloudName, apiKey, apiSecret, publicIDs)
+	}()
+
+	return videoBuffer, nil
+}
+
 func GenerateCardGif(c *gin.Context) {
 	var req GifRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -40,8 +229,35 @@ func GenerateCardGif(c *gin.Context) {
 
 	maxImages := 15
 	if len(req.Images) > maxImages {
-	        req.Images = req.Images[:maxImages]
+		req.Images = req.Images[:maxImages]
 	}
+
+	// 1. Try Cloudinary slideshow first
+	cloudName := os.Getenv("CLOUDINARY_CLOUD_NAME")
+	if cloudName == "" {
+		cloudName = "dwgct8qng"
+	}
+	apiKey := os.Getenv("CLOUDINARY_API_KEY")
+	if apiKey == "" {
+		apiKey = "551174662862282"
+	}
+	apiSecret := os.Getenv("CLOUDINARY_API_SECRET")
+	if apiSecret == "" {
+		apiSecret = "ez0LwjGnhNiBSE5esFpbBnwjRGg"
+	}
+
+	if cloudName != "" && apiKey != "" && apiSecret != "" {
+		fmt.Printf("[Cloudinary] Splicing %d images on Go image server...\n", len(req.Images))
+		vidData, err := GenerateCloudinarySlideshow(req.Images, cloudName, apiKey, apiSecret)
+		if err == nil {
+			fmt.Printf("[Cloudinary] Successfully generated slideshow! Size: %d bytes\n", len(vidData))
+			c.Data(200, "video/mp4", vidData)
+			return
+		}
+		fmt.Printf("[Cloudinary] Failed generating slideshow: %v. Falling back to local FFmpeg...\n", err)
+	}
+
+	// 2. Local FFmpeg fallback
 	tempDir, err := os.MkdirTemp("", "cardvid_*")
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to create temp directory"})
@@ -62,7 +278,6 @@ func GenerateCardGif(c *gin.Context) {
 	}
 	var localInputs []CardInput
 
-	// Download images in parallel
 	type downloadResult struct {
 		index      int
 		filePath   string
@@ -71,7 +286,7 @@ func GenerateCardGif(c *gin.Context) {
 	}
 	dlCh := make(chan downloadResult, len(req.Images))
 
-	for i, url := range req.Images {
+	for i, urlStr := range req.Images {
 		go func(index int, downloadUrl string) {
 			filePath := filepath.Join(tempDir, fmt.Sprintf("card_%d", index))
 			err := downloadFile(client, downloadUrl, filePath)
@@ -81,7 +296,7 @@ func GenerateCardGif(c *gin.Context) {
 				isAnimated: isAnimated(downloadUrl),
 				err:        err,
 			}
-		}(i, url)
+		}(i, urlStr)
 	}
 
 	dlResults := make([]downloadResult, len(req.Images))
@@ -114,7 +329,6 @@ func GenerateCardGif(c *gin.Context) {
 	}
 	var jobs []renderJob
 
-	// 1. Create jobs for slides (1.5s duration, or 2.0s for the last one)
 	for i, input := range localInputs {
 		slidePath := filepath.Join(tempDir, fmt.Sprintf("slide_%d.mp4", i))
 		duration := 1.5
@@ -150,7 +364,6 @@ func GenerateCardGif(c *gin.Context) {
 		})
 	}
 
-	// 2. Create jobs for transitions (0.5s duration from i to i+1)
 	for i := 0; i < len(localInputs)-1; i++ {
 		transPath := filepath.Join(tempDir, fmt.Sprintf("trans_%d.mp4", i))
 		input1 := localInputs[i]
@@ -192,7 +405,6 @@ func GenerateCardGif(c *gin.Context) {
 		})
 	}
 
-	// 3. Run jobs sequentially to prevent memory spike and OOM crashes
 	for _, job := range jobs {
 		cmd := exec.Command("ffmpeg", job.args...)
 		if output, err := cmd.CombinedOutput(); err != nil {
@@ -202,7 +414,6 @@ func GenerateCardGif(c *gin.Context) {
 		}
 	}
 
-	// 4. Write concatenation text file in order: slide_0, trans_0, slide_1, trans_1, ..., slide_last
 	concatTxtPath := filepath.Join(tempDir, "concat.txt")
 	concatFile, err := os.Create(concatTxtPath)
 	if err != nil {
@@ -222,7 +433,6 @@ func GenerateCardGif(c *gin.Context) {
 	}
 	concatFile.Close()
 
-	// 5. Concatenate slides
 	outputPath := filepath.Join(tempDir, "output.mp4")
 	concatCmd := exec.Command("ffmpeg", "-f", "concat", "-safe", "0", "-i", concatTxtPath, "-c", "copy", "-y", outputPath)
 	if output, err := concatCmd.CombinedOutput(); err != nil {
@@ -252,4 +462,3 @@ func generateRandomGradient(path string, w, h int) error {
 	dc.Fill()
 	return dc.SavePNG(path)
 }
-
