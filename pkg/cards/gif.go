@@ -18,7 +18,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -29,9 +28,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type CardImageInput struct {
+	URL      string `json:"url" binding:"required"`
+	Animated bool   `json:"animated"`
+}
+
 type GifRequest struct {
-	Images []string `json:"images"`
-	Title  string   `json:"title"`
+	Images []CardImageInput `json:"images" binding:"required"`
+	Title  string           `json:"title"`
 }
 
 func isAnimated(url string) bool {
@@ -151,133 +155,217 @@ type MultiResponse struct {
 	} `json:"error"`
 }
 
-func GenerateCloudinarySlideshow(images []string, cloudName, apiKey, apiSecret string) ([]byte, error) {
-	client := &http.Client{Timeout: 60 * time.Second}
+func GenerateCloudinarySlideshow(images []CardImageInput, cloudName, apiKey, apiSecret string) ([]byte, error) {
+	client := &http.Client{Timeout: 90 * time.Second}
 	tag := fmt.Sprintf("deck_%d_%d", time.Now().Unix(), rand.Intn(10000))
-	
-	// Step 1: Upload images in parallel with sequential public IDs
-	type uploadResult struct {
+
+	type segmentResult struct {
 		index    int
-		publicID string
+		imgPid   string
+		vidPid   string
 		err      error
 	}
-	imgCh := make(chan uploadResult, len(images))
 
-	for i, urlStr := range images {
-		go func(index int, uStr string) {
-			// Zero-pad to 3 digits to ensure lexicographical sorting matches chronological order
-			publicID := fmt.Sprintf("%s_img_%03d", tag, index)
-			pid, err := uploadToCloudinary(client, cloudName, apiKey, apiSecret, uStr, publicID, tag, "image")
-			imgCh <- uploadResult{index: index, publicID: pid, err: err}
-		}(i, urlStr)
+	segmentCh := make(chan segmentResult, len(images))
+
+	for i, imgInput := range images {
+		go func(index int, input CardImageInput) {
+			imgPid := fmt.Sprintf("%s_img_%03d", tag, index)
+			vidPid := fmt.Sprintf("%s_vid_%03d", tag, index)
+
+			// Upload original image to image namespace
+			imageTag := tag
+			if !input.Animated && !isAnimated(input.URL) {
+				imageTag = fmt.Sprintf("%s_static_%03d", tag, index)
+			}
+
+			_, err := uploadToCloudinary(client, cloudName, apiKey, apiSecret, input.URL, imgPid, imageTag, "image")
+			if err != nil {
+				segmentCh <- segmentResult{index: index, err: fmt.Errorf("failed image upload: %w", err)}
+				return
+			}
+
+			var mp4URL string
+			if input.Animated || isAnimated(input.URL) {
+				// Animated GIF conversion URL
+				mp4URL = fmt.Sprintf("https://res.cloudinary.com/%s/image/upload/c_pad,w_500,h_500,b_rgb:121212,du_1.5/%s.mp4", cloudName, imgPid)
+			} else {
+				// Static image multi URL
+				multiURL := fmt.Sprintf("https://api.cloudinary.com/v1_1/%s/image/multi", cloudName)
+				data := url.Values{}
+				data.Set("tag", imageTag)
+				data.Set("format", "mp4")
+				data.Set("transformation", "c_pad,w_500,h_500,b_rgb:121212/dl_1500")
+
+				req, err := http.NewRequest("POST", multiURL, strings.NewReader(data.Encode()))
+				if err != nil {
+					segmentCh <- segmentResult{index: index, err: fmt.Errorf("failed multi request init: %w", err)}
+					return
+				}
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				req.SetBasicAuth(apiKey, apiSecret)
+
+				resp, err := client.Do(req)
+				if err != nil {
+					segmentCh <- segmentResult{index: index, err: fmt.Errorf("failed multi request: %w", err)}
+					return
+				}
+				defer resp.Body.Close()
+
+				respBody, err := io.ReadAll(resp.Body)
+				if err != nil {
+					segmentCh <- segmentResult{index: index, err: fmt.Errorf("failed read multi response: %w", err)}
+					return
+				}
+
+				if resp.StatusCode != 200 {
+					segmentCh <- segmentResult{index: index, err: fmt.Errorf("multi request status %d: %s", resp.StatusCode, string(respBody))}
+					return
+				}
+
+				var multiRes MultiResponse
+				if err := json.Unmarshal(respBody, &multiRes); err != nil {
+					segmentCh <- segmentResult{index: index, err: fmt.Errorf("failed parse multi response: %w", err)}
+					return
+				}
+
+				if multiRes.Error.Message != "" {
+					segmentCh <- segmentResult{index: index, err: fmt.Errorf("multi api error: %s", multiRes.Error.Message)}
+					return
+				}
+
+				mp4URL = multiRes.SecureURL
+			}
+
+			// Download the 1.5s video segment
+			videoResp, err := client.Get(mp4URL)
+			if err != nil {
+				segmentCh <- segmentResult{index: index, err: fmt.Errorf("failed download video segment: %w", err)}
+				return
+			}
+			defer videoResp.Body.Close()
+
+			if videoResp.StatusCode != 200 {
+				videoBody, _ := io.ReadAll(videoResp.Body)
+				segmentCh <- segmentResult{index: index, err: fmt.Errorf("download video segment status %d: %s", videoResp.StatusCode, string(videoBody))}
+				return
+			}
+
+			videoBuffer, err := io.ReadAll(videoResp.Body)
+			if err != nil {
+				segmentCh <- segmentResult{index: index, err: fmt.Errorf("failed reading download buffer: %w", err)}
+				return
+			}
+
+			// Base64 encode the video buffer to upload to Cloudinary directly in-memory
+			encoded := base64.StdEncoding.EncodeToString(videoBuffer)
+			dataURI := "data:video/mp4;base64," + encoded
+
+			// Upload MP4 to video namespace
+			_, err = uploadToCloudinary(client, cloudName, apiKey, apiSecret, dataURI, vidPid, tag, "video")
+			if err != nil {
+				segmentCh <- segmentResult{index: index, err: fmt.Errorf("failed video upload to cloudinary: %w", err)}
+				return
+			}
+
+			segmentCh <- segmentResult{
+				index:  index,
+				imgPid: imgPid,
+				vidPid: vidPid,
+				err:    nil,
+			}
+		}(i, imgInput)
 	}
 
-	type successfulUpload struct {
-		index    int
-		publicID string
-	}
-	var successfulImages []successfulUpload
-
+	results := make([]segmentResult, len(images))
 	for range images {
-		res := <-imgCh
-		if res.err == nil {
-			successfulImages = append(successfulImages, successfulUpload{index: res.index, publicID: res.publicID})
-		} else {
-			fmt.Printf("[Cloudinary] Skipped failed card image %d upload: %v\n", res.index, res.err)
+		res := <-segmentCh
+		results[res.index] = res
+	}
+
+	var imgPublicIDs []string
+	var vidPublicIDs []string
+	var firstErr error
+
+	for _, res := range results {
+		if res.err != nil {
+			if firstErr == nil {
+				firstErr = res.err
+			}
+		}
+		if res.imgPid != "" {
+			imgPublicIDs = append(imgPublicIDs, res.imgPid)
+		}
+		if res.vidPid != "" {
+			vidPublicIDs = append(vidPublicIDs, res.vidPid)
 		}
 	}
 
-	if len(successfulImages) == 0 {
-		return nil, fmt.Errorf("all image uploads failed")
+	if firstErr != nil {
+		if len(imgPublicIDs) > 0 {
+			_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
+		}
+		if len(vidPublicIDs) > 0 {
+			_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "video", vidPublicIDs)
+		}
+		return nil, fmt.Errorf("failed to process segments: %w", firstErr)
 	}
 
-	// Sort successfulImages to preserve original order (optional, but good practice)
-	sort.Slice(successfulImages, func(i, j int) bool {
-		return successfulImages[i].index < successfulImages[j].index
-	})
-
-	// Collect successful image IDs for cleanup
-	var imgPublicIDs []string
-	for _, sImg := range successfulImages {
-		imgPublicIDs = append(imgPublicIDs, sImg.publicID)
+	// Splicing
+	var orderedVidPids []string
+	for _, res := range results {
+		orderedVidPids = append(orderedVidPids, res.vidPid)
 	}
 
-	// Step 2: Use Cloudinary's multi endpoint to generate slideshow MP4 with 1.5s delay
-	multiURL := fmt.Sprintf("https://api.cloudinary.com/v1_1/%s/image/multi", cloudName)
-	
-	data := url.Values{}
-	data.Set("tag", tag)
-	data.Set("format", "mp4")
-	data.Set("transformation", "c_fill,h_500,w_500/dl_1500")
+	var spliceURLBuilder strings.Builder
+	spliceURLBuilder.WriteString(fmt.Sprintf("https://res.cloudinary.com/%s/video/upload/c_pad,w_500,h_500,b_rgb:121212/", cloudName))
+	for i := 1; i < len(orderedVidPids); i++ {
+		spliceURLBuilder.WriteString(fmt.Sprintf("fl_splice:transition_(name_slideright;du_0.5),l_video:%s/c_pad,w_500,h_500,b_rgb:121212/fl_layer_apply/", orderedVidPids[i]))
+	}
+	spliceURLBuilder.WriteString(fmt.Sprintf("%s.mp4", orderedVidPids[0]))
+	spliceURL := spliceURLBuilder.String()
 
-	req, err := http.NewRequest("POST", multiURL, strings.NewReader(data.Encode()))
-	if err != nil {
+	var videoBuffer []byte
+	var downloadErr error
+
+	for attempt := 0; attempt < 5; attempt++ {
+		fmt.Printf("[Cloudinary] Fetching final video (attempt %d/5)... URL: %s\n", attempt+1, spliceURL)
+		videoResp, err := client.Get(spliceURL)
+		if err != nil {
+			downloadErr = err
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		defer videoResp.Body.Close()
+
+		if videoResp.StatusCode == 200 {
+			videoBuffer, err = io.ReadAll(videoResp.Body)
+			if err == nil {
+				downloadErr = nil
+				break
+			}
+			downloadErr = err
+		} else {
+			bodyBytes, _ := io.ReadAll(videoResp.Body)
+			downloadErr = fmt.Errorf("status %d: %s", videoResp.StatusCode, string(bodyBytes))
+		}
+		time.Sleep(3 * time.Second)
+	}
+
+	if downloadErr != nil || len(videoBuffer) == 0 {
 		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
-		return nil, fmt.Errorf("failed to create multi request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.SetBasicAuth(apiKey, apiSecret)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
-		return nil, fmt.Errorf("multi request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
-		return nil, fmt.Errorf("failed to read multi response: %w", err)
+		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "video", vidPublicIDs)
+		if downloadErr != nil {
+			return nil, fmt.Errorf("failed to download spliced video after retries: %w", downloadErr)
+		}
+		return nil, fmt.Errorf("failed to download spliced video: empty buffer")
 	}
 
-	if resp.StatusCode != 200 {
-		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
-		return nil, fmt.Errorf("multi request status %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	var multiRes MultiResponse
-	if err := json.Unmarshal(respBody, &multiRes); err != nil {
-		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
-		return nil, fmt.Errorf("failed to parse multi response: %w", err)
-	}
-
-	if multiRes.Error.Message != "" {
-		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
-		return nil, fmt.Errorf("multi api error: %s", multiRes.Error.Message)
-	}
-
-	if multiRes.SecureURL == "" {
-		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
-		return nil, fmt.Errorf("multi api returned empty URL")
-	}
-
-	fmt.Printf("[Cloudinary] Spliced %d images via multi API, fetching MP4: %s\n", len(imgPublicIDs), multiRes.SecureURL)
-
-	// Step 3: Download the final video/mp4 buffer
-	videoResp, err := client.Get(multiRes.SecureURL)
-	if err != nil {
-		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
-		return nil, fmt.Errorf("failed to download slideshow video: %w", err)
-	}
-	defer videoResp.Body.Close()
-
-	if videoResp.StatusCode != 200 {
-		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
-		videoRespBody, _ := io.ReadAll(videoResp.Body)
-		return nil, fmt.Errorf("slideshow video download status %d: %s", videoResp.StatusCode, string(videoRespBody))
-	}
-
-	videoBuffer, err := io.ReadAll(videoResp.Body)
-	if err != nil {
-		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
-		return nil, fmt.Errorf("failed to read video download buffer: %w", err)
-	}
-
-	// Step 4: Clean up images in background (after download is complete)
+	// Clean up resources in the background
 	go func() {
 		cleanupClient := &http.Client{Timeout: 30 * time.Second}
 		_ = deleteFromCloudinary(cleanupClient, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
+		_ = deleteFromCloudinary(cleanupClient, cloudName, apiKey, apiSecret, "video", vidPublicIDs)
 	}()
 
 	return videoBuffer, nil
@@ -407,7 +495,7 @@ func GenerateCardGif(c *gin.Context) {
 	}
 	dlCh := make(chan downloadResult, len(req.Images))
 
-	for i, urlStr := range req.Images {
+	for i, urlInput := range req.Images {
 		go func(index int, downloadUrl string) {
 			filePath := filepath.Join(tempDir, fmt.Sprintf("card_%d", index))
 			err := downloadFile(client, downloadUrl, filePath)
@@ -416,7 +504,7 @@ func GenerateCardGif(c *gin.Context) {
 				filePath: filePath,
 				err:      err,
 			}
-		}(i, urlStr)
+		}(i, urlInput.URL)
 	}
 
 	dlResults := make([]downloadResult, len(req.Images))
