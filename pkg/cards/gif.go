@@ -143,11 +143,19 @@ func deleteFromCloudinary(client *http.Client, cloudName, apiKey, apiSecret, res
 	return nil
 }
 
+type MultiResponse struct {
+	URL       string `json:"url"`
+	SecureURL string `json:"secure_url"`
+	Error     struct {
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
 func GenerateCloudinarySlideshow(images []string, cloudName, apiKey, apiSecret string) ([]byte, error) {
 	client := &http.Client{Timeout: 60 * time.Second}
 	tag := fmt.Sprintf("deck_%d_%d", time.Now().Unix(), rand.Intn(10000))
 	
-	// Step 1: Upload images in parallel, skipping failed ones
+	// Step 1: Upload images in parallel with sequential public IDs
 	type uploadResult struct {
 		index    int
 		publicID string
@@ -157,7 +165,8 @@ func GenerateCloudinarySlideshow(images []string, cloudName, apiKey, apiSecret s
 
 	for i, urlStr := range images {
 		go func(index int, uStr string) {
-			publicID := fmt.Sprintf("%s_img_%d", tag, index)
+			// Zero-pad to 3 digits to ensure lexicographical sorting matches chronological order
+			publicID := fmt.Sprintf("%s_img_%03d", tag, index)
 			pid, err := uploadToCloudinary(client, cloudName, apiKey, apiSecret, uStr, publicID, tag, "image")
 			imgCh <- uploadResult{index: index, publicID: pid, err: err}
 		}(i, urlStr)
@@ -182,38 +191,10 @@ func GenerateCloudinarySlideshow(images []string, cloudName, apiKey, apiSecret s
 		return nil, fmt.Errorf("all image uploads failed")
 	}
 
-	// Sort successfulImages to preserve original slideshow order
+	// Sort successfulImages to preserve original order (optional, but good practice)
 	sort.Slice(successfulImages, func(i, j int) bool {
 		return successfulImages[i].index < successfulImages[j].index
 	})
-
-	// Step 2: Upload MP4 conversion URLs in parallel
-	vidCh := make(chan uploadResult, len(successfulImages))
-	for i, sImg := range successfulImages {
-		go func(index int, pid string) {
-			mp4URL := fmt.Sprintf("https://res.cloudinary.com/%s/image/upload/w_500,h_500,c_fill,du_1.5/%s.mp4", cloudName, pid)
-			videoPublicID := fmt.Sprintf("%s_vid_%d", tag, index)
-			vPID, err := uploadToCloudinary(client, cloudName, apiKey, apiSecret, mp4URL, videoPublicID, tag, "video")
-			vidCh <- uploadResult{index: index, publicID: vPID, err: err}
-		}(i, sImg.publicID)
-	}
-
-	vidResults := make([]string, len(successfulImages))
-	for range successfulImages {
-		res := <-vidCh
-		if res.err == nil {
-			vidResults[res.index] = res.publicID
-		} else {
-			fmt.Printf("[Cloudinary] Failed to upload video conversion for index %d: %v\n", res.index, res.err)
-		}
-	}
-
-	var vidPublicIDs []string
-	for _, pid := range vidResults {
-		if pid != "" {
-			vidPublicIDs = append(vidPublicIDs, pid)
-		}
-	}
 
 	// Collect successful image IDs for cleanup
 	var imgPublicIDs []string
@@ -221,50 +202,82 @@ func GenerateCloudinarySlideshow(images []string, cloudName, apiKey, apiSecret s
 		imgPublicIDs = append(imgPublicIDs, sImg.publicID)
 	}
 
-	if len(vidPublicIDs) == 0 {
-		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
-		return nil, fmt.Errorf("all video conversion uploads failed")
-	}
+	// Step 2: Use Cloudinary's multi endpoint to generate slideshow MP4 with 1.5s delay
+	multiURL := fmt.Sprintf("https://api.cloudinary.com/v1_1/%s/image/multi", cloudName)
+	
+	data := url.Values{}
+	data.Set("tag", tag)
+	data.Set("format", "mp4")
+	data.Set("transformation", "c_fill,h_500,w_500/dl_1500")
 
-	// Step 3: Splice in the video namespace
-	var buf bytes.Buffer
-	buf.WriteString(fmt.Sprintf("https://res.cloudinary.com/%s/video/upload/w_500,h_500,c_fill/", cloudName))
-	for i := 1; i < len(vidPublicIDs); i++ {
-		buf.WriteString(fmt.Sprintf("fl_splice:transition_(name_slideright;du_0.5),l_video:%s/fl_layer_apply/", vidPublicIDs[i]))
-	}
-	buf.WriteString(fmt.Sprintf("%s.mp4", vidPublicIDs[0]))
-	spliceURL := buf.String()
-
-	fmt.Printf("[Cloudinary] Generated Video Splicing URL on Go server: %s\n", spliceURL)
-
-	// Step 4: Download the final video/mp4 buffer
-	resp, err := client.Get(spliceURL)
+	req, err := http.NewRequest("POST", multiURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
-		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "video", vidPublicIDs)
-		return nil, fmt.Errorf("failed to fetch spliced video: %w", err)
+		return nil, fmt.Errorf("failed to create multi request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(apiKey, apiSecret)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
+		return nil, fmt.Errorf("multi request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
-		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "video", vidPublicIDs)
-		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("spliced video fetch failed with status %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	videoBuffer, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
-		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "video", vidPublicIDs)
-		return nil, fmt.Errorf("failed to read video response: %w", err)
+		return nil, fmt.Errorf("failed to read multi response: %w", err)
 	}
 
-	// Step 5: Clean up everything in background
+	if resp.StatusCode != 200 {
+		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
+		return nil, fmt.Errorf("multi request status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var multiRes MultiResponse
+	if err := json.Unmarshal(respBody, &multiRes); err != nil {
+		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
+		return nil, fmt.Errorf("failed to parse multi response: %w", err)
+	}
+
+	if multiRes.Error.Message != "" {
+		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
+		return nil, fmt.Errorf("multi api error: %s", multiRes.Error.Message)
+	}
+
+	if multiRes.SecureURL == "" {
+		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
+		return nil, fmt.Errorf("multi api returned empty URL")
+	}
+
+	fmt.Printf("[Cloudinary] Spliced %d images via multi API, fetching MP4: %s\n", len(imgPublicIDs), multiRes.SecureURL)
+
+	// Step 3: Download the final video/mp4 buffer
+	videoResp, err := client.Get(multiRes.SecureURL)
+	if err != nil {
+		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
+		return nil, fmt.Errorf("failed to download slideshow video: %w", err)
+	}
+	defer videoResp.Body.Close()
+
+	if videoResp.StatusCode != 200 {
+		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
+		videoRespBody, _ := io.ReadAll(videoResp.Body)
+		return nil, fmt.Errorf("slideshow video download status %d: %s", videoResp.StatusCode, string(videoRespBody))
+	}
+
+	videoBuffer, err := io.ReadAll(videoResp.Body)
+	if err != nil {
+		_ = deleteFromCloudinary(client, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
+		return nil, fmt.Errorf("failed to read video download buffer: %w", err)
+	}
+
+	// Step 4: Clean up images in background (after download is complete)
 	go func() {
 		cleanupClient := &http.Client{Timeout: 30 * time.Second}
 		_ = deleteFromCloudinary(cleanupClient, cloudName, apiKey, apiSecret, "image", imgPublicIDs)
-		_ = deleteFromCloudinary(cleanupClient, cloudName, apiKey, apiSecret, "video", vidPublicIDs)
 	}()
 
 	return videoBuffer, nil
