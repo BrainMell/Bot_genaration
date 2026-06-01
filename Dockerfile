@@ -1,11 +1,15 @@
 # ── Stage 1: Build Go binary ──────────────────────────────────────────────────
 FROM golang:1.24-bookworm AS builder
 
+# Install git-lfs
+RUN apt-get update && apt-get install -y git-lfs && git lfs install
+
 WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
+RUN git lfs pull
 RUN CGO_ENABLED=0 GOOS=linux go build -o image-service .
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
