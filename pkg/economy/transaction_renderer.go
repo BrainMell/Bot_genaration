@@ -19,12 +19,13 @@ const (
 
 type TransactionCardRequest struct {
 	Nickname   string  `json:"nickname"`
-	Type       string  `json:"type"` // "DEPOSIT", "WITHDRAW", "TRANSFER"
+	Type       string  `json:"type"` // "DEPOSIT", "WITHDRAW", "TRANSFER", "CRAFT", "BREW", "COOK", "FORGE"
 	Amount     float64 `json:"amount"`
 	NewWallet  float64 `json:"newWallet"`
 	NewBank    float64 `json:"newBank"`
 	ZeniSymbol string  `json:"zeniSymbol"`
 	PfpUrl     string  `json:"pfpUrl"`
+	ItemName   string  `json:"itemName"`
 }
 
 func GenerateTransactionCard(c *gin.Context) {
@@ -59,8 +60,20 @@ func GenerateTransactionCard(c *gin.Context) {
 	case "TRANSFER":
 		accentColor = color.RGBA{255, 60, 60, 255} // Red
 		iconText = "▶"
-	default:
+	case "CRAFT":
 		accentColor = color.RGBA{60, 210, 130, 255} // Green
+		iconText = "◆"
+	case "BREW":
+		accentColor = color.RGBA{170, 80, 255, 255} // Purple
+		iconText = "❖"
+	case "COOK":
+		accentColor = color.RGBA{255, 200, 50, 255} // Yellow
+		iconText = "✦"
+	case "FORGE":
+		accentColor = color.RGBA{255, 90, 40, 255} // Orange/Red
+		iconText = "◆"
+	default:
+		accentColor = color.RGBA{120, 120, 130, 255} // Gray
 		iconText = "◆"
 	}
 
@@ -114,15 +127,29 @@ func GenerateTransactionCard(c *gin.Context) {
 
 	// === Middle Section ===
 	
+	isCrafting := req.Type == "CRAFT" || req.Type == "BREW" || req.Type == "COOK" || req.Type == "FORGE"
+
 	// Transaction Amount
 	if err := dc.LoadFontFace(fontMed, 14); err == nil {
 		dc.SetColor(color.RGBA{200, 200, 220, 255})
-		dc.DrawString("TRANSACTION AMOUNT", 40, 130)
+		if isCrafting {
+			dc.DrawString("ITEM CREATED", 40, 130)
+		} else {
+			dc.DrawString("TRANSACTION AMOUNT", 40, 130)
+		}
 	}
 
 	if err := dc.LoadFontFace(fontBold, 36); err == nil {
 		dc.SetColor(accentColor)
-		dc.DrawString(fmt.Sprintf("%s %s%s", iconText, req.ZeniSymbol, formatNumber(req.Amount)), 40, 175)
+		if isCrafting {
+			displayItem := req.ItemName
+			if displayItem == "" {
+				displayItem = "Unknown Item"
+			}
+			dc.DrawString(fmt.Sprintf("%s %s", iconText, displayItem), 40, 175)
+		} else {
+			dc.DrawString(fmt.Sprintf("%s %s%s", iconText, req.ZeniSymbol, formatNumber(req.Amount)), 40, 175)
+		}
 	}
 
 	// Balances (Right side)
