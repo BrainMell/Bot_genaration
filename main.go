@@ -428,8 +428,16 @@ func main() {
 		})
 	})
 
+	r.HEAD("/", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ready", "engine": "synchronous"})
+	})
+
+	r.HEAD("/health", func(c *gin.Context) {
+		c.Status(http.StatusOK)
 	})
 
 	api := r.Group("/api")
