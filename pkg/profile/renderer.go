@@ -70,6 +70,17 @@ type ProfileCardRequest struct {
 	GearAmulet   string `json:"gearAmulet"`
 	GearCloak    string `json:"gearCloak"`
 	GearGloves   string `json:"gearGloves"`
+
+	// Durability percent per slot (0-100), -1 = slot empty/no item
+	DurMainHand int `json:"durMainHand"`
+	DurOffHand  int `json:"durOffHand"`
+	DurArmor    int `json:"durArmor"`
+	DurHelmet   int `json:"durHelmet"`
+	DurBoots    int `json:"durBoots"`
+	DurRing     int `json:"durRing"`
+	DurAmulet   int `json:"durAmulet"`
+	DurCloak    int `json:"durCloak"`
+	DurGloves   int `json:"durGloves"`
 }
 
 func GenerateProfileCard(c *gin.Context) {
@@ -351,19 +362,19 @@ func GenerateProfileCard(c *gin.Context) {
 	gearRowY := [3]float64{252, 312, 372}
 
 	// Row 1
-	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[0], "⚔️", "MAIN HAND", req.GearMainHand, cardBorderColor)
-	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[0], "🗡️", "OFF HAND", req.GearOffHand, cardBorderColor)
-	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[0], "👕", "ARMOR", req.GearArmor, cardBorderColor)
+	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[0], "⚔️", "MAIN HAND", req.GearMainHand, cardBorderColor, req.DurMainHand)
+	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[0], "🗡️", "OFF HAND",  req.GearOffHand,  cardBorderColor, req.DurOffHand)
+	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[0], "👕", "ARMOR",     req.GearArmor,    cardBorderColor, req.DurArmor)
 
 	// Row 2
-	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[1], "⛑️", "HELMET", req.GearHelmet, cardBorderColor)
-	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[1], "🧤", "GLOVES", req.GearGloves, cardBorderColor)
-	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[1], "👢", "BOOTS", req.GearBoots, cardBorderColor)
+	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[1], "⛑️", "HELMET",   req.GearHelmet,   cardBorderColor, req.DurHelmet)
+	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[1], "🧤", "GLOVES",   req.GearGloves,   cardBorderColor, req.DurGloves)
+	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[1], "👢", "BOOTS",    req.GearBoots,    cardBorderColor, req.DurBoots)
 
 	// Row 3
-	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[2], "💍", "RING", req.GearRing, cardBorderColor)
-	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[2], "📿", "AMULET", req.GearAmulet, cardBorderColor)
-	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[2], "🧥", "CLOAK", req.GearCloak, cardBorderColor)
+	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[2], "💍", "RING",     req.GearRing,     cardBorderColor, req.DurRing)
+	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[2], "📿", "AMULET",   req.GearAmulet,   cardBorderColor, req.DurAmulet)
+	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[2], "🧥", "CLOAK",    req.GearCloak,    cardBorderColor, req.DurCloak)
 
 	// Watermark
 	dc.SetFontFace(med8)
@@ -410,43 +421,94 @@ func drawStatRow(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, sta
 	}
 }
 
-func drawGearSlot(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, slotIcon, slotLabel, itemName string, borderColor color.RGBA) {
-	w := 148.0
-	h := 50.0
+func drawGearSlot(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, slotIcon, slotLabel, itemName string, borderColor color.RGBA, durPct int) {
+    w := 148.0
+    h := 50.0
+    hasItem := itemName != "" && itemName != "None"
 
-	// BG Card
-	dc.SetColor(color.RGBA{22, 22, 38, 255})
-	dc.DrawRoundedRectangle(x, y, w, h, 4)
-	dc.Fill()
+    // 1. Dark base background
+    dc.SetColor(color.RGBA{22, 22, 38, 255})
+    dc.DrawRoundedRectangle(x, y, w, h, 4)
+    dc.Fill()
 
-	// Green border for occupied slots, dim border for empty
-	border := borderColor
-	if itemName != "" && itemName != "None" {
-		border = color.RGBA{60, 210, 130, 255}
-	}
-	dc.SetColor(border)
-	dc.SetLineWidth(0.8)
-	dc.DrawRoundedRectangle(x, y, w, h, 4)
-	dc.Stroke()
+    // 2. Durability fill bar — rises from bottom, height = durPct% of box
+    // durPct -1 = empty slot (no bar drawn)
+    if durPct >= 0 && hasItem {
+        var barColor color.RGBA
+        switch {
+        case durPct >= 75:
+            barColor = color.RGBA{40, 180, 80, 60}   // green, semi-transparent
+        case durPct >= 50:
+            barColor = color.RGBA{180, 200, 30, 55}  // yellow-green
+        case durPct >= 25:
+            barColor = color.RGBA{230, 130, 20, 65}  // orange
+        case durPct >= 1:
+            barColor = color.RGBA{210, 40, 40, 70}   // red
+        default:
+            barColor = color.RGBA{80, 80, 100, 55}   // grey (broken)
+        }
+        fillH := h * float64(durPct) / 100.0
+        fillY := y + h - fillH
+        dc.SetColor(barColor)
+        dc.DrawRoundedRectangle(x, fillY, w, fillH, 3)
+        dc.Fill()
 
-	// Slot Title
-	dc.SetFontFace(fontLabel)
-	dc.SetColor(color.RGBA{120, 120, 150, 255})
-	dc.DrawString(slotIcon+" "+slotLabel, x+8, y+16)
+        // % label at left edge, vertically centered in the filled area
+        if durPct > 0 {
+            dc.SetFontFace(fontLabel)
+            pctStr := fmt.Sprintf("%d%%", durPct)
+            textY := fillY + fillH/2 + 4
+            if textY > y+h-4 {
+                textY = y + h - 4
+            }
+            if textY < y+10 {
+                textY = y + 10
+            }
+            dc.SetColor(color.RGBA{255, 255, 255, 160})
+            dc.DrawString(pctStr, x+4, textY)
+        }
+    }
 
-	// Item Value
-	dc.SetFontFace(fontVal)
-	if itemName == "" || itemName == "None" {
-		dc.SetColor(color.RGBA{70, 70, 95, 255})
-		dc.DrawString("Empty", x+8, y+36)
-	} else {
-		dc.SetColor(color.RGBA{240, 240, 255, 255})
-		runes := []rune(itemName)
-		if len(runes) > 17 {
-			itemName = string(runes[:14]) + "..."
-		}
-		dc.DrawString(slotIcon+" "+itemName, x+8, y+36)
-	}
+    // 3. Border color reflects durability state
+    var border color.RGBA
+    if !hasItem {
+        border = borderColor // dim/empty
+    } else if durPct == 0 {
+        border = color.RGBA{130, 50, 50, 255}   // broken: dark red
+    } else if durPct < 25 {
+        border = color.RGBA{210, 80, 40, 255}   // critical: orange-red
+    } else if durPct < 50 {
+        border = color.RGBA{200, 170, 30, 255}  // worn: yellow
+    } else {
+        border = color.RGBA{60, 210, 130, 255}  // healthy: green
+    }
+    dc.SetColor(border)
+    dc.SetLineWidth(0.8)
+    dc.DrawRoundedRectangle(x, y, w, h, 4)
+    dc.Stroke()
+
+    // 4. Slot label (top)
+    dc.SetFontFace(fontLabel)
+    dc.SetColor(color.RGBA{120, 120, 150, 255})
+    dc.DrawString(slotIcon+" "+slotLabel, x+8, y+16)
+
+    // 5. Item name (bottom) — always renders on top of the bar fill
+    dc.SetFontFace(fontVal)
+    if !hasItem {
+        dc.SetColor(color.RGBA{70, 70, 95, 255})
+        dc.DrawString("Empty", x+8, y+36)
+    } else {
+        if durPct == 0 {
+            dc.SetColor(color.RGBA{160, 80, 80, 255}) // muted red for broken
+        } else {
+            dc.SetColor(color.RGBA{240, 240, 255, 255})
+        }
+        runes := []rune(itemName)
+        if len(runes) > 17 {
+            itemName = string(runes[:14]) + "..."
+        }
+        dc.DrawString(itemName, x+8, y+36)
+    }
 }
 
 
