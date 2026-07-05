@@ -116,7 +116,13 @@ api.get('/pinterest', async (req, res) => {
         const scrolls = Math.min(Math.max(Math.floor(count / 10), 2), 5);
         for (let i = 0; i < scrolls; i++) {
             await page.evaluate(() => window.scrollBy(0, 1000));
-            await new Promise(r => setTimeout(r, 1000));
+            try {
+                await page.waitForFunction((expected) => {
+                    return document.querySelectorAll('div[data-test-id="pinWrapper"] img').length >= expected;
+                }, { timeout: 2000 }, parseInt(count));
+            } catch (e) {
+                await new Promise(r => setTimeout(r, 500));
+            }
         }
 
         const images = await page.evaluate((maxCount) => {

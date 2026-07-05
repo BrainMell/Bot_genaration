@@ -39,7 +39,16 @@ func ScrapePinterest(c *gin.Context) {
 
 		for i := 0; i < scrolls; i++ {
 			page.MustEval(`() => window.scrollBy(0, 1000)`)
-			time.Sleep(1 * time.Second)
+			// Wait for loading dynamically instead of a fixed universal timer
+			waitJs := fmt.Sprintf(`() => document.querySelectorAll('div[data-test-id="pinWrapper"] img').length >= %d`, maxResults)
+			err := page.WaitElementsMoreThan(`div[data-test-id="pinWrapper"] img`, maxResults-1)
+			if err != nil {
+				// Fallback if wait times out
+				time.Sleep(500 * time.Millisecond)
+			} else {
+				// Small delay to ensure srcs are populated
+				time.Sleep(200 * time.Millisecond)
+			}
 		}
 
 		// 2. Extract and Transform
