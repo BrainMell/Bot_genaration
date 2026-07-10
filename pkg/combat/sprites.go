@@ -2,6 +2,7 @@ package combat
 
 import (
 	"path/filepath"
+	"strings"
 	// REMOVED: "fmt" and "math/rand" - not used in this file
 )
 
@@ -64,6 +65,44 @@ var BossSprites = map[string][]string{
 	"CALAMITY":    {"calamaties (1).png", "calamaties (2).png", "calamaties (3).png", "calamaties (4).png", "calamaties (5).png", "calamaties (6).png"},
 }
 
+// BossNameSprites maps a boss's display name (UPPERCASED) to a specific
+// sprite filename. Lookup is case-insensitive. When a boss name matches,
+// this specific sprite is used instead of the level-based CALAMITY bucket
+// rotation — so each named boss always renders with the same distinct image.
+//
+// Without this map, every 90+ boss used `calamaties[spriteIndex % 6]`, which
+// meant ELDER_CHAOS, VOID_TITAN, and ABYSSAL_GOD all rendered with whatever
+// generic calamity sprite the spriteIndex happened to pick. Now they each
+// get a fixed, visually distinct sprite.
+//
+// PNGs available in assets/rpgasset/enemies/:
+//   calamaties (1).png  — used for ELDER CHAOS (S-rank)
+//   calamaties (2).png  — used for IGNEEL THE FIRE KING (dragon, fire-themed)
+//   calamaties (3).png  — used for VOID TITAN (SS-rank)
+//   calamaties (4).png  — used for DEMON LORD (trial)
+//   calamaties (5).png  — used for ABYSSAL GOD (SSS-rank)
+//   calamaties (6).png  — used for LEVIATHAN (trial, water-themed)
+//
+// Future: when distinct boss PNGs are added to assets/rpgasset/enemies/,
+// update this map to reference them by filename (e.g. "elder_chaos.png").
+var BossNameSprites = map[string]string{
+	// S/SS/SSS-rank dungeon bosses
+	"ELDER CHAOS":            "calamaties (1).png",
+	"VOID TITAN":             "calamaties (3).png",
+	"ABYSSAL GOD":            "calamaties (5).png",
+	// Dragon boss (id 'ancient_dragon_boss', display name from bossMechanics.js)
+	"IGNEEL THE FIRE KING":   "calamaties (2).png",
+	"ANCIENT DRAGON":         "calamaties (2).png", // alias in case the name field changes
+	// Trial bosses (added to BOSS_ENCOUNTERS.TRIALS — see classEncounters.js)
+	"DEMON LORD":             "calamaties (4).png",
+	"LEVIATHAN":              "calamaties (6).png",
+	"ETERNAL DRAGON":         "calamaties (2).png",
+	"SHADOW LORD":            "highlevelbosses (13).png",
+	"PRIMORDIAL EVIL":        "calamaties (1).png",
+	"GRAVEYARD LORD":         "highlevelbosses (12).png",
+	"ELDER FLAME":            "calamaties (2).png",
+}
+
 func GetCharacterSpritePath(class string, index int, assetsPath string) string {
 	list, ok := CharacterSprites[class]
 	if !ok {
@@ -73,9 +112,29 @@ func GetCharacterSpritePath(class string, index int, assetsPath string) string {
 	return filepath.Join(assetsPath, "rpgasset", "characters", filename)
 }
 
-func GetEnemySpritePath(level int, index int, isBoss bool, assetsPath string) string {
+// GetEnemySpritePath picks the sprite PNG for an enemy.
+//
+// Signature change: now accepts `name` as the first parameter so named
+// bosses (ELDER CHAOS, VOID TITAN, ABYSSAL GOD, IGNEEL THE FIRE KING, etc.)
+// can be mapped to specific, deterministic sprites via BossNameSprites.
+// Falls back to the original level-based bucket rotation when no name match
+// is found (so unnamed / generic bosses still render correctly).
+//
+// The JS bot already sends enemy.name in the combat payload — it was just
+// being ignored. Now it's the primary lookup key for bosses.
+func GetEnemySpritePath(name string, level int, index int, isBoss bool, assetsPath string) string {
 	var filename string
 	if isBoss {
+		// 1) Name-based lookup first (case-insensitive). If this boss has
+		//    a specific sprite mapped in BossNameSprites, use it — no
+		//    level/index rotation, so the boss always renders identically.
+		if name != "" {
+			if specific, ok := BossNameSprites[strings.ToUpper(strings.TrimSpace(name))]; ok && specific != "" {
+				filename = specific
+				return filepath.Join(assetsPath, "rpgasset", "enemies", filename)
+			}
+		}
+		// 2) Fallback: level-based bucket rotation (original behavior)
 		var list []string
 		if level <= 60 {
 			list = BossSprites["MID_BOSSES"]
@@ -110,7 +169,7 @@ func GetEnemySpritePath(level int, index int, isBoss bool, assetsPath string) st
 		}
 		filename = list[index%len(list)]
 	}
-	
+
 	if filename == "" {
 		filename = "fire (5).png"
 	}
