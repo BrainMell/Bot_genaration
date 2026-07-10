@@ -101,7 +101,7 @@ func GenerateCombatImage(c *gin.Context) {
 			continue
 		}
 
-		spritePath := GetEnemySpritePath(avgLevel, i, enemy.IsBoss, assetsPath)
+		spritePath := GetEnemySpritePath(enemy.Name, avgLevel, i, enemy.IsBoss, assetsPath)
 		eSprite, err := utils.LoadImage(spritePath)
 		if err != nil {
 			continue
