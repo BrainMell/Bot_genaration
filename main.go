@@ -446,6 +446,7 @@ func main() {
         if mode == "render" || mode == "full" {
                 api.POST("/combat", combat.GenerateCombatImage)
                 api.POST("/combat/endscreen", combat.GenerateEndScreen)
+                api.POST("/combat/splash", combat.GenerateBossSplash)
                 api.POST("/ludo", ludo.RenderBoard)
                 api.POST("/ttt", ttt.RenderBoard)
                 api.POST("/ttt/leaderboard", ttt.RenderLeaderboard)
