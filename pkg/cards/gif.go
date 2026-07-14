@@ -595,10 +595,12 @@ func GenerateCardGridImage(inputs []CardInput, title string) ([]byte, error) {
                         if err := dc.LoadFontFace(fontMediumPath, 11); err == nil {
                                 dc.SetHexColor("#ffffff")
                                 name := input.Name
-                                // Truncate to fit
+                                // Truncate to fit — MeasureString returns (w, h)
                                 maxW := float64(cardW - 8)
-                                for dc.MeasureString(name) > maxW && len(name) > 3 {
+                                w, _ := dc.MeasureString(name)
+                                for w > maxW && len(name) > 3 {
                                         name = name[:len(name)-1]
+                                        w, _ = dc.MeasureString(name)
                                 }
                                 if len(name) < len(input.Name) {
                                         name = name[:len(name)-1] + "…"
