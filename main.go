@@ -454,6 +454,7 @@ func main() {
                 api.POST("/cards/burn", cards.GenerateBurnGif)
                 api.POST("/cards/convert", cards.ConvertCard)
                 api.POST("/cards/eshop", cards.GenerateEShopDeck)
+                api.POST("/cards/grid", cards.GenerateCollectionGrid)
                 api.GET("/scrape/stickers", scraper.SearchStickers)
                 api.POST("/cards/economy", economy.GenerateEconomyCard)
                 api.POST("/cards/transaction", economy.GenerateTransactionCard)
