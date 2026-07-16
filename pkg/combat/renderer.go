@@ -56,7 +56,7 @@ func GenerateCombatImage(c *gin.Context) {
 	if bgPath != "" && fileExists(bgPath) {
 		bgImg, err := utils.LoadImage(bgPath)
 		if err == nil {
-			bgImg = imaging.Fill(bgImg, CANVAS_W, CANVAS_H, imaging.Center, imaging.Lanczos)
+			bgImg = imaging.Fill(bgImg, CANVAS_W, CANVAS_H, imaging.Center, imaging.NearestNeighbor)
 			dc.DrawImage(bgImg, 0, 0)
 		} else {
 			// Fallback color
@@ -112,7 +112,7 @@ func GenerateCombatImage(c *gin.Context) {
 		if enemy.IsBoss {
 			eW = enemySpriteSize * 1.5
 		}
-		eSprite = imaging.Resize(eSprite, int(eW), 0, imaging.Lanczos)
+		eSprite = imaging.Resize(eSprite, int(eW), 0, imaging.NearestNeighbor)
 
 		// Tint Red if dead
 		if enemy.CurrentHP <= 0 {
@@ -178,7 +178,7 @@ func GenerateCombatImage(c *gin.Context) {
 		img, err := utils.LoadImage(path)
 		if err == nil {
 			if w > 0 && h > 0 {
-				img = imaging.Resize(img, w, h, imaging.Lanczos)
+				img = imaging.Resize(img, w, h, imaging.NearestNeighbor)
 			}
 			dc.DrawImage(img, normX(x), normY(y))
 		}
@@ -219,7 +219,7 @@ func GenerateCombatImage(c *gin.Context) {
 
 			// Resize to 314px width
 			s1W := 314
-			pSprite = imaging.Resize(pSprite, s1W, 0, imaging.Lanczos)
+			pSprite = imaging.Resize(pSprite, s1W, 0, imaging.NearestNeighbor)
 
 			// Crop TOP 30% - CRITICAL FIX
 			bounds := pSprite.Bounds()
@@ -240,7 +240,7 @@ func GenerateCombatImage(c *gin.Context) {
 					if player.CurrentHP <= 0 {
 						sprite = utils.TintImage(sprite, color.RGBA{255, 0, 0, 100})
 					}
-					sprite = imaging.Resize(sprite, 160, 0, imaging.Lanczos)
+					sprite = imaging.Resize(sprite, 160, 0, imaging.NearestNeighbor)
 					if flip {
 						sprite = imaging.FlipH(sprite)
 					}
@@ -269,7 +269,7 @@ func GenerateCombatImage(c *gin.Context) {
 				}
 			} else {
 				s2Size := 122
-				smallSprite := imaging.Resize(pSprite, s2Size, 0, imaging.Lanczos)
+				smallSprite := imaging.Resize(pSprite, s2Size, 0, imaging.NearestNeighbor)
 
 				// Position: startX - 500, startY + 30
 				s2X := int(startX - 500)
