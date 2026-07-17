@@ -6,25 +6,72 @@ const app = express();
 const port = process.env.SCRAPER_PORT || 7861;
 
 let browser;
+let browserlessKeys = [];
+let currentKeyIndex = 0;
+let keyFailures = new Map();
+
+function initKeys() {
+    if (browserlessKeys.length === 0 && process.env.BROWSERLESS_TOKEN) {
+        browserlessKeys = process.env.BROWSERLESS_TOKEN.split(',').map(k => k.trim()).filter(k => k !== '');
+    }
+}
 
 async function getBrowser() {
     if (browser && browser.connected) return browser;
+    initKeys();
 
-    const token = process.env.BROWSERLESS_TOKEN;
-    if (token) {
-        console.log('[SCRAPER] Connecting to Browserless.io...');
-        browser = await puppeteer.connect({
-            browserWSEndpoint: `wss://production-sfo.browserless.io/chromium?token=${token}`,
-            defaultViewport: null
-        });
+    if (browserlessKeys.length > 0) {
+        let attempts = 0;
+        while (attempts < browserlessKeys.length) {
+            const token = browserlessKeys[currentKeyIndex];
+            const failures = keyFailures.get(token) || 0;
+
+            if (failures >= 3 && browserlessKeys.length > 1) {
+                console.log(`[SCRAPER] ⚠️ Key ${currentKeyIndex + 1} has ${failures} failures, skipping...`);
+                currentKeyIndex = (currentKeyIndex + 1) % browserlessKeys.length;
+                attempts++;
+                continue;
+            }
+
+            console.log(`[SCRAPER] Connecting to Browserless.io (Key ${currentKeyIndex + 1}/${browserlessKeys.length})...`);
+            try {
+                browser = await puppeteer.connect({
+                    browserWSEndpoint: `wss://production-sfo.browserless.io/chromium?token=${token}`,
+                    defaultViewport: null
+                });
+
+                keyFailures.set(token, 0); // Reset failures on success
+
+                browser.on('disconnected', () => {
+                    console.log('[SCRAPER] Browser disconnected.');
+                    browser = null;
+                });
+
+                return browser;
+            } catch (err) {
+                console.error(`[SCRAPER] ❌ Connection failed on Key ${currentKeyIndex + 1}:`, err.message);
+                keyFailures.set(token, (keyFailures.get(token) || 0) + 1);
+                currentKeyIndex = (currentKeyIndex + 1) % browserlessKeys.length;
+                attempts++;
+            }
+        }
+        console.error('[SCRAPER] All Browserless keys failed or are exhausted. Falling back to local...');
     } else {
-        console.log('[SCRAPER] Launching local Chromium...');
-        browser = await puppeteer.launch({
-            executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome-stable',
-            headless: 'new',
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-        });
+        console.log('[SCRAPER] No BROWSERLESS_TOKEN found. Launching local Chromium...');
     }
+
+    // Fallback to local
+    browser = await puppeteer.launch({
+        executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome-stable',
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    });
+
+    browser.on('disconnected', () => {
+        console.log('[SCRAPER] Local browser disconnected.');
+        browser = null;
+    });
+
     return browser;
 }
 
