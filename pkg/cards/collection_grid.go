@@ -9,6 +9,10 @@ import (
         "io"
         "log"
         "net/http"
+        "os"
+        "os/exec"
+        "path/filepath"
+        "strings"
         "time"
 
         "github.com/disintegration/imaging"
@@ -202,7 +206,10 @@ func GenerateCollectionGrid(c *gin.Context) {
         c.Data(200, "image/png", buf.Bytes())
 }
 
-// downloadAndResizeCollImage fetches and resizes a card image
+// downloadAndResizeCollImage fetches and resizes a card image.
+// 💡 FIX 2026-07-18: Tier 6 and S tier cards use .webm (video) URLs.
+// imaging.Decode can only handle static image formats (PNG, JPEG, GIF, WebP).
+// For .webm URLs, extract the first frame using FFmpeg before decoding.
 func downloadAndResizeCollImage(client *http.Client, url string, targetW, targetH int) (image.Image, error) {
         resp, err := client.Get(url)
         if err != nil {
@@ -219,6 +226,50 @@ func downloadAndResizeCollImage(client *http.Client, url string, targetW, target
                 return nil, fmt.Errorf("read failed: %w", err)
         }
 
+        // 💡 FIX: check if this is a .webm video — if so, extract first frame
+        // with FFmpeg before trying to decode as a static image.
+        lowerURL := strings.ToLower(url)
+        if strings.HasSuffix(lowerURL, ".webm") || strings.HasSuffix(lowerURL, ".webp") {
+                // Use FFmpeg to extract the first frame as PNG
+                tmpDir, err := os.MkdirTemp("", "collgrid_*")
+                if err != nil {
+                        return nil, fmt.Errorf("temp dir failed: %w", err)
+                }
+                defer os.RemoveAll(tmpDir)
+
+                inputPath := filepath.Join(tmpDir, "input.webm")
+                outputPath := filepath.Join(tmpDir, "frame.png")
+
+                if err := os.WriteFile(inputPath, data, 0644); err != nil {
+                        return nil, fmt.Errorf("write temp failed: %w", err)
+                }
+
+                // FFmpeg: extract first frame, scale to target size
+                cmd := exec.Command("ffmpeg",
+                        "-i", inputPath,
+                        "-vframes", "1",
+                        "-vf", fmt.Sprintf("scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:(ow-iw)/2:(oh-ih)/2:color=black", targetW, targetH, targetW, targetH),
+                        "-y", outputPath)
+
+                if output, err := cmd.CombinedOutput(); err != nil {
+                        log.Printf("[CollGrid] FFmpeg failed for %s: %v\nOutput: %s", url, err, string(output))
+                        return nil, fmt.Errorf("ffmpeg failed: %w", err)
+                }
+
+                frameData, err := os.ReadFile(outputPath)
+                if err != nil {
+                        return nil, fmt.Errorf("read frame failed: %w", err)
+                }
+
+                img, err := imaging.Decode(bytes.NewReader(frameData))
+                if err != nil {
+                        return nil, fmt.Errorf("decode frame failed: %w", err)
+                }
+
+                return img, nil
+        }
+
+        // Static image — decode directly
         img, err := imaging.Decode(bytes.NewReader(data))
         if err != nil {
                 return nil, fmt.Errorf("decode failed: %w", err)
