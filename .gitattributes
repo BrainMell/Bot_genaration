@@ -3,6 +3,5 @@ image-service.exe filter=lfs diff=lfs merge=lfs -text
 *.exe filter=lfs diff=lfs merge=lfs -text
 image-service filter=lfs diff=lfs merge=lfs -text
 test-build filter=lfs diff=lfs merge=lfs -text
-*.png filter=lfs diff=lfs merge=lfs -text
 
 *.mp4 filter=lfs diff=lfs merge=lfs -text

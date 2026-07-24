@@ -17,10 +17,21 @@ jobs:
           key: ${{ secrets.ORACLE_SSH_KEY }}
           script: |
             export PATH=$PATH:/usr/local/go/bin
+
+            # Ensure git-lfs is installed so PNG assets are real files, not pointers
+            if ! command -v git-lfs &>/dev/null; then
+              curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+              sudo apt-get install -y git-lfs
+              git lfs install
+            fi
+
             cd ~/bot_generation
             git fetch origin
             git checkout main
             git pull --ff-only origin main
+            git lfs pull          # resolve any LFS pointer files to real assets
+
             go build -o bot-generation main.go
             npm install
             pm2 restart bot-generation-go bot-generation-scraper
+
