@@ -2,6 +2,7 @@ package cards
 
 import (
         "fmt"
+        "io"
         "net/http"
         "os"
         "os/exec"
@@ -60,15 +61,25 @@ type HybridGridRequest struct {
         FPS      int              `json:"fps"`      // frames per second, default 15
 }
 
-// gridLayout — 3 cols × 4 rows = 12 cards max (matches existing grid renderer)
+// gridLayout — 4 cols × 3 rows = 12 cards max (matches existing static grid renderer
+// in collection_grid.go so the hybrid looks the same proportions as .jk coll).
+// Previous version used 3×4 at 160×240, which made cards look "tiny" compared
+// to the static grid. Now matches COLL_CARD_W=240, COLL_CARD_H=360 exactly.
 const (
-        HYBRID_CARD_W    = 160
-        HYBRID_CARD_H    = 240
-        HYBRID_GRID_COLS = 3
-        HYBRID_PADDING   = 20
-        HYBRID_SPACING   = 12
+        HYBRID_CARD_W    = 240
+        HYBRID_CARD_H    = 360
+        HYBRID_GRID_COLS = 4
+        HYBRID_PADDING   = 10
+        HYBRID_SPACING   = 10
         HYBRID_HEADER_H  = 60
 )
+
+// maxAnimatedDownloadBytes — for animated GIFs / WebMs, abort the download if it
+// exceeds this size. Real-world T6 GIFs on shoob.gg range from 1.5MB to 10MB;
+// the 10MB ones blow up the render time + output size dramatically. If we abort,
+// the hybrid endpoint still renders the OTHER cards — the missing one becomes a
+// blank slot (the overlay chain just skips it).
+const maxAnimatedDownloadBytes = 5 * 1024 * 1024 // 5 MB cap
 
 // isAnimatedURL detects whether a URL points to an animated format.
 // GIF, WebP (animated), WebM are treated as animated.
@@ -77,6 +88,56 @@ func isAnimatedURL(url string) bool {
         return strings.HasSuffix(lower, ".gif") ||
                 strings.HasSuffix(lower, ".webp") ||
                 strings.HasSuffix(lower, ".webm")
+}
+
+// downloadFileWithLimit downloads a URL to dest, but aborts if the response body
+// exceeds maxBytes. This prevents 10MB T6 GIFs from blowing up render time +
+// output size — we'd rather have a blank slot than a 2MB MP4.
+//
+// If maxBytes <= 0, behaves like downloadFile (no limit).
+func downloadFileWithLimit(client *http.Client, url string, dest string, maxBytes int64) error {
+        req, _ := http.NewRequest("GET", url, nil)
+        req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+        req.Header.Set("Referer", "https://www.pinterest.com/")
+        req.Header.Set("Accept", "image/webp,image/png,image/jpeg,image/gif")
+        req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+        resp, err := client.Do(req)
+        if err != nil {
+                return err
+        }
+        defer resp.Body.Close()
+
+        if resp.StatusCode != http.StatusOK {
+                return fmt.Errorf("bad status: %s", resp.Status)
+        }
+
+        // If Content-Length is known and exceeds the limit, bail early.
+        if maxBytes > 0 && resp.ContentLength > maxBytes {
+                return fmt.Errorf("content too large: %d bytes (max %d)", resp.ContentLength, maxBytes)
+        }
+
+        out, err := os.Create(dest)
+        if err != nil {
+                return err
+        }
+        defer out.Close()
+
+        if maxBytes <= 0 {
+                _, err = io.Copy(out, resp.Body)
+                return err
+        }
+
+        // Use io.LimitReader + check if there's MORE data after the limit
+        // (which means the response exceeded maxBytes).
+        limited := io.LimitReader(resp.Body, maxBytes+1)
+        n, err := io.Copy(out, limited)
+        if err != nil {
+                return err
+        }
+        if n > maxBytes {
+                return fmt.Errorf("content exceeded maxBytes=%d (got at least %d)", maxBytes, n)
+        }
+        return nil
 }
 
 // GenerateHybridGrid is the gin handler for POST /api/cards/hybrid-grid.
@@ -131,10 +192,18 @@ func GenerateHybridGrid(c *gin.Context) {
 
         for i, input := range req.Images {
                 filePath := filepath.Join(tempDir, fmt.Sprintf("card_%d", i))
-                err := downloadFile(client, input.URL, filePath)
-                if err != nil {
-                        fmt.Printf("[HybridGrid] Download failed [%d]: %v\n", i, err)
-                        // Don't skip — leave Path empty so the placeholder logic kicks in
+                // Apply size cap only to animated cards — static PNGs are typically <300KB
+                // and the cap exists to prevent 10MB T6 GIFs from blowing up render time.
+                // If animated detection fails or download exceeds the cap, the card
+                // becomes a blank slot (overlay chain skips it).
+                var downloadErr error
+                if input.Animated || isAnimatedURL(input.URL) {
+                        downloadErr = downloadFileWithLimit(client, input.URL, filePath, maxAnimatedDownloadBytes)
+                } else {
+                        downloadErr = downloadFile(client, input.URL, filePath)
+                }
+                if downloadErr != nil {
+                        fmt.Printf("[HybridGrid] Download failed [%d]: %v\n", i, downloadErr)
                         cards[i] = downloadedCard{
                                 Path:     "",
                                 Animated: false,
@@ -219,32 +288,26 @@ func GenerateHybridGrid(c *gin.Context) {
         }
 
         // Build filtergraph
-        // Each input gets scaled to card size and (for animated) looped to N frames.
-        // Then we build up the grid via sequential overlays on a base color canvas.
-        totalFrames := req.Duration * req.FPS
-
+        // Each input gets scaled to card size + setpts to match output fps.
+        // NO `loop` filter — see comment below for why.
         var filterParts []string
 
-        // Per-input: scale + loop
-        for i, card := range cards {
+        // Per-input: scale + setpts. NO `loop` filter — it was freezing GIFs at frame 0.
+        // The `-stream_loop -1` input option (for animated) and `-loop 1 -t duration`
+        // input option (for static) already handle frame production correctly.
+        // Adding `loop=loop=N:size=1:start=0` on top was wrong — it took only 1 frame
+        // per stream-loop iteration, effectively showing frame 0 of the GIF 50 times.
+        // Without the loop filter, ffmpeg decodes the GIF's actual frames and lets
+        // them play at the requested fps via setpts.
+        for i := range cards {
                 idx := inputMapByCardIdx[i]
                 if idx == -1 {
                         continue // skip failed downloads
                 }
-                if card.Animated {
-                        // Loop the GIF to N frames. loop=loop=N-1:size=1 means "repeat the
-                        // input sequence N times". For a 10-frame GIF to fill 120 frames
-                        // we want loop=loop=119:size=10:start=0... but the simpler form
-                        // `loop=loop=N:size=<very large>` works for any input length.
-                        filterParts = append(filterParts,
-                                fmt.Sprintf("[%d:v]scale=%d:%d,loop=loop=%d:size=1:start=0,setpts=N/(%d*TB)[v%d]",
-                                        idx, HYBRID_CARD_W, HYBRID_CARD_H, totalFrames-1, req.FPS, i))
-                } else {
-                        // Static — no loop needed, the input itself is already -t duration.
-                        filterParts = append(filterParts,
-                                fmt.Sprintf("[%d:v]scale=%d:%d,setpts=N/(%d*TB)[v%d]",
-                                        idx, HYBRID_CARD_W, HYBRID_CARD_H, req.FPS, i))
-                }
+                // Same filter for animated and static — the input options differentiate them.
+                filterParts = append(filterParts,
+                        fmt.Sprintf("[%d:v]scale=%d:%d,setpts=N/(%d*TB)[v%d]",
+                                idx, HYBRID_CARD_W, HYBRID_CARD_H, req.FPS, i))
         }
 
         // Base canvas — solid dark color matching the existing grid renderer.
@@ -286,14 +349,18 @@ func GenerateHybridGrid(c *gin.Context) {
         args = append(args, "-filter_complex", filtergraph)
 
         // Map final + encoding options.
+        // 💡 CRF bumped 28 → 32: real-world T6 GIFs are 1.5-10MB each (lots of motion),
+        // which made output MP4s balloon to 1-2MB at CRF 28. CRF 32 cuts file size
+        // by ~50% with minimal visible quality loss on WhatsApp's mobile preview.
+        // Still using ultrafast preset to keep render time low on 0.1 CPU.
         args = append(args,
                 "-map", "[final]",
                 "-t", fmt.Sprintf("%d", req.Duration),
                 "-r", fmt.Sprintf("%d", req.FPS),
                 "-c:v", "libx264",
                 "-pix_fmt", "yuv420p",
-                "-preset", "ultrafast", // fastest encode — important on 0.1 CPU
-                "-crf", "28",            // 28 = good quality, small file
+                "-preset", "ultrafast",
+                "-crf", "32",
                 "-movflags", "+faststart", // enables streaming on WhatsApp
         )
 
