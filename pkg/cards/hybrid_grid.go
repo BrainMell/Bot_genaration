@@ -335,7 +335,7 @@ func GenerateHybridGrid(c *gin.Context) {
                 "-c:v", "libx264",
                 "-pix_fmt", "yuv420p",
                 "-preset", "ultrafast",
-                "-crf", "32",
+                "-crf", "23",            // 23 = high quality (was 32 which was too lossy)
                 "-movflags", "+faststart",
         )
 
