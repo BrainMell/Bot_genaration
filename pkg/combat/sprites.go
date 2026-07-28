@@ -236,7 +236,56 @@ func GetEnemySpritePath(name string, level int, index int, isBoss bool, assetsPa
 
 func GetEnvironmentPath(bgName string, assetsPath string) string {
         if bgName == "" {
-                bgName = "forest1.png" 
+                bgName = "forest1.png"
         }
         return filepath.Join(assetsPath, "rpgasset", "environment", bgName)
+}
+
+// ─────────────────────────────────────────────────────────────
+// 💡 Summoner System (Phase 7) — Summon Sprites
+// ─────────────────────────────────────────────────────────────
+// Maps summon species to sprite filenames. Currently uses existing
+// enemy/character sprites as placeholders. When proper summon sprites
+// are sourced (itch.io packs), they'll go in assets/rpgasset/summons/
+// and this map will point there instead.
+//
+// The map keys are the species IDs from summonRegistry.js (Node side).
+// Values are filenames in the enemies/ or characters/ folder.
+
+var SummonSprites = map[string]string{
+        // Undead — use undead-themed enemy sprites
+        "skeleton":        "mutated (1).png",
+        "skeleton_knight": "mutated (3).png",
+        "lich_minion":     "mutated (4).png",
+
+        // Demon — use demon/void enemy sprites
+        "imp":          "hybrides (1).png",
+        "void_walker":  "hybrides (3).png",
+
+        // Elemental — use elemental enemy sprites
+        "flame_elemental":  "fire (5).png",
+        "frost_elemental":  "ice (1).png",
+        "storm_elemental":  "ice (3).png",
+
+        // Beast — use beast enemy sprites
+        "wolf": "mutated (5).png",
+        "bear": "mutated (2).png",
+
+        // Construct — use construct enemy sprites
+        "turret_mk1":   "earth (1).png",
+        "cannon_turret": "earth (3).png",
+
+        // Dragon — use dragon boss sprites
+        "wyrmling":        "highlevelbosses (7).png",
+        "juvenile_dragon": "highlevelbosses (9).png",
+}
+
+// GetSummonSpritePath returns the sprite file path for a summon species.
+// Falls back to a default if the species is not in the map.
+func GetSummonSpritePath(species string, assetsPath string) string {
+        filename, ok := SummonSprites[strings.ToLower(strings.TrimSpace(species))]
+        if !ok || filename == "" {
+                filename = "mutated (1).png" // default placeholder
+        }
+        return filepath.Join(assetsPath, "rpgasset", "enemies", filename)
 }
