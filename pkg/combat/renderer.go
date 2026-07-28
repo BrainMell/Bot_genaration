@@ -174,7 +174,7 @@ func GenerateCombatImage(c *gin.Context) {
 
         // 💡 Summoner System (Phase 7): Draw summoned allies.
         // Summons are rendered on the player's side of the battlefield,
-        // positioned near their owner. Smaller than enemies (80% size).
+        // arranged side-by-side like enemies (same formation pattern).
         // Drawn after mobs but before UI so UI overlays on top.
         for i, summon := range req.Summons {
                 if summon.CurrentHP <= 0 && !summon.JustDied {
@@ -196,11 +196,21 @@ func GenerateCombatImage(c *gin.Context) {
                         sSprite = utils.TintImage(sSprite, color.RGBA{255, 0, 0, 100})
                 }
 
-                // Position — on the player's side (left side of screen)
-                // Offset from the player's battlefield sprite position.
-                // OwnerIndex determines which player this summon belongs to.
-                sx := startX - 500 + float64(summon.OwnerIndex)*60
-                sy := startY + 30 + float64(i)*80
+                // 💡 Position — same side-by-side formation as enemies.
+                // Mirrors the enemy grid: 4 per row, offset left/right.
+                // Positioned on the player's side (left side of screen).
+                sx := startX - 500
+                sy := startY + 30
+                sub := i % 4
+                if sub == 1 || sub == 2 {
+                        sx -= spX
+                } else if sub == 3 {
+                        sx -= spX * 2
+                }
+                if sub == 1 || sub == 3 {
+                        sy += spY
+                }
+                sx += float64(i/4) * -250.0
 
                 // Shadow
                 utils.DrawShadow(dc, sx+float64(sSprite.Bounds().Dx())/2, sy+float64(sSprite.Bounds().Dy())-10, float64(sSprite.Bounds().Dx())*0.4, 0.6)
