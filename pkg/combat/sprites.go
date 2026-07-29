@@ -1,9 +1,9 @@
 package combat
 
 import (
+        "os"
         "path/filepath"
         "strings"
-        // REMOVED: "fmt" and "math/rand" - not used in this file
 )
 
 var CharacterSprites = map[string][]string{
@@ -242,50 +242,86 @@ func GetEnvironmentPath(bgName string, assetsPath string) string {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 💡 Summoner System (Phase 7) — Summon Sprites
+// 💡 Summoner System — Summon Sprites
 // ─────────────────────────────────────────────────────────────
-// Maps summon species to sprite filenames. Currently uses existing
-// enemy/character sprites as placeholders. When proper summon sprites
-// are sourced (itch.io packs), they'll go in assets/rpgasset/summons/
-// and this map will point there instead.
-//
-// The map keys are the species IDs from summonRegistry.js (Node side).
-// Values are filenames in the enemies/ or characters/ folder.
+// Maps summon species to sprite filenames.
+// Checks summons/digimon/ first (cached Digimon API sprites),
+// then summons/ (SD sprites like Ifrit/Leviathan/Shiva),
+// then summons/retromon/ (Retromon monster sprites),
+// then falls back to enemy sprites.
 
 var SummonSprites = map[string]string{
-        // Undead — use undead-themed enemy sprites
+        // Undead
         "skeleton":        "mutated (1).png",
         "skeleton_knight": "mutated (3).png",
         "lich_minion":     "mutated (4).png",
 
-        // Demon — use demon/void enemy sprites
-        "imp":          "hybrides (1).png",
-        "void_walker":  "hybrides (3).png",
+        // Demon
+        "imp":         "hybrides (1).png",
+        "void_walker": "hybrides (3).png",
 
-        // Elemental — use elemental enemy sprites
+        // Elemental
         "flame_elemental":  "fire (5).png",
         "frost_elemental":  "ice (1).png",
         "storm_elemental":  "ice (3).png",
 
-        // Beast — use beast enemy sprites
+        // Beast
         "wolf": "mutated (5).png",
         "bear": "mutated (2).png",
 
-        // Construct — use construct enemy sprites
+        // Construct
         "turret_mk1":   "earth (1).png",
         "cannon_turret": "earth (3).png",
 
-        // Dragon — use dragon boss sprites
+        // Dragon
         "wyrmling":        "highlevelbosses (7).png",
         "juvenile_dragon": "highlevelbosses (9).png",
+
+        // SD Summons (Ifrit/Leviathan/Shiva) — high-tier evolutions
+        "ifrit_fire":     "ifrit_fire.png",
+        "ifrit_nofire":   "ifrit_nofire.png",
+        "leviathan":      "leviathan.png",
+        "shiva_full":     "shiva_full.png",
+        "shiva_ice":      "shiva_ice.png",
 }
 
 // GetSummonSpritePath returns the sprite file path for a summon species.
-// Falls back to a default if the species is not in the map.
+// Checks multiple folders in priority order:
+// 1. summons/digimon/ (cached Digimon API sprites, transparent PNGs)
+// 2. summons/ (SD sprites like Ifrit/Leviathan/Shiva)
+// 3. summons/retromon/ (Retromon monster sprites)
+// 4. enemies/ (fallback to enemy sprite via SummonSprites map)
 func GetSummonSpritePath(species string, assetsPath string) string {
-        filename, ok := SummonSprites[strings.ToLower(strings.TrimSpace(species))]
+        species = strings.ToLower(strings.TrimSpace(species))
+
+        // 1. Check digimon cache
+        digimonPath := filepath.Join(assetsPath, "rpgasset", "summons", "digimon", species+".png")
+        if fileExists(digimonPath) {
+                return digimonPath
+        }
+
+        // 2. Check SD summons
+        sdPath := filepath.Join(assetsPath, "rpgasset", "summons", species+".png")
+        if fileExists(sdPath) {
+                return sdPath
+        }
+
+        // 3. Check retromon
+        retromonPath := filepath.Join(assetsPath, "rpgasset", "summons", "retromon", species+".png")
+        if fileExists(retromonPath) {
+                return retromonPath
+        }
+
+        // 4. Fallback to enemy sprite map
+        filename, ok := SummonSprites[species]
         if !ok || filename == "" {
-                filename = "mutated (1).png" // default placeholder
+                filename = "mutated (1).png"
         }
         return filepath.Join(assetsPath, "rpgasset", "enemies", filename)
+}
+
+// fileExists checks if a file exists
+func fileExists(path string) bool {
+        _, err := os.Stat(path)
+        return err == nil
 }
