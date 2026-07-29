@@ -879,11 +879,15 @@ func encodeFramesToMP4(frames []image.Image) ([]byte, error) {
         outputPath := filepath.Join(tmpDir, "output.mp4")
 
         // ffmpeg command:
-        //   ffmpeg -y -framerate 10 -i frame_%03d.png -c:v libx264 -pix_fmt yuv420p -movflags +faststart output.mp4
+        //   ffmpeg -y -framerate 10 -i frame_%03d.png -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2"
+        //          -c:v libx264 -pix_fmt yuv420p -movflags +faststart output.mp4
+        // The pad filter ensures even dimensions (libx264 requires width AND height
+        // to be divisible by 2). Our canvas is 1024×687 — 687 is odd, so we pad to 688.
         args := []string{
                 "-y",
                 "-framerate", fmt.Sprintf("%d", ANIM_FPS),
                 "-i", filepath.Join(tmpDir, "frame_%03d.png"),
+                "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2:color=black",
                 "-c:v", "libx264",
                 "-pix_fmt", "yuv420p",
                 "-movflags", "+faststart",
