@@ -199,8 +199,10 @@ func main() {
 
         // Core Image Rendering Endpoints
         api.POST("/combat", combat.GenerateCombatImage)
+        api.POST("/combat/animated", combat.GenerateAnimatedCombat) // NEW 2026-07-29: animated MP4 with VFX + sprite reactions
         api.POST("/combat/endscreen", combat.GenerateEndScreen)
         api.POST("/combat/splash", combat.GenerateBossSplash)
+        api.POST("/hunt/card", combat.GenerateHuntCard) // NEW 2026-07-29: hunting image card
         api.POST("/ludo", ludo.RenderBoard)
         api.POST("/ttt", ttt.RenderBoard)
         api.POST("/ttt/leaderboard", ttt.RenderLeaderboard)

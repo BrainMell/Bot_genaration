@@ -393,24 +393,140 @@ func GenerateCombatImage(c *gin.Context) {
 
 func GenerateEndScreen(c *gin.Context) {
         var req struct {
-                Text string `json:"text"`
+                Text     string `json:"text"`
+                Victory  bool   `json:"victory"`
+                Gold     int    `json:"gold"`
+                XP       int    `json:"xp"`
+                Items    string `json:"items"` // comma-separated item names
         }
         if err := c.ShouldBindJSON(&req); err != nil {
                 c.JSON(400, gin.H{"error": err.Error()})
                 return
         }
 
+        // 💡 NEW 2026-07-29: Render a proper victory/defeat scene instead of
+        // plain white background with text. Uses a gradient background tinted
+        // by victory/defeat, large fantasy-font title, and a rewards panel.
         dc := gg.NewContext(CANVAS_W, CANVAS_H)
-        dc.SetRGB(1, 1, 1) // Pure White
-        dc.Clear()
+
+        // Background gradient
+        var rTop, gTop, bTop, rBot, gBot, bBot float64
+        if req.Victory {
+                // Gold gradient for victory
+                rTop, gTop, bTop = 0.18, 0.13, 0.02
+                rBot, gBot, bBot = 0.10, 0.07, 0.01
+        } else {
+                // Dark red gradient for defeat
+                rTop, gTop, bTop = 0.18, 0.02, 0.02
+                rBot, gBot, bBot = 0.08, 0.01, 0.01
+        }
+        for y := 0; y < CANVAS_H; y++ {
+                t := float64(y) / float64(CANVAS_H)
+                dc.SetRGB(rTop+(rBot-rTop)*t, gTop+(gBot-gTop)*t, bTop+(bBot-bTop)*t)
+                dc.DrawRectangle(0, float64(y), CANVAS_W, 1)
+                dc.Fill()
+        }
+
+        // Vignette
+        for i := 0; i < 50; i++ {
+                dc.SetRGBA(0, 0, 0, 0.015)
+                dc.DrawRectangle(0, 0, float64(i), CANVAS_H)
+                dc.Fill()
+                dc.DrawRectangle(float64(CANVAS_W-i), 0, float64(i), CANVAS_H)
+                dc.Fill()
+        }
 
         fontPath := utils.GetAssetPath("rpgasset", "ui", "fantesy.ttf")
-        face, err := utils.LoadFont(fontPath, 120) // 80pt approx 106px, let's go big
-        if err == nil {
-                dc.SetFontFace(face)
-                dc.SetColor(color.Black)
-                dc.DrawStringAnchored(req.Text, CANVAS_W/2, CANVAS_H/2, 0.5, 0.5)
+        boldFontPath := filepath.Join("assets", "rpgasset", "ui", "Inter-Bold.ttf")
+
+        // Title
+        titleText := req.Text
+        if titleText == "" {
+                if req.Victory {
+                        titleText = "VICTORY"
+                } else {
+                        titleText = "DEFEATED"
+                }
         }
+        if face, err := utils.LoadFont(fontPath, 110); err == nil {
+                dc.SetFontFace(face)
+                if req.Victory {
+                        dc.SetRGB(1, 0.85, 0.3) // gold
+                } else {
+                        dc.SetRGB(0.9, 0.3, 0.3) // red
+                }
+                // Shadow
+                dc.SetRGBA(0, 0, 0, 0.7)
+                dc.DrawStringAnchored(titleText, float64(CANVAS_W/2)+4, 220+4, 0.5, 0.5)
+                // Main text
+                if req.Victory {
+                        dc.SetRGB(1, 0.85, 0.3)
+                } else {
+                        dc.SetRGB(0.9, 0.3, 0.3)
+                }
+                dc.DrawStringAnchored(titleText, float64(CANVAS_W/2), 220, 0.5, 0.5)
+        }
+
+        // Subtitle / flavor
+        subtitleText := ""
+        if req.Victory {
+                subtitleText = "The party emerges triumphant."
+        } else {
+                subtitleText = "Darkness claims the fallen."
+        }
+        if face, err := utils.LoadFont(fontPath, 28); err == nil {
+                dc.SetFontFace(face)
+                dc.SetRGBA(0.85, 0.85, 0.85, 0.9)
+                dc.DrawStringAnchored(subtitleText, float64(CANVAS_W/2), 300, 0.5, 0.5)
+        }
+
+        // Rewards panel (victory only)
+        if req.Victory && (req.Gold > 0 || req.XP > 0 || req.Items != "") {
+                panelY := 360.0
+                panelH := 200.0
+                dc.SetRGBA(0, 0, 0, 0.5)
+                dc.DrawRoundedRectangle(150, panelY, float64(CANVAS_W-300), panelH, 12)
+                dc.Fill()
+                dc.SetRGBA(1, 0.85, 0.3, 0.4)
+                dc.DrawRoundedRectangle(150, panelY, float64(CANVAS_W-300), panelH, 12)
+                dc.SetLineWidth(2)
+                dc.Stroke()
+
+                if face, err := utils.LoadFont(boldFontPath, 32); err == nil {
+                        dc.SetFontFace(face)
+                        dc.SetRGB(1, 0.85, 0.3)
+                        dc.DrawStringAnchored("REWARDS", float64(CANVAS_W/2), panelY+35, 0.5, 0.5)
+                }
+                if face, err := utils.LoadFont(boldFontPath, 24); err == nil {
+                        dc.SetFontFace(face)
+                        lineY := panelY + 80
+                        if req.Gold > 0 {
+                                dc.SetRGB(1, 0.85, 0.3)
+                                dc.DrawStringAnchored(fmt.Sprintf("+%d Zeni", req.Gold), float64(CANVAS_W/2), lineY, 0.5, 0.5)
+                                lineY += 35
+                        }
+                        if req.XP > 0 {
+                                dc.SetRGB(0.4, 1, 0.4)
+                                dc.DrawStringAnchored(fmt.Sprintf("+%d XP", req.XP), float64(CANVAS_W/2), lineY, 0.5, 0.5)
+                                lineY += 35
+                        }
+                        if req.Items != "" {
+                                dc.SetRGB(0.9, 0.9, 1.0)
+                                itemsLabel := req.Items
+                                if len(itemsLabel) > 60 {
+                                        itemsLabel = itemsLabel[:57] + "..."
+                                }
+                                dc.DrawStringAnchored("Loot: "+itemsLabel, float64(CANVAS_W/2), lineY, 0.5, 0.5)
+                        }
+                }
+        }
+
+        // Top + bottom border accents
+        dc.SetRGBA(1, 1, 1, 0.3)
+        dc.DrawRectangle(0, 0, CANVAS_W, 4)
+        dc.Fill()
+        dc.DrawRectangle(0, CANVAS_H-4, CANVAS_W, 4)
+        dc.Fill()
 
         buf, err := utils.EncodeImageToBuffer(dc.Image())
         if err != nil {
@@ -467,6 +583,12 @@ func getRandomEnvironment(assetsPath string) string {
                 return ""
         }
 
-        // Return first one (or could randomize)
-        return files[0]
+        // Actually randomize using current time (not crypto-secure, fine for visual variety)
+        // Using a simple LCG seeded by time so we don't add math/rand import overhead.
+        // Falls back to first file if randomization fails.
+        idx := int(timeNow().UnixNano()) % len(files)
+        if idx < 0 {
+                idx = -idx
+        }
+        return files[idx]
 }

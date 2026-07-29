@@ -46,6 +46,10 @@ func GenerateBossSplash(c *gin.Context) {
                 bgR, bgG, bgB = 0.18, 0.06, 0.02 // dark orange
         case "RAID":
                 bgR, bgG, bgB = 0.02, 0.15, 0.18 // dark cyan
+        case "ABYSS":
+                bgR, bgG, bgB = 0.02, 0.02, 0.05 // deep void (near-black blue)
+        case "GOD":
+                bgR, bgG, bgB = 0.18, 0.15, 0.02 // divine gold
         default:
                 bgR, bgG, bgB = 0.05, 0.05, 0.08 // near-black
         }
@@ -102,6 +106,10 @@ func GenerateBossSplash(c *gin.Context) {
                                 dc.SetRGB(1, 0.5, 0.2)
                         case "RAID":
                                 dc.SetRGB(0.3, 0.9, 1)
+                        case "ABYSS":
+                                dc.SetRGB(0.3, 0.3, 0.8) // void indigo
+                        case "GOD":
+                                dc.SetRGB(1, 0.9, 0.4) // divine gold
                         default:
                                 dc.SetRGB(1, 1, 1)
                         }
@@ -128,6 +136,10 @@ func GenerateBossSplash(c *gin.Context) {
                                 tierLabel = "DRAGON BOSS"
                         case "RAID":
                                 tierLabel = "WEEKLY RAID BOSS"
+                        case "ABYSS":
+                                tierLabel = "ABYSS BOSS"
+                        case "GOD":
+                                tierLabel = "DIVINE BOSS"
                         }
                         dc.DrawStringAnchored(tierLabel, float64(CANVAS_W/2), 30, 0.5, 0.5)
                 }
