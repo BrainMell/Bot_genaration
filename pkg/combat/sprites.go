@@ -93,70 +93,70 @@ var BossSprites = map[string][]string{
 //   - Trial bosses → assigned thematically (fire→fire, water→water, etc.)
 //   - Special bosses (dragon→fire-themed, undead→mutated, etc.)
 var BossNameSprites = map[string]string{
-        // ═══ S/SS/SSS-rank dungeon bosses (calamaties tier) ═══
-        "PRIMORDIAL CHAOS":       "calamaties (1).png",
-        "ELDER CHAOS":            "calamaties (1).png",
-        "VOID TITAN":             "calamaties (3).png",
-        "ABYSSAL GOD":            "calamaties (5).png",
-        "MUTATION PRIME":         "calamaties (4).png",
-        "ELEMENTAL ARCHON":       "calamaties (2).png",
+        // ═══ S/SS/SSS-rank dungeon bosses — use new boss_N sprites from SpriteAssets ═══
+        "PRIMORDIAL CHAOS":       "boss_0_N.png",
+        "ELDER CHAOS":            "boss_1_N.png",
+        "VOID TITAN":             "boss_2_N.png",
+        "ABYSSAL GOD":            "boss_3_N.png",
+        "MUTATION PRIME":         "boss_4_N.png",
+        "ELEMENTAL ARCHON":       "boss_5_N.png",
 
-        // ═══ Mid-level bosses (midlevelbosses tier) ═══
-        "THE INFECTED COLOSSUS":  "midlevelbosses (1).png",
-        "INFECTED COLOSSUS":      "midlevelbosses (1).png",
-        "CORRUPTED GUARDIAN":     "midlevelbosses (2).png",
-        "STONE HULK":             "midlevelbosses (3).png",
-        "CRYSTAL CORRUPTED":      "midlevelbosses (4).png",
-        "EARTH WARDEN":           "midlevelbosses (5).png",
-        "FROST GHOUL":            "midlevelbosses (6).png",
-        "GLACIAL BEAST":          "midlevelbosses (7).png",
+        // ═══ Mid-level bosses — use new boss sprites ═══
+        "THE INFECTED COLOSSUS":  "boss_6_N.png",
+        "INFECTED COLOSSUS":      "boss_6_N.png",
+        "CORRUPTED GUARDIAN":     "boss_7_N.png",
+        "STONE HULK":             "boss_9_N.png",
+        "CRYSTAL CORRUPTED":      "boss_10_N.png",
+        "EARTH WARDEN":           "boss_11_N.png",
+        "FROST GHOUL":            "boss_12_N.png",
+        "GLACIAL BEAST":          "boss_13_N.png",
 
-        // ═══ High-level bosses (highlevelbosses tier) ═══
-        "MAGMA BRUTE":            "highlevelbosses (7).png",
-        "HELLFIRE DEMON":         "highlevelbosses (8).png",
-        "ABYSSAL HORROR":         "highlevelbosses (9).png",
-        "TSUNAMI WALKER":         "highlevelbosses (10).png",
-        "BLIZZARD WRAITH":        "highlevelbosses (11).png",
-        "GRAVEYARD LORD":         "highlevelbosses (12).png",
-        "SHADOW LORD":            "highlevelbosses (13).png",
+        // ═══ High-level bosses — use new boss sprites + old highlevelbosses ═══
+        "MAGMA BRUTE":            "boss_0_S.png",
+        "HELLFIRE DEMON":         "boss_1_S.png",
+        "ABYSSAL HORROR":         "boss_2_S.png",
+        "TSUNAMI WALKER":         "boss_3_S.png",
+        "BLIZZARD WRAITH":        "boss_4_S.png",
+        "GRAVEYARD LORD":         "boss_5_S.png",
+        "SHADOW LORD":            "boss_6_S.png",
 
-        // ═══ Dragon bosses (fire-themed calamity sprites) ═══
-        "IGNEEL THE FIRE KING":   "calamaties (2).png",
-        "ANCIENT DRAGON":         "calamaties (2).png",
-        "ETERNAL DRAGON":         "calamaties (2).png",
-        "ELDER FLAME":            "calamaties (2).png",
+        // ═══ Dragon bosses ═══
+        "IGNEEL THE FIRE KING":   "boss_7_S.png",
+        "ANCIENT DRAGON":         "boss_7_S.png",
+        "ETERNAL DRAGON":         "boss_9_S.png",
+        "ELDER FLAME":            "boss_10_S.png",
 
-        // ═══ Trial bosses (thematic assignment) ═══
-        "ARCANE SENTINEL":        "midlevelbosses (4).png",   // crystal-themed
-        "LICH KING":              "highlevelbosses (12).png", // undead king
-        "SHADOW STALKER":         "highlevelbosses (13).png", // shadow-themed
-        "VOID ASSASSIN":          "highlevelbosses (9).png",  // void-themed
-        "IRON BODY GRANDMASTER":  "midlevelbosses (3).png",   // stone/iron
-        "ANCIENT WURM":           "calamaties (2).png",       // dragon-kin
-        "SOUL EATER":             "mutated (3).png",          // ghostly
-        "ABYSSAL WHISPER":        "calamaties (5).png",       // abyssal
-        "ELEMENTAL PRIMORDIAL":   "calamaties (2).png",       // elemental
-        "PRIME ELEMENT":          "calamaties (2).png",       // elemental
-        "VOID NECROMANCER":       "mutated (5).png",          // undead caster
-        "CHRONOS WARDEN":         "highlevelbosses (11).png", // time/ice
-        "TIME EATER":             "mutated (7).png",          // eldritch
-        "HEAVENLY GUARDIAN":      "highlevelbosses (10).png", // celestial
-        "SERAPHIM PRIME":         "calamaties (5).png",       // divine
-        "FOREST ANCESTOR":        "midlevelbosses (5).png",   // earth/nature
-        "GAIA SENTINEL":          "midlevelbosses (5).png",   // earth
-        "GOLDEN GOLEM":           "midlevelbosses (3).png",   // stone golem
-        "TREASURE HOARDER":       "calamaties (2).png",       // dragon hoard
-        "SOUND REAPER":           "mutated (4).png",          // eerie
-        "MAESTRO OF VOID":        "calamaties (3).png",       // void
-        "CLOCKWORK TITAN":        "highlevelbosses (7).png",  // mechanical
-        "MECH GOD":               "calamaties (5).png",       // divine mech
-        "DEMON LORD":             "calamaties (4).png",       // demon
-        "PRIMORDIAL EVIL":        "calamaties (1).png",       // primordial
-        "LEVIATHAN":              "calamaties (6).png",       // water leviathan
-        "LEVIATHAN SPAWN ALPHA":  "calamaties (6).png",       // water leviathan-kin
-        "INFERNAL OVERLORD":      "highlevelbosses (8).png",  // fire demon
-        "PRIMORDIAL FLAME":       "calamaties (2).png",       // fire primordial
-        "PERMAFROST TITAN":       "highlevelbosses (11).png", // ice titan
+        // ═══ Trial bosses ═══
+        "ARCANE SENTINEL":        "boss_11_S.png",
+        "LICH KING":              "boss_12_S.png",
+        "SHADOW STALKER":         "boss_13_S.png",
+        "VOID ASSASSIN":          "highlevelbosses (9).png",
+        "IRON BODY GRANDMASTER":  "midlevelbosses (3).png",
+        "ANCIENT WURM":           "boss_7_S.png",
+        "SOUL EATER":             "mutated (3).png",
+        "ABYSSAL WHISPER":        "boss_3_S.png",
+        "ELEMENTAL PRIMORDIAL":   "boss_5_N.png",
+        "PRIME ELEMENT":          "boss_5_N.png",
+        "VOID NECROMANCER":       "mutated (5).png",
+        "CHRONOS WARDEN":         "boss_4_S.png",
+        "TIME EATER":             "mutated (7).png",
+        "HEAVENLY GUARDIAN":      "boss_3_N.png",
+        "SERAPHIM PRIME":         "boss_0_S.png",
+        "FOREST ANCESTOR":        "midlevelbosses (5).png",
+        "GAIA SENTINEL":          "midlevelbosses (5).png",
+        "GOLDEN GOLEM":           "midlevelbosses (3).png",
+        "TREASURE HOARDER":       "boss_7_S.png",
+        "SOUND REAPER":           "mutated (4).png",
+        "MAESTRO OF VOID":        "boss_2_N.png",
+        "CLOCKWORK TITAN":        "boss_0_S.png",
+        "MECH GOD":               "boss_3_S.png",
+        "DEMON LORD":             "boss_4_S.png",
+        "PRIMORDIAL EVIL":        "boss_0_N.png",
+        "LEVIATHAN":              "boss_3_N.png",
+        "LEVIATHAN SPAWN ALPHA":  "boss_3_N.png",
+        "INFERNAL OVERLORD":      "boss_1_S.png",
+        "PRIMORDIAL FLAME":       "boss_7_S.png",
+        "PERMAFROST TITAN":       "boss_4_S.png",
 }
 
 func GetCharacterSpritePath(class string, index int, assetsPath string) string {
