@@ -319,9 +319,3 @@ func GetSummonSpritePath(species string, assetsPath string) string {
         }
         return filepath.Join(assetsPath, "rpgasset", "enemies", filename)
 }
-
-// fileExists checks if a file exists
-func fileExists(path string) bool {
-        _, err := os.Stat(path)
-        return err == nil
-}
