@@ -192,12 +192,28 @@ api.get('/pornpics', async (req, res) => {
             if (images.length >= maxCount) break;
         }
 
-        // Fallback: src attributes
+        // Fallback 1: src attributes with cdn in URL (covers cdni.pornpics.com)
         if (images.length === 0) {
-            const fallback = /src="(https?:\/\/[^"]+cdn[^"]+\.(?:jpg|jpeg))"/gi;
+            const fallback = /src="(https?:\/\/[^"]*(?:cdn|pornpics)[^"]*\.(?:jpg|jpeg|png))"/gi;
             while ((match = fallback.exec(html)) !== null) {
                 const url = match[1];
-                if (!seen.has(url)) { seen.add(url); images.push(url); }
+                if (!seen.has(url) && !url.includes('logo') && !url.includes('icon') && !url.includes('favicon')) {
+                    seen.add(url);
+                    images.push(url);
+                }
+                if (images.length >= maxCount) break;
+            }
+        }
+
+        // Fallback 2: any https image URL on pornpics CDN domains
+        if (images.length === 0) {
+            const fallback2 = /https?:\/\/(?:cdni?|static)\.pornpics\.com\/[^"'\s<>]+\.(?:jpg|jpeg|png)/gi;
+            while ((match = fallback2.exec(html)) !== null) {
+                const url = match[0];
+                if (!seen.has(url) && !url.includes('logo') && !url.includes('icon') && !url.includes('favicon')) {
+                    seen.add(url);
+                    images.push(url);
+                }
                 if (images.length >= maxCount) break;
             }
         }
