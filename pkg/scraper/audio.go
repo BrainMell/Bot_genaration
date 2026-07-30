@@ -38,10 +38,19 @@ func ScrapeAudio(c *gin.Context) {
         mp3Path := fmt.Sprintf("downloads/%s.mp3", hash)
 
         // Get YouTube video ID for thumbnail (best effort)
+        // Try jina.ai reader first, then fall back to direct YouTube search through WARP proxy
         videoID := ""
         thumbnail := ""
         watchURL := ""
-        httpClient := &http.Client{Timeout: 10 * time.Second}
+
+        // WARP proxy detection (same as below)
+        warpProxy := ""
+        if _, err := os.Stat("/etc/wireproxy/warp.conf"); err == nil {
+                warpProxy = "socks5://127.0.0.1:1080"
+        }
+
+        // Attempt 1: jina.ai reader (reads YouTube search page as text)
+        httpClient := &http.Client{Timeout: 15 * time.Second}
         searchURL := "https://r.jina.ai/http://www.youtube.com/results?search_query=" + url.QueryEscape(query)
         if resp, err := httpClient.Get(searchURL); err == nil {
                 body, _ := io.ReadAll(resp.Body)
@@ -53,18 +62,38 @@ func ScrapeAudio(c *gin.Context) {
                         watchURL = "https://www.youtube.com/watch?v=" + videoID
                 }
         }
+
+        // Attempt 2: use yt-dlp itself to find the video ID (through WARP if available)
+        // This is more reliable than jina.ai which can be rate-limited
+        if videoID == "" {
+                ytArgs := []string{
+                        "--dump-json", "--no-download", "--no-warnings",
+                        "ytsearch1:" + query,
+                }
+                if warpProxy != "" {
+                        ytArgs = append([]string{"--proxy", warpProxy}, ytArgs...)
+                }
+                if _, err := os.Stat("/etc/yt-dlp/cookies.txt"); err == nil {
+                        ytArgs = append([]string{"--cookies", "/etc/yt-dlp/cookies.txt"}, ytArgs...)
+                }
+                cmd := exec.Command("yt-dlp", ytArgs...)
+                if out, err := cmd.Output(); err == nil {
+                        // yt-dlp --dump-json outputs a JSON line with "id" field
+                        re := regexp.MustCompile(`"id"\s*:\s*"([A-Za-z0-9_\-]{11})"`)
+                        if match := re.FindStringSubmatch(string(out)); len(match) >= 2 {
+                                videoID = match[1]
+                                thumbnail = fmt.Sprintf("https://i.ytimg.com/vi/%s/hqdefault.jpg", videoID)
+                                watchURL = "https://www.youtube.com/watch?v=" + videoID
+                        }
+                }
+        }
         fmt.Printf("[Audio] Video ID: %s\n", videoID)
 
         if _, err := os.Stat(mp3Path); os.IsNotExist(err) {
                 downloaded := false
 
-                // WARP SOCKS5 proxy (Cloudflare WARP via wireproxy on port 1080)
-                // YouTube blocks datacenter IPs; WARP routes through Cloudflare IPs.
-                // If wireproxy isn't running, this flag is empty (no proxy).
-                warpProxy := ""
-                if _, err := os.Stat("/etc/wireproxy/warp.conf"); err == nil {
-                        warpProxy = "socks5://127.0.0.1:1080"
-                }
+                // WARP proxy and cookies are already detected above (lines 46-89)
+                // warpProxy and cookiesArg variables are in scope here.
 
                 // Cookies file (optional — user must export from a browser)
                 cookiesArg := ""
