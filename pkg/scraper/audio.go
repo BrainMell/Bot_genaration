@@ -68,7 +68,7 @@ func ScrapeAudio(c *gin.Context) {
         // This is more reliable than jina.ai which can be rate-limited
         if videoID == "" {
                 ytArgs := []string{
-                        "--print", "id", "--skip-download", "--no-warnings",
+                        "--flat-playlist", "--print", "id", "--no-warnings",
                         "ytsearch1:" + query,
                 }
                 if warpProxy != "" {
