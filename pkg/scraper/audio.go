@@ -76,8 +76,16 @@ func ScrapeAudio(c *gin.Context) {
                 if _, err := os.Stat("/etc/yt-dlp/cookies.txt"); err == nil {
                         ytArgs = append([]string{"--cookies", "/etc/yt-dlp/cookies.txt"}, ytArgs...)
                 }
+                fmt.Printf("[Audio] Searching video ID via yt-dlp: yt-dlp %v\n", ytArgs)
                 cmd := exec.Command("yt-dlp", ytArgs...)
-                if out, err := cmd.Output(); err == nil {
+                out, err := cmd.CombinedOutput()
+                if err != nil {
+                        outStr := string(out)
+                        if len(outStr) > 300 {
+                                outStr = outStr[:300]
+                        }
+                        fmt.Printf("[Audio] yt-dlp video ID search failed: %v\nOutput: %s\n", err, outStr)
+                } else {
                         // yt-dlp --dump-json outputs a JSON line with "id" field
                         re := regexp.MustCompile(`"id"\s*:\s*"([A-Za-z0-9_\-]{11})"`)
                         if match := re.FindStringSubmatch(string(out)); len(match) >= 2 {
