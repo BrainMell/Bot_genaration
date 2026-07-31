@@ -9,6 +9,7 @@ import (
         "os"
         "os/exec"
         "regexp"
+        "strings"
         "time"
 
         "github.com/gin-gonic/gin"
@@ -67,7 +68,7 @@ func ScrapeAudio(c *gin.Context) {
         // This is more reliable than jina.ai which can be rate-limited
         if videoID == "" {
                 ytArgs := []string{
-                        "--dump-json", "--no-download", "--no-warnings",
+                        "--print", "id", "--skip-download", "--no-warnings",
                         "ytsearch1:" + query,
                 }
                 if warpProxy != "" {
@@ -86,12 +87,21 @@ func ScrapeAudio(c *gin.Context) {
                         }
                         fmt.Printf("[Audio] yt-dlp video ID search failed: %v\nOutput: %s\n", err, outStr)
                 } else {
-                        // yt-dlp --dump-json outputs a JSON line with "id" field
-                        re := regexp.MustCompile(`"id"\s*:\s*"([A-Za-z0-9_\-]{11})"`)
-                        if match := re.FindStringSubmatch(string(out)); len(match) >= 2 {
-                                videoID = match[1]
+                        // yt-dlp --print id outputs just the 11-char video ID
+                        outStr := strings.TrimSpace(string(out))
+                        re := regexp.MustCompile(`^[A-Za-z0-9_\-]{11}$`)
+                        if re.MatchString(outStr) {
+                                videoID = outStr
                                 thumbnail = fmt.Sprintf("https://i.ytimg.com/vi/%s/hqdefault.jpg", videoID)
                                 watchURL = "https://www.youtube.com/watch?v=" + videoID
+                        } else {
+                                // Fallback: extract from multi-line output
+                                re2 := regexp.MustCompile(`([A-Za-z0-9_\-]{11})`)
+                                if match := re2.FindStringSubmatch(outStr); len(match) >= 1 {
+                                        videoID = match[1]
+                                        thumbnail = fmt.Sprintf("https://i.ytimg.com/vi/%s/hqdefault.jpg", videoID)
+                                        watchURL = "https://www.youtube.com/watch?v=" + videoID
+                                }
                         }
                 }
         }
