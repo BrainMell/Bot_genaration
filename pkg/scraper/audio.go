@@ -119,9 +119,81 @@ func ScrapeAudio(c *gin.Context) {
                         cookiesArg = "/etc/yt-dlp/cookies.txt"
                 }
 
-                // Attempt 1: YouTube with cookies + WARP proxy (FULL TRACK — best quality)
-                // Try this FIRST because it gives full songs, not 30s previews.
-                if videoID != "" && cookiesArg != "" && warpProxy != "" {
+                // ── Attempt 1: iTunes Search API (30s preview, mainstream music) ──
+                // Free, no auth, works from datacenter IPs. Gives proper metadata + artwork.
+                // 30s preview is better than nothing for mainstream songs.
+                if !downloaded {
+                        fmt.Printf("[Audio] Trying iTunes Search API for: %s\n", query)
+                        itunesURL := "https://itunes.apple.com/search?term=" + url.QueryEscape(query) + "&media=music&limit=1"
+                        if resp, err := httpClient.Get(itunesURL); err == nil {
+                                body, _ := io.ReadAll(resp.Body)
+                                resp.Body.Close()
+                                // Extract previewUrl and artworkUrl from JSON
+                                previewRe := regexp.MustCompile(`"previewUrl"\s*:\s*"(https://[^"]+)"`)
+                                artworkRe := regexp.MustCompile(`"artworkUrl100"\s*:\s*"(https://[^"]+)"`)
+                                trackNameRe := regexp.MustCompile(`"trackName"\s*:\s*"([^"]+)"`)
+                                _ = trackNameRe // reserved for future metadata enrichment
+                                if m := previewRe.FindStringSubmatch(string(body)); len(m) >= 2 {
+                                        previewURL := m[1]
+                                        // Download the preview
+                                        if resp2, err := httpClient.Get(previewURL); err == nil {
+                                                previewData, _ := io.ReadAll(resp2.Body)
+                                                resp2.Body.Close()
+                                                if len(previewData) > 10000 { // at least 10KB
+                                                        // Convert m4a to mp3 via ffmpeg
+                                                        tmpM4a := mp3Path + ".m4a"
+                                                        os.WriteFile(tmpM4a, previewData, 0644)
+                                                        cmdFfmpeg := exec.Command("ffmpeg", "-y", "-i", tmpM4a, "-codec:a", "libmp3lame", "-b:a", "128k", mp3Path)
+                                                        if err := cmdFfmpeg.Run(); err == nil {
+                                                                os.Remove(tmpM4a)
+                                                                downloaded = true
+                                                                // Update metadata from iTunes
+                                                                if m2 := trackNameRe.FindStringSubmatch(string(body)); len(m2) >= 2 {
+                                                                        // Use the query as title but update thumbnail
+                                                                }
+                                                                if m2 := artworkRe.FindStringSubmatch(string(body)); len(m2) >= 2 {
+                                                                        thumbnail = m2[1]
+                                                                }
+                                                                fmt.Printf("[Audio] iTunes preview downloaded: %d bytes\n", len(previewData))
+                                                        } else {
+                                                                os.Remove(tmpM4a)
+                                                        }
+                                                }
+                                        }
+                                }
+                        }
+                }
+
+                // ── Attempt 2: Audius API (full track, 320kbps, indie music) ──
+                // Free, no auth needed for discovery, works from datacenter IPs.
+                // Best for lofi/electronic/indie. Mainstream won't be found here.
+                if !downloaded {
+                        fmt.Printf("[Audio] Trying Audius API for: %s\n", query)
+                        audiusSearchURL := "https://discoveryprovider.audius.co/v1/tracks/search?query=" + url.QueryEscape(query) + "&limit=1"
+                        if resp, err := httpClient.Get(audiusSearchURL); err == nil {
+                                body, _ := io.ReadAll(resp.Body)
+                                resp.Body.Close()
+                                // Extract track ID
+                                trackIDRe := regexp.MustCompile(`"id"\s*:\s*"([A-Za-z0-9_-]+)"`)
+                                if m := trackIDRe.FindStringSubmatch(string(body)); len(m) >= 2 {
+                                        trackID := m[1]
+                                        streamURL := "https://discoveryprovider.audius.co/v1/tracks/" + trackID + "/stream"
+                                        if resp2, err := httpClient.Get(streamURL); err == nil {
+                                                streamData, _ := io.ReadAll(resp2.Body)
+                                                resp2.Body.Close()
+                                                if len(streamData) > 50000 { // at least 50KB = full track
+                                                        os.WriteFile(mp3Path, streamData, 0644)
+                                                        downloaded = true
+                                                        fmt.Printf("[Audio] Audius full track downloaded: %d bytes\n", len(streamData))
+                                                }
+                                        }
+                                }
+                        }
+                }
+
+                // Attempt 3: YouTube with cookies + WARP proxy (FULL TRACK — best quality)
+                // Try this because it gives full songs, not 30s previews.
+                if !downloaded && videoID != "" && cookiesArg != "" && warpProxy != "" {
                         fmt.Printf("[Audio] Trying YouTube with cookies + WARP for: %s\n", videoID)
                         ytArgs := []string{
                                 "--proxy", warpProxy,
