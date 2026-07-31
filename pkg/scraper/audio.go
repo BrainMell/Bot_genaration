@@ -38,13 +38,22 @@ func ScrapeAudio(c *gin.Context) {
         hash := fmt.Sprintf("%x", md5.Sum([]byte(query)))[:12]
         mp3Path := fmt.Sprintf("downloads/%s.mp3", hash)
 
-        // Get YouTube video ID for thumbnail (best effort)
-        // Try jina.ai reader first, then fall back to direct YouTube search through WARP proxy
+        // 💡 FIX 2026-07-31: Delete cached previews (< 500KB) so they get
+        // re-downloaded. A 30s preview cached yesterday blocks a full track
+        // download today. Only keep cached files > 500KB (full tracks).
+        if info, err := os.Stat(mp3Path); err == nil && info.Size() < 500000 {
+                os.Remove(mp3Path)
+                fmt.Printf("[Audio] Deleted cached preview (%d bytes) — will re-download\n", info.Size())
+        }
+
+        // Track which source actually provided the audio
+        audioSource := "unknown"
+        audioIsPreview := false
+
+        // Get YouTube video ID for metadata (best effort)
         videoID := ""
         thumbnail := ""
         watchURL := ""
-
-        // WARP proxy detection (same as below)
         warpProxy := ""
         if _, err := os.Stat("/etc/wireproxy/warp.conf"); err == nil {
                 warpProxy = "socks5://127.0.0.1:1080"
@@ -183,6 +192,7 @@ func ScrapeAudio(c *gin.Context) {
                                 // Check file size — full tracks are > 500KB
                                 if info, err := os.Stat(mp3Path); err == nil && info.Size() > 500000 {
                                         downloaded = true
+                                        audioSource = "youtube"
                                         fmt.Printf("[Audio] YouTube FULL TRACK: %d bytes\n", info.Size())
                                 } else if info != nil {
                                         fmt.Printf("[Audio] YouTube file too small (%d bytes), removing\n", info.Size())
@@ -207,6 +217,7 @@ func ScrapeAudio(c *gin.Context) {
                         } else {
                                 if info, err := os.Stat(mp3Path); err == nil && info.Size() > 500000 {
                                         downloaded = true
+                                        audioSource = "youtube"
                                         fmt.Printf("[Audio] YouTube (no cookies) FULL TRACK: %d bytes\n", info.Size())
                                 } else if info != nil {
                                         os.Remove(mp3Path)
@@ -232,7 +243,9 @@ func ScrapeAudio(c *gin.Context) {
                         } else {
                                 if info, err := os.Stat(mp3Path); err == nil {
                                         downloaded = true
+                                        audioSource = "soundcloud"
                                         isFull := info.Size() > 500000
+                                        audioIsPreview = !isFull
                                         fmt.Printf("[Audio] SoundCloud downloaded (%s): %d bytes\n",
                                                 map[bool]string{true: "FULL", false: "preview"}[isFull], info.Size())
                                 }
@@ -256,6 +269,7 @@ func ScrapeAudio(c *gin.Context) {
                                                 if len(streamData) > 50000 {
                                                         os.WriteFile(mp3Path, streamData, 0644)
                                                         downloaded = true
+                                                        audioSource = "audius"
                                                         fmt.Printf("[Audio] Audius FULL TRACK: %d bytes\n", len(streamData))
                                                 }
                                         }
@@ -278,6 +292,7 @@ func ScrapeAudio(c *gin.Context) {
                         } else {
                                 if info, err := os.Stat(mp3Path); err == nil && info.Size() > 500000 {
                                         downloaded = true
+                                        audioSource = "youtube"
                                         fmt.Printf("[Audio] YouTube TV FULL TRACK: %d bytes\n", info.Size())
                                 } else if info != nil {
                                         os.Remove(mp3Path)
@@ -301,6 +316,8 @@ func ScrapeAudio(c *gin.Context) {
                                         if err := cmdFfmpeg.Run(); err == nil {
                                                 os.Remove(tmpM4a)
                                                 downloaded = true
+                                                audioSource = "itunes"
+                                                audioIsPreview = true
                                                 fmt.Printf("[Audio] iTunes 30s preview downloaded: %d bytes\n", len(previewData))
                                         } else {
                                                 os.Remove(tmpM4a)
@@ -352,14 +369,20 @@ func ScrapeAudio(c *gin.Context) {
                 displayAuthor = itunesArtist
         }
 
+        // Only return YouTube URL if we actually found a video ID
+        // (always useful — user can click to listen to full song on YouTube)
+        displayURL := watchURL
+
         c.JSON(200, gin.H{
                 "metadata": AudioMetadata{
                         Title:     displayTitle,
                         Author:    displayAuthor,
                         Thumbnail: thumbnail,
                         Duration:  "",
-                        URL:       watchURL,
+                        URL:       displayURL,
                 },
-                "audioURL": fmt.Sprintf("%s/downloads/%s.mp3", baseURL, hash),
+                "audioURL":      fmt.Sprintf("%s/downloads/%s.mp3", baseURL, hash),
+                "audioSource":   audioSource,
+                "isPreview":     audioIsPreview,
         })
 }
