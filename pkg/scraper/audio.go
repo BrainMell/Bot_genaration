@@ -101,26 +101,9 @@ func ScrapeAudio(c *gin.Context) {
                         cookiesArg = "/etc/yt-dlp/cookies.txt"
                 }
 
-                // Attempt 1: SoundCloud search (works without proxy, gives 30s previews)
-                fmt.Printf("[Audio] Trying SoundCloud for: %s\n", query)
-                scArgs := []string{
-                        "scsearch1:" + query,
-                        "-x", "--audio-format", "mp3", "--audio-quality", "0",
-                        "--no-playlist",
-                        "-o", mp3Path,
-                }
-                if warpProxy != "" {
-                        scArgs = append([]string{"--proxy", warpProxy}, scArgs...)
-                }
-                cmd := exec.Command("yt-dlp", scArgs...)
-                if out, err := cmd.CombinedOutput(); err != nil {
-                        fmt.Printf("[Audio] SoundCloud failed: %v\n%s\n", err, string(out))
-                } else {
-                        downloaded = true
-                }
-
-                // Attempt 2: YouTube with cookies + WARP proxy (if cookies file exists)
-                if !downloaded && videoID != "" && cookiesArg != "" {
+                // Attempt 1: YouTube with cookies + WARP proxy (FULL TRACK — best quality)
+                // Try this FIRST because it gives full songs, not 30s previews.
+                if videoID != "" && cookiesArg != "" && warpProxy != "" {
                         fmt.Printf("[Audio] Trying YouTube with cookies + WARP for: %s\n", videoID)
                         ytArgs := []string{
                                 "--proxy", warpProxy,
@@ -133,6 +116,33 @@ func ScrapeAudio(c *gin.Context) {
                         cmdYt := exec.Command("yt-dlp", ytArgs...)
                         if out, err := cmdYt.CombinedOutput(); err != nil {
                                 fmt.Printf("[Audio] YouTube cookies+WARP failed: %v\n%s\n", err, string(out))
+                        } else {
+                                // Verify the file is actually a full track (> 500KB = not a preview)
+                                if info, err := os.Stat(mp3Path); err == nil && info.Size() > 500000 {
+                                        downloaded = true
+                                        fmt.Printf("[Audio] YouTube full track downloaded: %d bytes\n", info.Size())
+                                } else if info != nil {
+                                        fmt.Printf("[Audio] YouTube file too small (%d bytes), likely preview — trying next source\n", info.Size())
+                                        os.Remove(mp3Path)
+                                }
+                        }
+                }
+
+                // Attempt 2: SoundCloud search (30s preview fallback)
+                if !downloaded {
+                        fmt.Printf("[Audio] Trying SoundCloud for: %s\n", query)
+                        scArgs := []string{
+                                "scsearch1:" + query,
+                                "-x", "--audio-format", "mp3", "--audio-quality", "0",
+                                "--no-playlist",
+                                "-o", mp3Path,
+                        }
+                        if warpProxy != "" {
+                                scArgs = append([]string{"--proxy", warpProxy}, scArgs...)
+                        }
+                        cmd := exec.Command("yt-dlp", scArgs...)
+                        if out, err := cmd.CombinedOutput(); err != nil {
+                                fmt.Printf("[Audio] SoundCloud failed: %v\n%s\n", err, string(out))
                         } else {
                                 downloaded = true
                         }
