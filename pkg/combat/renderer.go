@@ -335,18 +335,74 @@ func GenerateCombatImage(c *gin.Context) {
                                         drawPvPFighter(req.Players[1], int(startX-170), int(startY-30), true)
                                 }
                         } else {
+                                // 💡 AUDIT FIX 2026-08-01 (Round 5): draw ALL players in
+                                // formation on the battlefield, not just player[0]. The
+                                // animator (animated combat) already does this — the static
+                                // renderer was inconsistent, only showing the first player.
+                                // Now both static + animated renders show the full party
+                                // standing side-by-side like enemies do.
                                 s2Size := 122
                                 smallSprite := imaging.Resize(pSprite, s2Size, 0, imaging.NearestNeighbor)
 
-                                // Position: startX - 500, startY + 30
+                                // Player[0] at the original position
                                 s2X := int(startX - 500)
                                 s2Y := int(startY + 30)
 
                                 // Shadow
                                 utils.DrawShadow(dc, float64(s2X)+float64(s2Size)/2, float64(s2Y)+float64(smallSprite.Bounds().Dy()), 150, 0.6)
 
-                                // Draw sprite
-                                dc.DrawImage(smallSprite, s2X, s2Y)
+                                // Draw sprite (flipped to face right toward enemies)
+                                flippedSprite := imaging.FlipH(smallSprite)
+                                dc.DrawImage(flippedSprite, s2X, s2Y)
+
+                                // Draw additional players (1+) in formation
+                                for pi := 1; pi < len(req.Players); pi++ {
+                                        ap := req.Players[pi]
+                                        if ap.CurrentHP <= 0 {
+                                                continue // skip dead players
+                                        }
+                                        apPath := GetCharacterSpritePath(ap.Class, ap.SpriteIndex, assetsPath)
+                                        apSprite, err := utils.LoadImage(apPath)
+                                        if err != nil {
+                                                continue
+                                        }
+                                        apResized := imaging.Resize(apSprite, s2Size, 0, imaging.NearestNeighbor)
+                                        apFlipped := imaging.FlipH(apResized)
+
+                                        // Formation: same pattern as enemies, mirrored.
+                                        // 4 per row, offset left/right. Player 1 is at front.
+                                        apX := int(startX - 500)
+                                        apY := int(startY + 30)
+                                        sub := pi % 4
+                                        spXF := 120.0
+                                        spYF := 100.0
+                                        if sub == 1 || sub == 2 {
+                                                apX -= int(spXF)
+                                        } else if sub == 3 {
+                                                apX -= int(spXF * 2)
+                                        }
+                                        if sub == 1 || sub == 3 {
+                                                apY += int(spYF)
+                                        }
+                                        apX += int(float64(pi/4) * -250.0)
+
+                                        utils.DrawShadow(dc, float64(apX)+float64(s2Size)/2, float64(apY)+float64(apFlipped.Bounds().Dy()), 150, 0.6)
+                                        dc.DrawImage(apFlipped, apX, apY)
+
+                                        // HP bar for additional players
+                                        if ap.MaxHP > 0 && ap.CurrentHP > 0 {
+                                                hpBarImg2, err := utils.LoadImage(uiPath("hp5.png"))
+                                                if err == nil {
+                                                        hpPerc2 := float64(ap.CurrentHP) / float64(ap.MaxHP)
+                                                        barW2 := int(80.0 * hpPerc2)
+                                                        if barW2 < 1 {
+                                                                barW2 = 1
+                                                        }
+                                                        hpBarImg2 = imaging.Resize(hpBarImg2, barW2, 10, imaging.NearestNeighbor)
+                                                        dc.DrawImage(hpBarImg2, apX+(s2Size/2)-40, apY-12)
+                                                }
+                                        }
+                                }
                         }
                 }
         }
