@@ -74,7 +74,13 @@ const (
 // maxAnimatedDownloadBytes — for animated GIFs / WebMs, abort the download if it
 // exceeds this size. Real-world T6 GIFs on shoob.gg range from 1.5MB to 10MB;
 // the 10MB ones blow up the render time + output size dramatically.
-const maxAnimatedDownloadBytes = 5 * 1024 * 1024 // 5 MB cap
+// 💡 AUDIT FIX 2026-08-01 (Round 2): raised from 5MB to 25MB. The 5MB cap was
+// silently rejecting 60-70% of animated cards (real T6/S/Event GIFs range
+// 1.5-20MB). Rejected cards were demoted to Animated:false → showed as frozen
+// first frame. Users reported "I have 6 animated cards but only 1-2 actually
+// animate". This matches the onboarding doc's note that this was already
+// supposed to be 25MB.
+const maxAnimatedDownloadBytes = 25 * 1024 * 1024 // 25 MB cap
 
 // isAnimatedURL detects whether a URL points to an animated format.
 func isAnimatedURL(url string) bool {
@@ -170,7 +176,11 @@ func GenerateHybridGrid(c *gin.Context) {
         defer os.RemoveAll(tempDir)
 
         // ── STEP 1: Download all cards sequentially ──────────────────────────────
-        client := &http.Client{Timeout: 8 * time.Second}
+        // 💡 AUDIT FIX 2026-08-01 (Round 2): raised from 8s to 30s. The 8s timeout
+        // was too short for downloading 20MB GIFs on a slow connection, causing
+        // animated cards to time out and fall back to static. Matches the
+        // onboarding doc's note that this was already supposed to be 30s.
+        client := &http.Client{Timeout: 30 * time.Second}
         cards := make([]downloadedCard, len(req.Images))
 
         for i, input := range req.Images {
@@ -322,6 +332,22 @@ func GenerateHybridGrid(c *gin.Context) {
                         fmt.Sprintf("[%s][v%d]overlay=x=%d:y=%d:shortest=1[%s]",
                                 prevLabel, ai.CardIdx, x, y, newLabel))
                 prevLabel = newLabel
+        }
+
+        // 💡 AUDIT FIX 2026-08-01 (Round 2): final scale to 720x720 square.
+        // The raw grid is 1010x~1290 (4:5 portrait). WhatsApp's gifPlayback
+        // handler crops/distorts non-square videos, causing the bottom row
+        // of cards to be cut off or squished. Scaling to 720x720 square
+        // matches the pattern used by convert.go (800x800) and gif.go
+        // (500x500). The slight vertical squish is preferable to cropping.
+        // Only applies when there ARE animated cards (static PNG returns early).
+        if len(animInputs) > 0 {
+                // Replace the last "final" label with "prescale", then scale to square
+                lastIdx := len(filterParts) - 1
+                filterParts[lastIdx] = strings.Replace(
+                        filterParts[lastIdx], "[final]", "[prescale]", 1)
+                filterParts = append(filterParts,
+                        "[prescale]scale=720:720:force_original_aspect_ratio=increase,crop=720:720[final]")
         }
 
         filtergraph := strings.Join(filterParts, ";")
