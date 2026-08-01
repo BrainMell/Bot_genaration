@@ -191,16 +191,19 @@ func GenerateCombatImage(c *gin.Context) {
                 sW := enemySpriteSize * 0.8
                 sSprite = imaging.Resize(sSprite, int(sW), 0, imaging.NearestNeighbor)
 
+                // 💡 Flip summon to face enemies (right), same as players
+                sSprite = imaging.FlipH(sSprite)
+
                 // Tint red if dead
                 if summon.CurrentHP <= 0 {
                         sSprite = utils.TintImage(sSprite, color.RGBA{255, 0, 0, 100})
                 }
 
-                // 💡 Position — same side-by-side formation as enemies.
-                // Mirrors the enemy grid: 4 per row, offset left/right.
-                // Positioned on the player's side (left side of screen).
-                sx := startX - 500
-                sy := startY + 30
+                // 💡 Position — summons stand BEHIND players, slightly offset.
+                // Player formation is at startX-500. Summons at startX-380 (120px right = closer to enemies).
+                // Same 4-per-row pattern as enemies + players.
+                sx := startX - 380
+                sy := startY + 60
                 sub := i % 4
                 if sub == 1 || sub == 2 {
                         sx -= spX
@@ -335,22 +338,33 @@ func GenerateCombatImage(c *gin.Context) {
                                         drawPvPFighter(req.Players[1], int(startX-170), int(startY-30), true)
                                 }
                         } else {
+<<<<<<< HEAD
                                 // 💡 AUDIT FIX 2026-08-01 (Round 5): draw ALL players in
                                 // formation on the battlefield, not just player[0]. The
                                 // animator (animated combat) already does this — the static
                                 // renderer was inconsistent, only showing the first player.
                                 // Now both static + animated renders show the full party
                                 // standing side-by-side like enemies do.
+=======
+                                // PVE: draw ALL players in formation, flipped to face enemies (right)
+>>>>>>> 36c8a64 (fix: re-apply lost Go fixes + player/summon formation + facing)
                                 s2Size := 122
                                 smallSprite := imaging.Resize(pSprite, s2Size, 0, imaging.NearestNeighbor)
+                                flippedSprite := imaging.FlipH(smallSprite)
 
+<<<<<<< HEAD
                                 // Player[0] at the original position
+=======
+                                // Player[0] position — mirrors enemy formation, on left side
+>>>>>>> 36c8a64 (fix: re-apply lost Go fixes + player/summon formation + facing)
                                 s2X := int(startX - 500)
                                 s2Y := int(startY + 30)
 
-                                // Shadow
-                                utils.DrawShadow(dc, float64(s2X)+float64(s2Size)/2, float64(s2Y)+float64(smallSprite.Bounds().Dy()), 150, 0.6)
+                                // Shadow + sprite for player[0]
+                                utils.DrawShadow(dc, float64(s2X)+float64(s2Size)/2, float64(s2Y)+float64(flippedSprite.Bounds().Dy()), 150, 0.6)
+                                dc.DrawImage(flippedSprite, s2X, s2Y)
 
+<<<<<<< HEAD
                                 // Draw sprite (flipped to face right toward enemies)
                                 flippedSprite := imaging.FlipH(smallSprite)
                                 dc.DrawImage(flippedSprite, s2X, s2Y)
@@ -371,11 +385,37 @@ func GenerateCombatImage(c *gin.Context) {
 
                                         // Formation: same pattern as enemies, mirrored.
                                         // 4 per row, offset left/right. Player 1 is at front.
+=======
+                                // HP bar for player[0]
+                                if p.MaxHP > 0 && p.CurrentHP > 0 {
+                                        hpBarImg, err := utils.LoadImage(uiPath("hp5.png"))
+                                        if err == nil {
+                                                hpPerc := float64(p.CurrentHP) / float64(p.MaxHP)
+                                                barW := int(80.0 * hpPerc)
+                                                if barW < 1 { barW = 1 }
+                                                hpBarImg = imaging.Resize(hpBarImg, barW, 10, imaging.NearestNeighbor)
+                                                dc.DrawImage(hpBarImg, s2X+(s2Size/2)-40, s2Y-12)
+                                        }
+                                }
+
+                                // Additional players (1+) in formation — same pattern as enemies
+                                for pi := 1; pi < len(req.Players); pi++ {
+                                        ap := req.Players[pi]
+                                        if ap.CurrentHP <= 0 { continue }
+                                        apPath := GetCharacterSpritePath(ap.Class, ap.SpriteIndex, assetsPath)
+                                        apSprite, err := utils.LoadImage(apPath)
+                                        if err != nil { continue }
+                                        apResized := imaging.Resize(apSprite, s2Size, 0, imaging.NearestNeighbor)
+                                        apFlipped := imaging.FlipH(apResized)
+
+                                        // Formation: mirror enemy pattern, 4 per row
+>>>>>>> 36c8a64 (fix: re-apply lost Go fixes + player/summon formation + facing)
                                         apX := int(startX - 500)
                                         apY := int(startY + 30)
                                         sub := pi % 4
                                         spXF := 120.0
                                         spYF := 100.0
+<<<<<<< HEAD
                                         if sub == 1 || sub == 2 {
                                                 apX -= int(spXF)
                                         } else if sub == 3 {
@@ -384,20 +424,32 @@ func GenerateCombatImage(c *gin.Context) {
                                         if sub == 1 || sub == 3 {
                                                 apY += int(spYF)
                                         }
+=======
+                                        if sub == 1 || sub == 2 { apX -= int(spXF) } else if sub == 3 { apX -= int(spXF * 2) }
+                                        if sub == 1 || sub == 3 { apY += int(spYF) }
+>>>>>>> 36c8a64 (fix: re-apply lost Go fixes + player/summon formation + facing)
                                         apX += int(float64(pi/4) * -250.0)
 
                                         utils.DrawShadow(dc, float64(apX)+float64(s2Size)/2, float64(apY)+float64(apFlipped.Bounds().Dy()), 150, 0.6)
                                         dc.DrawImage(apFlipped, apX, apY)
 
+<<<<<<< HEAD
                                         // HP bar for additional players
+=======
+                                        // HP bar
+>>>>>>> 36c8a64 (fix: re-apply lost Go fixes + player/summon formation + facing)
                                         if ap.MaxHP > 0 && ap.CurrentHP > 0 {
                                                 hpBarImg2, err := utils.LoadImage(uiPath("hp5.png"))
                                                 if err == nil {
                                                         hpPerc2 := float64(ap.CurrentHP) / float64(ap.MaxHP)
                                                         barW2 := int(80.0 * hpPerc2)
+<<<<<<< HEAD
                                                         if barW2 < 1 {
                                                                 barW2 = 1
                                                         }
+=======
+                                                        if barW2 < 1 { barW2 = 1 }
+>>>>>>> 36c8a64 (fix: re-apply lost Go fixes + player/summon formation + facing)
                                                         hpBarImg2 = imaging.Resize(hpBarImg2, barW2, 10, imaging.NearestNeighbor)
                                                         dc.DrawImage(hpBarImg2, apX+(s2Size/2)-40, apY-12)
                                                 }
