@@ -554,6 +554,22 @@ func renderCombatFrame(req *CombatRequest, fs *frameState, assetsPath string) (i
         for _, it := range items {
                 sprite := it.img
 
+                // 💡 TURN INDICATOR: draw a glowing golden ellipse under the attacker
+                if it.isAttacker {
+                        drawX := it.x
+                        drawY := it.y
+                        cx := drawX + float64(sprite.Bounds().Dx())/2
+                        cy := drawY + float64(sprite.Bounds().Dy()) - 5
+                        r := float64(sprite.Bounds().Dx()) * 0.45
+                        if r < 30 { r = 30 }
+                        dc.SetColor(color.RGBA{255, 215, 0, 120})
+                        dc.DrawEllipse(cx, cy, r, r*0.4)
+                        dc.Fill()
+                        dc.SetColor(color.RGBA{255, 255, 200, 180})
+                        dc.DrawEllipse(cx, cy, r*0.8, r*0.32)
+                        dc.Fill()
+                }
+
                 // Apply shake offset if target
                 drawX := it.x
                 drawY := it.y

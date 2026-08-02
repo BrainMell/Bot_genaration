@@ -617,36 +617,51 @@ func fileExists(path string) bool {
 
 // getRankBackground returns a deterministic background based on the dungeon rank.
 // Same rank → same background every time. No randomness.
+// Uses sparklinlabs backgrounds for variety + original backgrounds for higher ranks.
 func getRankBackground(rank string, assetsPath string) string {
         envPath := filepath.Join(assetsPath, "rpgasset", "environment")
         var filename string
         switch strings.ToUpper(rank) {
         case "F":
-                filename = "forest.png"
+                filename = "spark_1.png"      // Grassland
         case "E":
-                filename = "env1.png"
+                filename = "spark_2.png"      // Forest
         case "D":
-                filename = "env2.png"
+                filename = "spark_3.png"      // Cave
         case "C":
-                filename = "sand.png"
+                filename = "spark_4.png"      // Desert
         case "B":
-                filename = "env3.png"
+                filename = "spark_5.png"      // Snow
         case "A":
-                filename = "ice.png"
+                filename = "spark_6.png"      // Volcano
         case "S", "SS":
-                filename = "background1.png"
+                filename = "spark_7.png"      // Dark castle
         case "SSS":
-                filename = "background2.png"
+                filename = "spark_8.png"      // Abyss
         case "GOD":
-                filename = "background3.png"
+                filename = "spark_10.png"     // Divine realm
+        case "PVP":
+                filename = "spark_15.png"     // Arena
+        case "ABYSS":
+                filename = "spark_1-night.png" // Night version for Abyss
+        case "TRIAL":
+                filename = "spark_3-night.png" // Night cave for trials
         default:
-                filename = "forest.png"
+                filename = "spark_1.png"
         }
         path := filepath.Join(envPath, filename)
         if fileExists(path) {
                 return path
         }
-        // Fallback: first available file
+        // Fallback: try original backgrounds
+        fallbacks := []string{"forest.png", "env1.png", "background1.png"}
+        for _, fb := range fallbacks {
+                fbPath := filepath.Join(envPath, fb)
+                if fileExists(fbPath) {
+                        return fbPath
+                }
+        }
+        // Last resort: first available file
         entries, err := os.ReadDir(envPath)
         if err != nil {
                 return ""

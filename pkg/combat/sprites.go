@@ -257,48 +257,81 @@ func GetEnvironmentPath(bgName string, assetsPath string) string {
 // then falls back to enemy sprites.
 
 var SummonSprites = map[string]string{
-        // Undead
+        // 💡 NEW: Sparklinlabs monster sprites (primary summon assets now)
+        // These are in summons/sparklinlabs/
+        "bat":             "bat.png",
+        "boar":            "boar.png",
+        "chest":           "chest.png",
+        "dino":            "dino.png",
+        "dragon":          "dragon.png",
+        "ghost":           "ghost.png",
+        "giant":           "giant.png",
+        "mimic":           "mimic.png",
+        "mushroom":        "mushroom.png",
+        "octopus":         "octopus.png",
+        "reptile":         "reptile.png",
+        "slime":           "slime.png",
+        "snake":           "snake.png",
+        "yeti":            "yeti.png",
+
+        // 💡 NEW: Grand Inventor torrent summons (space-shooter ships)
+        "ship_cruiser":    "ship_cruiser.png",
+        "ship_fighter":    "ship_fighter.png",
+        "ship_squid":      "ship_squid.png",
+
+        // 💡 Starter summons (use sparklinlabs sprites)
+        "stoneguard":      "giant.png",
+        "emberdrake":      "dragon.png",
+        "mistwisp":        "ghost.png",
+        "bloompixie":      "mushroom.png",
+
+        // 💡 Evolved starters
+        "iron_sentinel":       "giant.png",
+        "mountain_titan":      "giant.png",
+        "flare_wyrm":          "dragon.png",
+        "infernal_dragon":     "dragon.png",
+        "frost_spectre":       "ghost.png",
+        "abyssal_phantom":     "ghost.png",
+        "blossom_sylph":       "mushroom.png",
+        "world_tree_spirit":   "mushroom.png",
+
+        // 💡 UNCHANGED: Necromancer summons (keep existing assets)
         "skeleton":        "mutated (1).png",
         "skeleton_knight": "mutated (3).png",
         "lich_minion":     "mutated (4).png",
-
-        // Demon
-        "imp":         "hybrides (1).png",
-        "void_walker": "hybrides (3).png",
-
-        // Elemental
-        "flame_elemental":  "fire (5).png",
-        "frost_elemental":  "ice (1).png",
-        "storm_elemental":  "ice (3).png",
-
-        // Beast
-        "wolf": "mutated (5).png",
-        "bear": "mutated (2).png",
-
-        // Construct
-        "turret_mk1":   "earth (1).png",
-        "cannon_turret": "earth (3).png",
-
-        // Dragon
+        "imp":             "hybrides (1).png",
+        "void_walker":     "hybrides (3).png",
+        "flame_elemental": "fire (5).png",
+        "frost_elemental": "ice (1).png",
+        "storm_elemental": "ice (3).png",
+        "wolf":            "mutated (5).png",
+        "bear":            "mutated (2).png",
+        "turret_mk1":      "earth (1).png",
+        "cannon_turret":   "earth (3).png",
         "wyrmling":        "highlevelbosses (7).png",
         "juvenile_dragon": "highlevelbosses (9).png",
-
-        // SD Summons (Ifrit/Leviathan/Shiva) — high-tier evolutions
-        "ifrit_fire":     "ifrit_fire.png",
-        "ifrit_nofire":   "ifrit_nofire.png",
-        "leviathan":      "leviathan.png",
-        "shiva_full":     "shiva_full.png",
-        "shiva_ice":      "shiva_ice.png",
+        "ifrit_fire":      "ifrit_fire.png",
+        "ifrit_nofire":    "ifrit_nofire.png",
+        "leviathan":       "leviathan.png",
+        "shiva_full":      "shiva_full.png",
+        "shiva_ice":       "shiva_ice.png",
 }
 
 // GetSummonSpritePath returns the sprite file path for a summon species.
 // Checks multiple folders in priority order:
-// 1. summons/digimon/ (cached Digimon API sprites, transparent PNGs)
-// 2. summons/ (SD sprites like Ifrit/Leviathan/Shiva)
-// 3. summons/retromon/ (Retromon monster sprites)
-// 4. enemies/ (fallback to enemy sprite via SummonSprites map)
+// 1. summons/sparklinlabs/ (NEW: sparklinlabs monster sprites)
+// 2. summons/digimon/ (cached Digimon API sprites, transparent PNGs)
+// 3. summons/ (SD sprites like Ifrit/Leviathan/Shiva)
+// 4. summons/retromon/ (Retromon monster sprites)
+// 5. enemies/ (fallback to enemy sprite via SummonSprites map)
 func GetSummonSpritePath(species string, assetsPath string) string {
         species = strings.ToLower(strings.TrimSpace(species))
+
+        // 0. Check sparklinlabs (NEW: primary summon sprites)
+        sparkPath := filepath.Join(assetsPath, "rpgasset", "summons", "sparklinlabs", species+".png")
+        if fileExists(sparkPath) {
+                return sparkPath
+        }
 
         // 1. Check digimon cache
         digimonPath := filepath.Join(assetsPath, "rpgasset", "summons", "digimon", species+".png")
@@ -318,10 +351,15 @@ func GetSummonSpritePath(species string, assetsPath string) string {
                 return retromonPath
         }
 
-        // 4. Fallback to enemy sprite map
+        // 4. Fallback to SummonSprites map (which may point to sparklinlabs or enemies)
         filename, ok := SummonSprites[species]
         if !ok || filename == "" {
-                filename = "mutated (1).png"
+                filename = "slime.png"
+        }
+        // Check if the mapped file is in sparklinlabs first
+        sparkFallback := filepath.Join(assetsPath, "rpgasset", "summons", "sparklinlabs", filename)
+        if fileExists(sparkFallback) {
+                return sparkFallback
         }
         return filepath.Join(assetsPath, "rpgasset", "enemies", filename)
 }
