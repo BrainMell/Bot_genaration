@@ -77,6 +77,34 @@ func GenerateCombatImage(c *gin.Context) {
         dc.DrawRectangle(0, 0, CANVAS_W, CANVAS_H)
         dc.Fill()
 
+        // 💡 TURN INDICATOR HELPER (2026-08-03):
+        // Draws a golden glowing ellipse under the active attacker, BEFORE
+        // the sprite is drawn (so the sprite stands on top of it).
+        // Squashed vertically (0.4 ratio) for perspective.
+        // Two layers: outer golden glow + inner bright ring.
+        // Only draws if req.Action is set (TURN phase renders).
+        drawTurnIndicator := func(cx, cy, spriteW float64) {
+                r := spriteW * 0.45
+                if r < 30 {
+                        r = 30
+                }
+                // Outer golden glow (semi-transparent)
+                dc.SetColor(color.RGBA{255, 215, 0, 120})
+                dc.DrawEllipse(cx, cy, r, r*0.4)
+                dc.Fill()
+                // Inner bright ring (more opaque, warmer)
+                dc.SetColor(color.RGBA{255, 255, 200, 180})
+                dc.DrawEllipse(cx, cy, r*0.8, r*0.32)
+                dc.Fill()
+        }
+        // isAttacker checks if the entity at (side, index) is the active attacker.
+        isAttacker := func(side string, index int) bool {
+                if req.Action == nil {
+                        return false
+                }
+                return req.Action.AttackerSide == side && req.Action.AttackerIndex == index
+        }
+
         // 2. Mobs / Enemies
         enemySpriteSize := 190.0
         startX, startY := 780.0, 160.0
@@ -96,6 +124,7 @@ func GenerateCombatImage(c *gin.Context) {
                 img       image.Image
                 x, y      float64
                 hpPercent float64
+                origIndex int // 💡 carries the original enemy index through the Y-sort
         }
         var mobQueue []RenderItem
 
@@ -139,7 +168,7 @@ func GenerateCombatImage(c *gin.Context) {
                 if enemy.MaxHP > 0 {
                         hpPerc = float64(enemy.CurrentHP) / float64(enemy.MaxHP)
                 }
-                mobQueue = append(mobQueue, RenderItem{eSprite, ex, ey, hpPerc})
+                mobQueue = append(mobQueue, RenderItem{eSprite, ex, ey, hpPerc, i})
         }
         // Sort by Y (Painter's Algorithm)
         sort.Slice(mobQueue, func(i, j int) bool {
@@ -148,6 +177,12 @@ func GenerateCombatImage(c *gin.Context) {
 
         // Draw Mobs
         for _, mob := range mobQueue {
+                // 💡 TURN INDICATOR: draw golden ellipse under the attacker BEFORE the sprite.
+                if isAttacker("enemy", mob.origIndex) {
+                        cx := mob.x + float64(mob.img.Bounds().Dx())/2
+                        cy := mob.y + float64(mob.img.Bounds().Dy()) - 5
+                        drawTurnIndicator(cx, cy, float64(mob.img.Bounds().Dx()))
+                }
                 // Shadow
                 utils.DrawShadow(dc, mob.x+float64(mob.img.Bounds().Dx())/2, mob.y+float64(mob.img.Bounds().Dy())-10, float64(mob.img.Bounds().Dx())*0.4, 0.6)
                 // Sprite
@@ -223,6 +258,13 @@ func GenerateCombatImage(c *gin.Context) {
                         sy += spY
                 }
                 sx += float64(i/4) * -250.0
+
+                // 💡 TURN INDICATOR: draw golden ellipse under the attacker BEFORE the sprite.
+                if isAttacker("summon", i) {
+                        cx := sx + float64(sSprite.Bounds().Dx())/2
+                        cy := sy + float64(sSprite.Bounds().Dy()) - 5
+                        drawTurnIndicator(cx, cy, float64(sSprite.Bounds().Dx()))
+                }
 
                 // Shadow
                 utils.DrawShadow(dc, sx+float64(sSprite.Bounds().Dx())/2, sy+float64(sSprite.Bounds().Dy())-10, float64(sSprite.Bounds().Dx())*0.4, 0.6)
@@ -310,7 +352,7 @@ func GenerateCombatImage(c *gin.Context) {
 
                         // 6. Small full-body sprites on battlefield
                         if req.CombatType == "PVP" {
-                                drawPvPFighter := func(player Player, x, y int, flip bool) {
+                                drawPvPFighter := func(player Player, x, y int, flip bool, isAtk bool) {
                                         path := GetCharacterSpritePath(player.Class, player.SpriteIndex, assetsPath)
                                         sprite, err := utils.LoadImage(path)
                                         if err != nil {
@@ -322,6 +364,13 @@ func GenerateCombatImage(c *gin.Context) {
                                         sprite = imaging.Resize(sprite, 160, 0, imaging.NearestNeighbor)
                                         if flip {
                                                 sprite = imaging.FlipH(sprite)
+                                        }
+
+                                        // 💡 TURN INDICATOR: draw golden ellipse under the attacker BEFORE the sprite.
+                                        if isAtk {
+                                                cx := float64(x) + float64(sprite.Bounds().Dx())/2
+                                                cy := float64(y) + float64(sprite.Bounds().Dy()) - 5
+                                                drawTurnIndicator(cx, cy, float64(sprite.Bounds().Dx()))
                                         }
 
                                         utils.DrawShadow(dc, float64(x)+80, float64(y)+float64(sprite.Bounds().Dy()), 165, 0.6)
@@ -342,9 +391,9 @@ func GenerateCombatImage(c *gin.Context) {
                                         }
                                 }
 
-                                drawPvPFighter(p, int(startX-560), int(startY-30), false)
+                                drawPvPFighter(p, int(startX-560), int(startY-30), true, isAttacker("player", 0))
                                 if len(req.Players) > 1 {
-                                        drawPvPFighter(req.Players[1], int(startX-170), int(startY-30), true)
+                                        drawPvPFighter(req.Players[1], int(startX-170), int(startY-30), false, isAttacker("player", 1))
                                 }
                         } else {
                                 // PVE: draw ALL players in formation on the battlefield.
@@ -357,6 +406,13 @@ func GenerateCombatImage(c *gin.Context) {
                                 // Player[0] — same Y as enemies (startY), left side
                                 s2X := int(startX - 500)
                                 s2Y := int(startY)
+
+                                // 💡 TURN INDICATOR: draw golden ellipse under the attacker BEFORE the sprite.
+                                if isAttacker("player", 0) {
+                                        cx := float64(s2X) + float64(s2Size)/2
+                                        cy := float64(s2Y) + float64(flippedSprite.Bounds().Dy()) - 5
+                                        drawTurnIndicator(cx, cy, float64(s2Size))
+                                }
 
                                 utils.DrawShadow(dc, float64(s2X)+float64(s2Size)/2, float64(s2Y)+float64(flippedSprite.Bounds().Dy()), 150, 0.6)
                                 dc.DrawImage(flippedSprite, s2X, s2Y)
@@ -392,6 +448,13 @@ func GenerateCombatImage(c *gin.Context) {
                                         if sub == 1 || sub == 2 { apX -= int(spXF) } else if sub == 3 { apX -= int(spXF * 2) }
                                         if sub == 1 || sub == 3 { apY += int(spYF) }
                                         apX += int(float64(pi/4) * -250.0)
+
+                                        // 💡 TURN INDICATOR: draw golden ellipse under the attacker BEFORE the sprite.
+                                        if isAttacker("player", pi) {
+                                                cx := float64(apX) + float64(s2Size)/2
+                                                cy := float64(apY) + float64(apFlipped.Bounds().Dy()) - 5
+                                                drawTurnIndicator(cx, cy, float64(s2Size))
+                                        }
 
                                         utils.DrawShadow(dc, float64(apX)+float64(s2Size)/2, float64(apY)+float64(apFlipped.Bounds().Dy()), 150, 0.6)
                                         dc.DrawImage(apFlipped, apX, apY)
