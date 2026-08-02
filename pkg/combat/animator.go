@@ -338,13 +338,13 @@ func renderCombatFrame(req *CombatRequest, fs *frameState, assetsPath string) (i
         enemyAnchorX, enemyAnchorY := 780.0, 160.0
         spX, spY := 130.0, 110.0
 
-        // Player anchor (left side) — mirrored from enemy anchor
-        playerAnchorX := enemyAnchorX - 560.0 // 560px left of enemy anchor
+        // Player anchor (left side) — same Y as enemies for symmetry
+        playerAnchorX := enemyAnchorX - 560.0
         playerAnchorY := enemyAnchorY
 
-        // Summon anchor (left side, slightly forward)
-        summonAnchorX := playerAnchorX + 60.0
-        summonAnchorY := playerAnchorY + 30.0
+        // Summon anchor — BESIDE players as own entity, not stacked behind
+        summonAnchorX := playerAnchorX + 210.0 // 210px right of players = between players and enemies
+        summonAnchorY := enemyAnchorY          // same Y for visual symmetry
 
         avgLevel := 1
         if len(req.Players) > 0 {

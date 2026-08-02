@@ -684,12 +684,6 @@ func GenerateCardGif(c *gin.Context) {
         // pool on 0.1 CPU servers, causing most downloads to timeout.
         // Sequential with a short timeout per card is faster overall
         // because no retries are needed.
-<<<<<<< HEAD
-        // 💡 AUDIT FIX 2026-08-01 (Round 2): raised from 8s to 30s. The 8s
-        // timeout was too short for slow Cloudinary responses, causing cards
-        // to render as placeholders. Matches hybrid_grid.go fix.
-=======
->>>>>>> 36c8a64 (fix: re-apply lost Go fixes + player/summon formation + facing)
         client := &http.Client{Timeout: 30 * time.Second}
         localInputs := make([]CardInput, len(req.Images))
 

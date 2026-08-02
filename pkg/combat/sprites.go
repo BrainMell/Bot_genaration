@@ -43,24 +43,6 @@ var CharacterSprites = map[string][]string{
         "BARD":         {"acolyte.png"},
         "ARTIFICER":    {"apprentice1.png", "apprentice2.png", "apprentice3.png", "apprentice4.png"},
         "AVATAR":       {"elementalist (1).png", "elementalist (2).png", "elementalist (3).png", "elementalist (4).png"},
-<<<<<<< HEAD
-        // 💡 AUDIT FIX 2026-08-01 (Round 5): ascended classes had NO sprite
-        // mapping → fell back to FIGHTER. A Dragon God player looked like a
-        // basic Fighter on the battlefield. Now mapped to the closest
-        // thematic existing sprite (no new art files needed):
-        //   DRAGON_GOD     → DoomSlayer (powerful warrior look)
-        //   DRAGON_LORD    → Warlord (commander look)
-        //   KAGE            → Ninja (ninja master)
-        //   SHOGUN         → Samurai (samurai commander)
-        //   VIRTUOSO       → Bard/Acolyte (support class)
-        //   GRAND_INVENTOR → Artificer (inventor class)
-        "DRAGON_GOD":     {"DoomSlayer1.png", "DoomSlayer2.png"},
-        "DRAGON_LORD":    {"Warlord1.png", "warlord2.png", "warlord3.png"},
-        "KAGE":           {"ninja (1).png", "ninja (2).png", "ninja (3).png", "ninja (4).png", "ninja (5).png"},
-        "SHOGUN":         {"samuri (1).png", "samuri (2).png", "samuri (3).png", "samuri (4).png", "samuri (5).png", "samuri (6).png", "samuri (7).png", "samuri (8).png", "samuri (9).png", "samuri (10).png", "samuri (11).png"},
-        "VIRTUOSO":       {"acolyte.png"},
-        "GRAND_INVENTOR": {"apprentice1.png", "apprentice2.png", "apprentice3.png", "apprentice4.png"},
-=======
         // Ascended classes — mapped to closest thematic sprites
         "DRAGON_GOD":     {"DoomSlayer1.png", "DoomSlayer2.png"},
         "DRAGON_LORD":    {"Warlord1.png", "warlord2.png", "warlord3.png"},
@@ -68,7 +50,6 @@ var CharacterSprites = map[string][]string{
         "SHOGUN":         {"samuri (1).png", "samuri (2).png", "samuri (3).png"},
         "VIRTUOSO":       {"acolyte.png"},
         "GRAND_INVENTOR": {"apprentice1.png", "apprentice2.png"},
->>>>>>> 36c8a64 (fix: re-apply lost Go fixes + player/summon formation + facing)
 }
 
 var EnemySprites = map[string][]string{
