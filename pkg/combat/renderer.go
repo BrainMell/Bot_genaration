@@ -8,6 +8,7 @@ import (
         "os"
         "path/filepath"
         "sort"
+        "strings"
 
         "image-service/pkg/utils"
 
@@ -47,9 +48,11 @@ func GenerateCombatImage(c *gin.Context) {
                 }
         }
 
-        // If no background specified or doesn't exist, get random one
+        // If no background specified or doesn't exist, use a deterministic default.
+        // 💡 FIX: was getRandomEnvironment (random every render). Now uses
+        // rank-based selection so the same dungeon always gets the same background.
         if bgPath == "" || !fileExists(bgPath) {
-                bgPath = getRandomEnvironment(assetsPath)
+                bgPath = getRankBackground(req.Rank, assetsPath)
         }
 
         // Load and composite background
@@ -610,6 +613,53 @@ func drawBar(dc *gg.Context, uiPath func(string) string, x, y int, current, max 
 func fileExists(path string) bool {
         _, err := os.Stat(path)
         return err == nil
+}
+
+// getRankBackground returns a deterministic background based on the dungeon rank.
+// Same rank → same background every time. No randomness.
+func getRankBackground(rank string, assetsPath string) string {
+        envPath := filepath.Join(assetsPath, "rpgasset", "environment")
+        var filename string
+        switch strings.ToUpper(rank) {
+        case "F":
+                filename = "forest.png"
+        case "E":
+                filename = "env1.png"
+        case "D":
+                filename = "env2.png"
+        case "C":
+                filename = "sand.png"
+        case "B":
+                filename = "env3.png"
+        case "A":
+                filename = "ice.png"
+        case "S", "SS":
+                filename = "background1.png"
+        case "SSS":
+                filename = "background2.png"
+        case "GOD":
+                filename = "background3.png"
+        default:
+                filename = "forest.png"
+        }
+        path := filepath.Join(envPath, filename)
+        if fileExists(path) {
+                return path
+        }
+        // Fallback: first available file
+        entries, err := os.ReadDir(envPath)
+        if err != nil {
+                return ""
+        }
+        for _, entry := range entries {
+                if !entry.IsDir() {
+                        ext := filepath.Ext(entry.Name())
+                        if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
+                                return filepath.Join(envPath, entry.Name())
+                        }
+                }
+        }
+        return ""
 }
 
 func getRandomEnvironment(assetsPath string) string {
