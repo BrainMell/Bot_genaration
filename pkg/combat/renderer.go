@@ -194,8 +194,13 @@ func GenerateCombatImage(c *gin.Context) {
                 sW := enemySpriteSize * 0.8
                 sSprite = imaging.Resize(sSprite, int(sW), 0, imaging.NearestNeighbor)
 
-                // 💡 Flip summon to face enemies (right), same as players
-                sSprite = imaging.FlipH(sSprite)
+                // 💡 Ship sprites (Grand Inventor) face forward — rotate 90° to face right
+                if strings.Contains(summon.Species, "ship_") {
+                        sSprite = imaging.Rotate90(sSprite)
+                } else {
+                        // Normal sprites: flip to face enemies (right)
+                        sSprite = imaging.FlipH(sSprite)
+                }
 
                 // Tint red if dead
                 if summon.CurrentHP <= 0 {

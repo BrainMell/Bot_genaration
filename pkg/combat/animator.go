@@ -40,6 +40,7 @@ import (
         "os"
         "path/filepath"
         "sort"
+        "strings"
 
         "image-service/pkg/utils"
 
@@ -432,6 +433,13 @@ func renderCombatFrame(req *CombatRequest, fs *frameState, assetsPath string) (i
                 }
                 sSprite = imaging.Resize(sSprite, int(summonSpriteSize), 0, imaging.NearestNeighbor)
 
+                // 💡 Ship sprites face forward — rotate 90° to face right
+                if strings.Contains(summon.Species, "ship_") {
+                        sSprite = imaging.Rotate90(sSprite)
+                } else {
+                        sSprite = imaging.FlipH(sSprite)
+                }
+
                 // Position (same formation as enemies, mirrored to left)
                 sx, sy := summonAnchorX, summonAnchorY
                 sub := i % 4
@@ -527,7 +535,11 @@ func renderCombatFrame(req *CombatRequest, fs *frameState, assetsPath string) (i
                 }
 
                 // Apply attacker windup offset
-                if isAttacker && fs != nil {
+                // 💡 FIX: In PVP, DON'T move the attacker — keep everyone in their
+                // spawn position. The turn indicator (golden ellipse) shows whose
+                // turn it is. Only the windup lunge is kept (small 5-10px forward
+                // during the attack frame, not a permanent position change).
+                if isAttacker && fs != nil && req.CombatType != "PVP" {
                         px += fs.attackerDX
                         py += fs.attackerDY
                 }
