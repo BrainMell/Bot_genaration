@@ -88,12 +88,12 @@ func GenerateCombatImage(c *gin.Context) {
                 if r < 30 {
                         r = 30
                 }
-                // Outer golden glow (semi-transparent)
-                dc.SetColor(color.RGBA{255, 215, 0, 120})
+                // Outer golden glow (high alpha so it's clearly visible over dark backgrounds)
+                dc.SetColor(color.RGBA{255, 215, 0, 220})
                 dc.DrawEllipse(cx, cy, r, r*0.4)
                 dc.Fill()
-                // Inner bright ring (more opaque, warmer)
-                dc.SetColor(color.RGBA{255, 255, 200, 180})
+                // Inner bright ring (fully opaque, warm white-gold)
+                dc.SetColor(color.RGBA{255, 255, 200, 255})
                 dc.DrawEllipse(cx, cy, r*0.8, r*0.32)
                 dc.Fill()
         }
@@ -177,14 +177,15 @@ func GenerateCombatImage(c *gin.Context) {
 
         // Draw Mobs
         for _, mob := range mobQueue {
-                // 💡 TURN INDICATOR: draw golden ellipse under the attacker BEFORE the sprite.
+                // Shadow (drawn FIRST, under everything)
+                utils.DrawShadow(dc, mob.x+float64(mob.img.Bounds().Dx())/2, mob.y+float64(mob.img.Bounds().Dy())-10, float64(mob.img.Bounds().Dx())*0.4, 0.6)
+                // 💡 TURN INDICATOR: draw golden ellipse ON TOP of shadow, UNDER sprite.
+                // Must be after shadow so the golden circle is visible (shadow would cover it otherwise).
                 if isAttacker("enemy", mob.origIndex) {
                         cx := mob.x + float64(mob.img.Bounds().Dx())/2
                         cy := mob.y + float64(mob.img.Bounds().Dy()) - 5
                         drawTurnIndicator(cx, cy, float64(mob.img.Bounds().Dx()))
                 }
-                // Shadow
-                utils.DrawShadow(dc, mob.x+float64(mob.img.Bounds().Dx())/2, mob.y+float64(mob.img.Bounds().Dy())-10, float64(mob.img.Bounds().Dx())*0.4, 0.6)
                 // Sprite
                 dc.DrawImage(mob.img, int(mob.x), int(mob.y))
 
@@ -259,15 +260,15 @@ func GenerateCombatImage(c *gin.Context) {
                 }
                 sx += float64(i/4) * -250.0
 
-                // 💡 TURN INDICATOR: draw golden ellipse under the attacker BEFORE the sprite.
+                // Shadow (drawn FIRST)
+                utils.DrawShadow(dc, sx+float64(sSprite.Bounds().Dx())/2, sy+float64(sSprite.Bounds().Dy())-10, float64(sSprite.Bounds().Dx())*0.4, 0.6)
+
+                // 💡 TURN INDICATOR: draw golden ellipse ON TOP of shadow, UNDER sprite.
                 if isAttacker("summon", i) {
                         cx := sx + float64(sSprite.Bounds().Dx())/2
                         cy := sy + float64(sSprite.Bounds().Dy()) - 5
                         drawTurnIndicator(cx, cy, float64(sSprite.Bounds().Dx()))
                 }
-
-                // Shadow
-                utils.DrawShadow(dc, sx+float64(sSprite.Bounds().Dx())/2, sy+float64(sSprite.Bounds().Dy())-10, float64(sSprite.Bounds().Dx())*0.4, 0.6)
 
                 // Sprite
                 dc.DrawImage(sSprite, int(sx), int(sy))
@@ -366,14 +367,16 @@ func GenerateCombatImage(c *gin.Context) {
                                                 sprite = imaging.FlipH(sprite)
                                         }
 
-                                        // 💡 TURN INDICATOR: draw golden ellipse under the attacker BEFORE the sprite.
+                                        // Shadow (drawn FIRST)
+                                        utils.DrawShadow(dc, float64(x)+80, float64(y)+float64(sprite.Bounds().Dy()), 165, 0.6)
+
+                                        // 💡 TURN INDICATOR: draw golden ellipse ON TOP of shadow, UNDER sprite.
                                         if isAtk {
                                                 cx := float64(x) + float64(sprite.Bounds().Dx())/2
                                                 cy := float64(y) + float64(sprite.Bounds().Dy()) - 5
                                                 drawTurnIndicator(cx, cy, float64(sprite.Bounds().Dx()))
                                         }
 
-                                        utils.DrawShadow(dc, float64(x)+80, float64(y)+float64(sprite.Bounds().Dy()), 165, 0.6)
                                         dc.DrawImage(sprite, x, y)
 
                                         hpPercent := 0.0
@@ -407,14 +410,16 @@ func GenerateCombatImage(c *gin.Context) {
                                 s2X := int(startX - 500)
                                 s2Y := int(startY)
 
-                                // 💡 TURN INDICATOR: draw golden ellipse under the attacker BEFORE the sprite.
+                                // Shadow (drawn FIRST)
+                                utils.DrawShadow(dc, float64(s2X)+float64(s2Size)/2, float64(s2Y)+float64(flippedSprite.Bounds().Dy()), 150, 0.6)
+
+                                // 💡 TURN INDICATOR: draw golden ellipse ON TOP of shadow, UNDER sprite.
                                 if isAttacker("player", 0) {
                                         cx := float64(s2X) + float64(s2Size)/2
                                         cy := float64(s2Y) + float64(flippedSprite.Bounds().Dy()) - 5
                                         drawTurnIndicator(cx, cy, float64(s2Size))
                                 }
 
-                                utils.DrawShadow(dc, float64(s2X)+float64(s2Size)/2, float64(s2Y)+float64(flippedSprite.Bounds().Dy()), 150, 0.6)
                                 dc.DrawImage(flippedSprite, s2X, s2Y)
 
                                 // HP bar for player[0]
@@ -449,14 +454,16 @@ func GenerateCombatImage(c *gin.Context) {
                                         if sub == 1 || sub == 3 { apY += int(spYF) }
                                         apX += int(float64(pi/4) * -250.0)
 
-                                        // 💡 TURN INDICATOR: draw golden ellipse under the attacker BEFORE the sprite.
+                                        // Shadow (drawn FIRST)
+                                        utils.DrawShadow(dc, float64(apX)+float64(s2Size)/2, float64(apY)+float64(apFlipped.Bounds().Dy()), 150, 0.6)
+
+                                        // 💡 TURN INDICATOR: draw golden ellipse ON TOP of shadow, UNDER sprite.
                                         if isAttacker("player", pi) {
                                                 cx := float64(apX) + float64(s2Size)/2
                                                 cy := float64(apY) + float64(apFlipped.Bounds().Dy()) - 5
                                                 drawTurnIndicator(cx, cy, float64(s2Size))
                                         }
 
-                                        utils.DrawShadow(dc, float64(apX)+float64(s2Size)/2, float64(apY)+float64(apFlipped.Bounds().Dy()), 150, 0.6)
                                         dc.DrawImage(apFlipped, apX, apY)
 
                                         if ap.MaxHP > 0 && ap.CurrentHP > 0 {
