@@ -394,9 +394,18 @@ func GenerateCombatImage(c *gin.Context) {
                                         }
                                 }
 
-                                drawPvPFighter(p, int(startX-560), int(startY-30), true, isAttacker("player", 0))
+                                // 💡 FIX 2026-08-03: Per-sprite facing detection.
+                                // Player 1 (LEFT) should face RIGHT (toward player 2).
+                                // Player 2 (RIGHT) should face LEFT (toward player 1).
+                                // Use ShouldFlipForPvE (makes sprite face RIGHT) for player 1.
+                                // Use ShouldFlipForPvPRight (makes sprite face LEFT) for player 2.
+                                p1SpriteFile := GetCharacterSpriteFile(p.Class, p.SpriteIndex, assetsPath)
+                                p1Flip := ShouldFlipForPvE(filepath.Base(p1SpriteFile))
+                                drawPvPFighter(p, int(startX-560), int(startY-30), p1Flip, isAttacker("player", 0))
                                 if len(req.Players) > 1 {
-                                        drawPvPFighter(req.Players[1], int(startX-170), int(startY-30), false, isAttacker("player", 1))
+                                        p2SpriteFile := GetCharacterSpriteFile(req.Players[1].Class, req.Players[1].SpriteIndex, assetsPath)
+                                        p2Flip := ShouldFlipForPvPRight(filepath.Base(p2SpriteFile))
+                                        drawPvPFighter(req.Players[1], int(startX-170), int(startY-30), p2Flip, isAttacker("player", 1))
                                 }
                         } else {
                                 // PVE: draw ALL players in formation on the battlefield.
@@ -404,7 +413,16 @@ func GenerateCombatImage(c *gin.Context) {
                                 // Same Y level as enemies for visual symmetry.
                                 s2Size := 122
                                 smallSprite := imaging.Resize(pSprite, s2Size, 0, imaging.NearestNeighbor)
-                                flippedSprite := imaging.FlipH(smallSprite)
+                                // 💡 FIX 2026-08-03: Per-sprite facing detection.
+                                // Only flip if the sprite faces LEFT or CENTER (to make it face RIGHT).
+                                // Don't flip sprites that already face RIGHT.
+                                pSpriteFile := GetCharacterSpriteFile(p.Class, p.SpriteIndex, assetsPath)
+                                var flippedSprite image.Image
+                                if ShouldFlipForPvE(pSpriteFile) {
+                                        flippedSprite = imaging.FlipH(smallSprite)
+                                } else {
+                                        flippedSprite = smallSprite
+                                }
 
                                 // Player[0] — same Y as enemies (startY), left side
                                 s2X := int(startX - 500)
@@ -442,7 +460,14 @@ func GenerateCombatImage(c *gin.Context) {
                                         apSprite, err := utils.LoadImage(apPath)
                                         if err != nil { continue }
                                         apResized := imaging.Resize(apSprite, s2Size, 0, imaging.NearestNeighbor)
-                                        apFlipped := imaging.FlipH(apResized)
+                                        // 💡 FIX 2026-08-03: Per-sprite facing — only flip if LEFT/CENTER
+                                        apSpriteFile := GetCharacterSpriteFile(ap.Class, ap.SpriteIndex, assetsPath)
+                                        var apFlipped image.Image
+                                        if ShouldFlipForPvE(apSpriteFile) {
+                                                apFlipped = imaging.FlipH(apResized)
+                                        } else {
+                                                apFlipped = apResized
+                                        }
 
                                         // Formation: mirror enemy pattern, 4 per row
                                         apX := int(startX - 500)
