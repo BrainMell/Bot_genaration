@@ -57,8 +57,12 @@ var CharacterSprites = map[string][]string{
 // The renderer uses this to decide whether to flip a sprite so
 // ALL players face RIGHT (toward enemies) in PvE.
 var SpriteFacing = map[string]string{
-        "Berserker1.png": "CENTER",
-        "Berserker2.png": "CENTER",
+        // 💡 FIX 2026-08-05: Berserker1/2 actually face RIGHT (raw VLM + pixel
+        // check confirmed). Were mislabeled as CENTER, causing ShouldFlipForPvE
+        // to flip them → rendered facing LEFT (away from enemies). Berserker3
+        // is symmetric, so CENTER is harmless for it.
+        "Berserker1.png": "RIGHT",
+        "Berserker2.png": "RIGHT",
         "Berserker3.png": "CENTER",
         "DoomSlayer1.png": "CENTER",
         "DoomSlayer2.png": "CENTER",
