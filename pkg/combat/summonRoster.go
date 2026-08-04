@@ -133,12 +133,13 @@ func GenerateSummonRosterGIF(c *gin.Context) {
         }
 
         // ── 3. Calculate summon positions (side by side, centered) ──
-        summonSize := 150
-        summonSpacing := 20
+        summonBoxW := 160  // width of each summon's slot
+        summonBoxH := 180  // height of each summon's slot
+        summonSpacing := 30
         numSummons := len(gifs)
-        totalWidth := numSummons*summonSize + (numSummons-1)*summonSpacing
+        totalWidth := numSummons*summonBoxW + (numSummons-1)*summonSpacing
         startX := (W - totalWidth) / 2
-        summonY := 180
+        summonY := 170
 
         // ── 4. Render each frame ──
         var outFrames []*image.Paletted
@@ -168,7 +169,6 @@ func GenerateSummonRosterGIF(c *gin.Context) {
                 // Title
                 dc.SetColor(color.RGBA{255, 215, 0, 255})
                 if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "dogicapixelbold.otf"), 22); err != nil {
-                        
                 }
                 dc.DrawStringAnchored("🐉 SUMMON ROSTER", 30, 35, 0, 0.5)
 
@@ -176,7 +176,6 @@ func GenerateSummonRosterGIF(c *gin.Context) {
                 slotStr := fmt.Sprintf("%d/%d slots", req.SlotsUsed, req.SlotsMax)
                 dc.SetColor(color.RGBA{255, 255, 255, 200})
                 if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "PixeloidSans.ttf"), 15); err != nil {
-                        
                 }
                 dc.DrawStringAnchored(slotStr, float64(W-30), 35, 1, 0.5)
 
@@ -185,15 +184,47 @@ func GenerateSummonRosterGIF(c *gin.Context) {
                         gifFrameIdx := frameIdx % len(gd.frames)
                         spriteImg := gd.frames[gifFrameIdx]
 
-                        // Resize the sprite to fixed square (prevents frame-to-frame size variation)
-                        resized := imaging.Resize(spriteImg, summonSize, summonSize, imaging.NearestNeighbor)
+                        // 💡 FIX: Use imaging.Fit (contain mode) instead of Resize (stretch).
+                        // Fit preserves aspect ratio — sprites that are taller than wide
+                        // stay tall, wider than tall stay wide. No distortion.
+                        // Max size is summonBoxW x summonBoxH.
+                        fitted := imaging.Fit(spriteImg, summonBoxW, summonBoxH, imaging.NearestNeighbor)
+                        fittedW := fitted.Bounds().Dx()
+                        fittedH := fitted.Bounds().Dy()
 
-                        // Draw shadow under summon
-                        x := startX + i*(summonSize+summonSpacing)
-                        utils.DrawShadow(dc, float64(x)+float64(summonSize)/2, float64(summonY+summonSize)-10, float64(summonSize)*0.4, 0.6)
+                        // Slot position
+                        slotX := startX + i*(summonBoxW+summonSpacing)
+                        slotCenterX := slotX + summonBoxW/2
 
-                        // Draw the sprite
-                        dc.DrawImage(resized, x, summonY)
+                        // Sprite is bottom-aligned in the slot (feet on the ground)
+                        // and horizontally centered
+                        spriteDrawX := slotCenterX - fittedW/2
+                        spriteDrawY := summonY + summonBoxH - fittedH
+
+                        // ── Shadow (natural ellipse, perspective squashed) ──
+                        // Draw BEFORE the sprite so the sprite stands on top.
+                        // Use a separate context for the shadow so we can blur it
+                        // before compositing onto the main canvas.
+                        shadowCenterX := float64(slotCenterX)
+                        shadowCenterY := float64(summonY + summonBoxH) - 5
+                        shadowRadiusX := float64(fittedW) * 0.45
+                        if shadowRadiusX < 30 {
+                                shadowRadiusX = 30
+                        }
+                        shadowRadiusY := shadowRadiusX * 0.3
+
+                        // Create a shadow on a transparent layer, then blur + composite
+                        shadowCtx := gg.NewContext(int(shadowRadiusX*2)+4, int(shadowRadiusY*2)+4)
+                        shadowCtx.SetColor(color.RGBA{0, 0, 0, 120})
+                        shadowCtx.DrawEllipse(float64(shadowCtx.Width())/2, float64(shadowCtx.Height())/2, shadowRadiusX, shadowRadiusY)
+                        shadowCtx.Fill()
+                        // Blur the shadow for soft edges
+                        blurredShadow := imaging.Blur(shadowCtx.Image(), 3.0)
+                        // Composite onto main canvas centered at feet
+                        dc.DrawImageAnchored(blurredShadow, int(shadowCenterX), int(shadowCenterY), 0.5, 0.5)
+
+                        // ── Draw the sprite ──
+                        dc.DrawImage(fitted, spriteDrawX, spriteDrawY)
 
                         // Draw name + level below sprite
                         summon := req.Summons[i]
@@ -208,27 +239,25 @@ func GenerateSummonRosterGIF(c *gin.Context) {
                         rarityColor := getRarityColor(summon.Rarity)
                         dc.SetColor(rarityColor)
                         if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "dogicapixelbold.otf"), 13); err != nil {
-                                
                         }
-                        dc.DrawStringAnchored(name, float64(x+summonSize/2), float64(summonY+summonSize+12), 0.5, 0.5)
+                        dc.DrawStringAnchored(name, float64(slotCenterX), float64(summonY+summonBoxH+12), 0.5, 0.5)
 
                         dc.SetColor(color.RGBA{255, 255, 255, 180})
                         if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "PixeloidSans.ttf"), 12); err != nil {
-                                
                         }
                         infoStr := fmt.Sprintf("Lv.%d %s", summon.Level, summon.Rarity)
-                        dc.DrawStringAnchored(infoStr, float64(x+summonSize/2), float64(summonY+summonSize+28), 0.5, 0.5)
+                        dc.DrawStringAnchored(infoStr, float64(slotCenterX), float64(summonY+summonBoxH+28), 0.5, 0.5)
 
                         // Deployed indicator
                         if summon.IsDeployed {
                                 dc.SetColor(color.RGBA{255, 215, 0, 255})
-                                dc.DrawStringAnchored("⭐", float64(x+summonSize-15), float64(summonY+5), 0.5, 0.5)
+                                dc.DrawStringAnchored("⭐", float64(slotX+summonBoxW-15), float64(summonY+5), 0.5, 0.5)
                         }
 
                         // Loyalty bar
-                        barW := summonSize - 20
-                        barX := x + 10
-                        barY := summonY + summonSize + 38
+                        barW := summonBoxW - 20
+                        barX := slotX + 10
+                        barY := summonY + summonBoxH + 38
                         dc.SetColor(color.RGBA{0, 0, 0, 120})
                         dc.DrawRectangle(float64(barX), float64(barY), float64(barW), 5)
                         dc.Fill()
