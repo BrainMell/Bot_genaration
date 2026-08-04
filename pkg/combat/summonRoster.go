@@ -133,17 +133,18 @@ func GenerateSummonRosterGIF(c *gin.Context) {
         }
 
         // ── 3. Calculate summon positions ──
-        // 💡 FIX 2026-08-04: Scale all sprites to a FIXED HEIGHT (not Fit to box).
-        // This ensures: (a) StoneGuard (385x318, wide) renders at full height,
-        // (b) all sprites are the same height = consistent, (c) wider sprites
-        // naturally look bigger (as they should — a giant IS bigger than a ghost).
-        // Width is capped at maxSpriteW to prevent overlap.
-        const spriteH = 200   // fixed render height for all sprites
-        const maxSpriteW = 220 // cap width so sprites don't overlap
-        const slotW = 230     // slot width (includes spacing)
-        const groundY = 380   // Y coordinate of the "ground" (where feet + shadow sit)
-        numSummons := len(gifs)
-        totalWidth := numSummons*slotW
+        // 💡 CODEX LAYOUT 2026-08-04: 5 per page in a 3-back / 2-front arrangement.
+        // Back row: 3 sprites (positions 0, 1, 2)
+        // Front row: 2 sprites (positions 3, 4) — offset between back row sprites
+        // This creates depth and keeps all sprites inside the frame.
+        const spriteH = 160   // smaller for codex (5 per page)
+        const maxSpriteW = 180
+        const slotW = 200
+        const backRowY = 280  // back row ground line
+        const frontRowY = 400 // front row ground line (lower = closer)
+        _ = len(gifs)
+        // Calculate total width for 3 columns
+        totalWidth := 3 * slotW
         startX := (W - totalWidth) / 2
 
         // ── 4. Render each frame ──
@@ -220,9 +221,18 @@ func GenerateSummonRosterGIF(c *gin.Context) {
                         // How much empty space is below the visible content
                         bottomPadding := (dstH - 1) - visibleBottom
 
-                        // Slot position
-                        slotX := startX + i*slotW
-                        slotCenterX := slotX + slotW/2
+                        // 💡 2-ROW LAYOUT: Back row = positions 0,1,2. Front row = 3,4 (offset between back).
+                        var slotCenterX, groundY int
+                        if i < 3 {
+                                // Back row: 3 sprites in columns 0, 1, 2
+                                slotCenterX = startX + i*slotW + slotW/2
+                                groundY = backRowY
+                        } else {
+                                // Front row: 2 sprites offset between back row columns
+                                frontCol := i - 3 // 0 or 1
+                                slotCenterX = startX + frontCol*slotW + slotW + slotW/2
+                                groundY = frontRowY
+                        }
 
                         // Position sprite so its VISIBLE bottom sits on the ground line
                         spriteDrawX := slotCenterX - dstW/2
@@ -255,36 +265,21 @@ func GenerateSummonRosterGIF(c *gin.Context) {
 
                         rarityColor := getRarityColor(summon.Rarity)
                         dc.SetColor(rarityColor)
-                        if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "dogicapixelbold.otf"), 13); err != nil {}
-                        dc.DrawStringAnchored(name, float64(slotCenterX), float64(groundY+12), 0.5, 0.5)
+                        if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "dogicapixelbold.otf"), 12); err != nil {}
+                        dc.DrawStringAnchored(name, float64(slotCenterX), float64(groundY+10), 0.5, 0.5)
 
                         dc.SetColor(color.RGBA{255, 255, 255, 180})
-                        if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "PixeloidSans.ttf"), 12); err != nil {}
-                        infoStr := fmt.Sprintf("Lv.%d %s", summon.Level, summon.Rarity)
-                        dc.DrawStringAnchored(infoStr, float64(slotCenterX), float64(groundY+28), 0.5, 0.5)
+                        if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "PixeloidSans.ttf"), 11); err != nil {}
+                        infoStr := fmt.Sprintf("%s", summon.Rarity)
+                        dc.DrawStringAnchored(infoStr, float64(slotCenterX), float64(groundY+24), 0.5, 0.5)
 
                         if summon.IsDeployed {
                                 dc.SetColor(color.RGBA{255, 215, 0, 255})
-                                dc.DrawStringAnchored("⭐", float64(slotX+slotW-15), float64(groundY-spriteH+5), 0.5, 0.5)
+                                dc.DrawStringAnchored("⭐", float64(slotCenterX), float64(groundY-spriteH+5), 0.5, 0.5)
                         }
-
-                        // Loyalty bar
-                        barW := slotW - 30
-                        barX := slotX + 15
-                        barY := groundY + 38
-                        dc.SetColor(color.RGBA{0, 0, 0, 120})
-                        dc.DrawRectangle(float64(barX), float64(barY), float64(barW), 5)
-                        dc.Fill()
-                        loyaltyPct := float64(summon.Loyalty) / 100.0
-                        loyColor := color.RGBA{76, 175, 80, 255}
-                        if summon.Loyalty < 50 { loyColor = color.RGBA{255, 152, 0, 255} }
-                        if summon.Loyalty < 25 { loyColor = color.RGBA{244, 67, 54, 255} }
-                        dc.SetColor(loyColor)
-                        dc.DrawRectangle(float64(barX), float64(barY), float64(barW)*loyaltyPct, 5)
-                        dc.Fill()
                 }
 
-                // ── Info Hub (bottom panel) ──
+                // ── Info Hub (codex-specific) ──
                 hubY := 480
                 hubH := 230
                 dc.SetColor(color.RGBA{0, 0, 0, 180})
@@ -295,84 +290,35 @@ func GenerateSummonRosterGIF(c *gin.Context) {
                 dc.DrawRoundedRectangle(15, float64(hubY), float64(W-30), float64(hubH), 10)
                 dc.Stroke()
 
-                // Hub title
+                // Codex hub title
                 dc.SetColor(color.RGBA{255, 215, 0, 255})
-                if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "dogicapixelbold.otf"), 15); err != nil {
-                        
+                if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "dogicapixelbold.otf"), 16); err != nil {}
+                totalSpecies := len(req.Summons)
+                hubTitle := fmt.Sprintf("📖 SUMMON CODEX — %d species shown", totalSpecies)
+                if req.UserNickname == "CODEX" {
+                    // Codex mode — show page info
+                    hubTitle = fmt.Sprintf("📖 SUMMON CODEX — Browsing %d species", totalSpecies)
                 }
-                dc.DrawStringAnchored("📋 SUMMON INFO HUB", 30, float64(hubY+15), 0, 0.5)
+                dc.DrawStringAnchored(hubTitle, 30, float64(hubY+15), 0, 0.5)
 
-                // Show active summon details or summary
-                if req.ActiveIndex >= 0 && req.ActiveIndex < len(req.Summons) {
-                        s := req.Summons[req.ActiveIndex]
-                        name := s.Nickname
-                        if name == "" {
-                                name = s.Species
-                        }
-
-                        dc.SetColor(color.RGBA{255, 215, 0, 255})
-                        if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "dogicapixelbold.otf"), 18); err != nil {
-                                
-                        }
-                        dc.DrawStringAnchored("⭐ "+name, 30, float64(hubY+42), 0, 0.5)
-
-                        dc.SetColor(color.RGBA{255, 255, 255, 200})
-                        if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "PixeloidSans.ttf"), 13); err != nil {
-                                
-                        }
-                        detailStr := fmt.Sprintf("Lv.%d %s | %s | %s", s.Level, s.Rarity, s.Element, s.Archetype)
-                        dc.DrawStringAnchored(detailStr, 30, float64(hubY+65), 0, 0.5)
-
-                        // Stats row
-                        statY := hubY + 90
-                        stats := []struct {
-                                label string
-                                value int
-                                color color.RGBA
-                        }{
-                                {"HP", s.HP, color.RGBA{255, 107, 107, 255}},
-                                {"ATK", s.ATK, color.RGBA{255, 217, 61, 255}},
-                                {"DEF", s.DEF, color.RGBA{79, 195, 247, 255}},
-                                {"MAG", s.MAG, color.RGBA{156, 39, 176, 255}},
-                                {"SPD", s.SPD, color.RGBA{76, 175, 80, 255}},
-                        }
-                        for si, stat := range stats {
-                                sx := 30 + si*130
-                                dc.SetColor(stat.color)
-                                if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "dogicapixelbold.otf"), 12); err != nil {
-                                        
-                                }
-                                dc.DrawStringAnchored(stat.label, float64(sx), float64(statY), 0, 0.5)
-                                dc.SetColor(color.RGBA{255, 255, 255, 230})
-                                if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "PixeloidSans.ttf"), 14); err != nil {
-                                        
-                                }
-                                dc.DrawStringAnchored(fmt.Sprintf("%d", stat.value), float64(sx+35), float64(statY), 0, 0.5)
-                        }
-
-                        // Loyalty
-                        loyStr := fmt.Sprintf("Loyalty: %d%%", s.Loyalty)
-                        dc.SetColor(color.RGBA{255, 255, 255, 150})
-                        if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "PixeloidSans.ttf"), 12); err != nil {
-                                
-                        }
-                        dc.DrawStringAnchored(loyStr, 30, float64(hubY+120), 0, 0.5)
-                } else {
-                        dc.SetColor(color.RGBA{255, 255, 255, 150})
-                        if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "PixeloidSans.ttf"), 13); err != nil {
-                                
-                        }
-                        dc.DrawStringAnchored("No summon deployed. Use .summon <#> deploy to deploy one.", 30, float64(hubY+42), 0, 0.5)
-                        summaryStr := fmt.Sprintf("📊 Collection: %d summons | Slots: %d/%d", len(req.Summons), req.SlotsUsed, req.SlotsMax)
-                        dc.DrawStringAnchored(summaryStr, 30, float64(hubY+65), 0, 0.5)
+                // Show species list in the hub
+                dc.SetColor(color.RGBA{255, 255, 255, 200})
+                if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "PixeloidSans.ttf"), 13); err != nil {}
+                for si, s := range req.Summons {
+                        row := si / 3
+                        col := si % 3
+                        sx := 30 + col*220
+                        sy := hubY + 45 + row*25
+                        speciesName := s.Nickname
+                        if speciesName == "" { speciesName = s.Species }
+                        line := fmt.Sprintf("%d. %s (%s)", si+1, speciesName, s.Rarity)
+                        dc.DrawStringAnchored(line, float64(sx), float64(sy), 0, 0.5)
                 }
 
-                // Hub footer — commands hint
-                dc.SetColor(color.RGBA{255, 255, 255, 100})
-                if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "PixeloidSans.ttf"), 11); err != nil {
-                        
-                }
-                dc.DrawStringAnchored(".summon <#> — view  |  .summon <#> deploy  |  .summon help", float64(W/2), float64(hubY+hubH-15), 0.5, 0.5)
+                // Commands hint
+                dc.SetColor(color.RGBA{255, 255, 255, 120})
+                if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "PixeloidSans.ttf"), 11); err != nil {}
+                dc.DrawStringAnchored(".summon codex <page> — navigate pages", float64(W/2), float64(hubY+hubH-15), 0.5, 0.5)
 
                 // Convert to paletted for GIF
                 frameImg := dc.Image()
