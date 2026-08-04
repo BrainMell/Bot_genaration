@@ -73,9 +73,10 @@ func GenerateSummonRosterGIF(c *gin.Context) {
         // to grow/shrink/jump during animation.
         // Fix: composite each frame onto the full GIF logical canvas first.
         type gifData struct {
-                frames []image.Image
-                delays []int
-                sprite string
+                frames   []image.Image
+                delays   []int
+                sprite   string
+                cropRect image.Rectangle // 💡 FIXED crop region (union of all frames' visible bounds)
         }
         var gifs []gifData
         maxFrames := 1
@@ -134,10 +135,17 @@ func GenerateSummonRosterGIF(c *gin.Context) {
                         frameDelays = []int{10}
                 }
 
+                // 💡 FIX 2026-08-04: Compute FIXED crop rect from the UNION of all
+                // frames' visible bounds. This preserves the bobbing animation —
+                // if we cropped each frame independently, the sprite would be
+                // re-positioned to the top-left of the crop, destroying the motion.
+                cropRect := computeUnionVisibleBounds(fullFrames)
+
                 gd := gifData{
-                        frames: fullFrames,
-                        delays: frameDelays,
-                        sprite: s.Species,
+                        frames:   fullFrames,
+                        delays:   frameDelays,
+                        sprite:   s.Species,
+                        cropRect: cropRect,
                 }
                 gifs = append(gifs, gd)
                 if len(fullFrames) > maxFrames {
@@ -149,11 +157,18 @@ func GenerateSummonRosterGIF(c *gin.Context) {
         // 💡 CODEX LAYOUT: 5 per page in a 2-back / 3-front arrangement.
         // Back row: 2 sprites (positions 0, 1)
         // Front row: 3 sprites (positions 2, 3, 4)
-        const spriteH = 160
-        const maxSpriteW = 180
+        //
+        // 💡 FIX 2026-08-04: Sprites doubled in size (320px, was 160px).
+        // All sprites now use imaging.Fit (contain) so they're the SAME
+        // bounding-box size regardless of source aspect ratio. Shadow
+        // radius is FIXED (not scaled with sprite) to keep shadows at
+        // their previous visual size.
+        const spriteH = 320
+        const maxSpriteW = 360
         const slotW = 200
-        const backRowY = 260  // back row ground line (higher = further away)
-        const frontRowY = 400 // front row ground line (lower = closer)
+        const backRowY = 320  // back row ground line (moved down for bigger sprites)
+        const frontRowY = 480 // front row ground line (moved down for bigger sprites)
+        const shadowRadiusFixed = 75.0 // fixed shadow radius (was dstW*0.42 ~75)
         _ = len(gifs)
         // Calculate total width for 3 columns (front row width)
         totalWidth := 3 * slotW
@@ -195,43 +210,38 @@ func GenerateSummonRosterGIF(c *gin.Context) {
                         gifFrameIdx := frameIdx % len(gd.frames)
                         spriteImg := gd.frames[gifFrameIdx]
 
-                        srcW := spriteImg.Bounds().Dx()
-                        srcH := spriteImg.Bounds().Dy()
+                        // 💡 FIX 2026-08-04: Apply the FIXED crop rect (computed once
+                        // from the union of all frames' visible bounds). This removes
+                        // transparent padding so imaging.Fit scales the actual sprite
+                        // content — while preserving the bobbing animation (the crop
+                        // region is the same for every frame, so the sprite's position
+                        // within the crop changes with the bob).
+                        croppedImg := applyCrop(spriteImg, gd.cropRect)
 
-                        // Scale to fixed height, preserve aspect ratio
-                        scale := float64(spriteH) / float64(srcH)
-                        dstW := int(float64(srcW) * scale)
-                        dstH := spriteH
+                        // 💡 FIX 2026-08-04: Manual contain-fit (scale UP or DOWN).
+                        // imaging.Fit does NOT upscale small images. We calculate the
+                        // scale factor ourselves and use imaging.Resize which always scales.
+                        cb := croppedImg.Bounds()
+                        cW := cb.Dx()
+                        cH := cb.Dy()
+                        sW := float64(maxSpriteW) / float64(cW)
+                        sH := float64(spriteH) / float64(cH)
+                        fitScale := sW
+                        if sH < fitScale { fitScale = sH }
+                        dstW := int(float64(cW) * fitScale)
+                        dstH := int(float64(cH) * fitScale)
+                        if dstW < 1 { dstW = 1 }
+                        if dstH < 1 { dstH = 1 }
+                        resized := imaging.Resize(croppedImg, dstW, dstH, imaging.NearestNeighbor)
 
-                        // Cap width if too wide
-                        if dstW > maxSpriteW {
-                                dstW = maxSpriteW
-                                // Recalculate height to preserve aspect ratio
-                                dstH = int(float64(srcH) * (float64(maxSpriteW) / float64(srcW)))
-                        }
-
-                        resized := imaging.Resize(spriteImg, dstW, dstH, imaging.NearestNeighbor)
-
-                        // Find the actual visible bottom of the sprite (lowest non-transparent row)
-                        // This fixes the "floating" issue where GIF canvas has transparent padding
-                        visibleBottom := dstH - 1
-                        bounds := resized.Bounds()
-                        for y := bounds.Max.Y - 1; y >= bounds.Min.Y; y-- {
-                                foundPixel := false
-                                for x := bounds.Min.X; x < bounds.Max.X; x++ {
-                                        _, _, _, a := resized.At(x, y).RGBA()
-                                        if a > 10 {
-                                                foundPixel = true
-                                                break
-                                        }
-                                }
-                                if foundPixel {
-                                        visibleBottom = y
-                                        break
-                                }
-                        }
-                        // How much empty space is below the visible content
-                        bottomPadding := (dstH - 1) - visibleBottom
+                        // 💡 FIX 2026-08-04: Do NOT recalculate visibleBottom per-frame.
+                        // Since we already cropped to the UNION of all frames' visible
+                        // bounds, the crop region's bottom IS the lowest the sprite
+                        // ever goes. Position the sprite so the BOTTOM of the resized
+                        // image sits on the ground line. The bobbing happens WITHIN
+                        // this fixed position (the sprite moves up/down inside the
+                        // crop box, but the box itself doesn't move).
+                        bottomPadding := 0 // no per-frame adjustment — crop already handled it
 
                         // 💡 2-ROW LAYOUT: Back row = positions 0,1. Front row = 2,3,4.
                         // Back row sprites are centered between front row columns.
@@ -250,17 +260,14 @@ func GenerateSummonRosterGIF(c *gin.Context) {
                                 groundY = frontRowY
                         }
 
-                        // Position sprite so its VISIBLE bottom sits on the ground line
+                        // Position sprite so the BOTTOM of the crop region sits on the ground line
                         spriteDrawX := slotCenterX - dstW/2
                         spriteDrawY := groundY - dstH + bottomPadding
 
-                        // ── Shadow ──
+                        // ── Shadow (FIXED size — does not scale with sprite) ──
                         shadowCenterX := float64(slotCenterX)
                         shadowCenterY := float64(groundY) - 2
-                        shadowRadiusX := float64(dstW) * 0.42
-                        if shadowRadiusX < 35 {
-                                shadowRadiusX = 35
-                        }
+                        shadowRadiusX := shadowRadiusFixed
                         shadowRadiusY := shadowRadiusX * 0.28
 
                         shadowCtx := gg.NewContext(int(shadowRadiusX*2)+6, int(shadowRadiusY*2)+6)
@@ -273,21 +280,46 @@ func GenerateSummonRosterGIF(c *gin.Context) {
                         // Draw the sprite
                         dc.DrawImage(resized, spriteDrawX, spriteDrawY)
 
-                        // Name + level
+                        // ── Name + rarity badge + rarity-colored name ──
                         summon := req.Summons[i]
                         name := summon.Nickname
                         if name == "" { name = summon.Species }
                         if len(name) > 14 { name = name[:12] + "…" }
 
                         rarityColor := getRarityColor(summon.Rarity)
-                        dc.SetColor(rarityColor)
-                        if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "dogicapixelbold.otf"), 12); err != nil {}
-                        dc.DrawStringAnchored(name, float64(slotCenterX), float64(groundY+10), 0.5, 0.5)
 
+                        // 💡 FIX 2026-08-04: Rarity badge (filled circle) beside the name.
+                        // Name text is colored by rarity. Badge is drawn to the left of
+                        // the name, both centered as a group under the sprite.
+                        if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "dogicapixelbold.otf"), 14); err != nil {}
+
+                        // Measure name width to center badge+name group
+                        nameW, _ := dc.MeasureString(name)
+                        badgeR := 5.0
+                        badgeGap := 4.0
+                        groupW := badgeR*2 + badgeGap + nameW
+                        groupStartX := float64(slotCenterX) - groupW/2
+                        nameY := float64(groundY + 14)
+
+                        // Draw rarity badge (filled circle with slight glow)
+                        badgeX := groupStartX + badgeR
+                        dc.SetColor(rarityColor)
+                        dc.DrawCircle(badgeX, nameY, badgeR)
+                        dc.Fill()
+                        // White inner dot for contrast
+                        dc.SetColor(color.RGBA{255, 255, 255, 200})
+                        dc.DrawCircle(badgeX, nameY, badgeR*0.4)
+                        dc.Fill()
+
+                        // Draw name in rarity color
+                        dc.SetColor(rarityColor)
+                        dc.DrawStringAnchored(name, groupStartX+badgeR*2+badgeGap+nameW/2, nameY, 0.5, 0.5)
+
+                        // Rarity text (small, white) below name
                         dc.SetColor(color.RGBA{255, 255, 255, 180})
                         if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "PixeloidSans.ttf"), 11); err != nil {}
                         infoStr := fmt.Sprintf("%s", summon.Rarity)
-                        dc.DrawStringAnchored(infoStr, float64(slotCenterX), float64(groundY+24), 0.5, 0.5)
+                        dc.DrawStringAnchored(infoStr, float64(slotCenterX), float64(groundY+30), 0.5, 0.5)
 
                         if summon.IsDeployed {
                                 dc.SetColor(color.RGBA{255, 215, 0, 255})
@@ -296,8 +328,8 @@ func GenerateSummonRosterGIF(c *gin.Context) {
                 }
 
                 // ── Info Hub (codex-specific) ──
-                hubY := 480
-                hubH := 230
+                hubY := 520
+                hubH := 190
                 dc.SetColor(color.RGBA{0, 0, 0, 180})
                 dc.DrawRoundedRectangle(15, float64(hubY), float64(W-30), float64(hubH), 10)
                 dc.Fill()
@@ -401,6 +433,74 @@ func getSummonIdleGifPath(species string, assetsPath string) string {
                 return pngPath
         }
         return ""
+}
+
+// computeUnionVisibleBounds returns the UNION of all frames' visible (non-transparent)
+// bounding boxes. This is used to compute a FIXED crop region that works for every
+// frame in an animated GIF — so the bobbing animation is preserved.
+//
+// 💡 FIX 2026-08-04: If we cropped each frame independently, the sprite would be
+// re-positioned to the top-left of the crop on every frame, destroying the motion.
+// By computing the union once and applying the same crop to all frames, the sprite
+// moves within the crop region (preserving the bob) while transparent padding is removed.
+func computeUnionVisibleBounds(frames []image.Image) image.Rectangle {
+        if len(frames) == 0 {
+                return image.Rect(0, 0, 0, 0)
+        }
+        minX := int(^uint(0) >> 1) // max int
+        minY := int(^uint(0) >> 1)
+        maxX := -1
+        maxY := -1
+
+        for _, img := range frames {
+                bounds := img.Bounds()
+                for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+                        for x := bounds.Min.X; x < bounds.Max.X; x++ {
+                                _, _, _, a := img.At(x, y).RGBA()
+                                if a > 10 {
+                                        if x < minX { minX = x }
+                                        if x > maxX { maxX = x }
+                                        if y < minY { minY = y }
+                                        if y > maxY { maxY = y }
+                                }
+                        }
+                }
+        }
+
+        if maxX < 0 {
+                // No visible pixels in any frame — return full bounds of first frame
+                return frames[0].Bounds()
+        }
+        return image.Rect(minX, minY, maxX+1, maxY+1)
+}
+
+// applyCrop crops an image to the given rectangle. If the rect is empty or
+// covers the full image, the original image is returned unchanged.
+func applyCrop(img image.Image, crop image.Rectangle) image.Image {
+        bounds := img.Bounds()
+        if crop.Empty() || crop == bounds {
+                return img
+        }
+        // Clamp crop to image bounds
+        if crop.Min.X < bounds.Min.X { crop.Min.X = bounds.Min.X }
+        if crop.Min.Y < bounds.Min.Y { crop.Min.Y = bounds.Min.Y }
+        if crop.Max.X > bounds.Max.X { crop.Max.X = bounds.Max.X }
+        if crop.Max.Y > bounds.Max.Y { crop.Max.Y = bounds.Max.Y }
+
+        // Use SubImage if available (efficient, no copy)
+        type subImager interface {
+                SubImage(r image.Rectangle) image.Image
+        }
+        if si, ok := img.(subImager); ok {
+                return si.SubImage(crop)
+        }
+
+        // Fallback: draw the cropped region onto a new RGBA canvas
+        cropW := crop.Dx()
+        cropH := crop.Dy()
+        dst := image.NewRGBA(image.Rect(0, 0, cropW, cropH))
+        draw.Draw(dst, dst.Bounds(), img, crop.Min, draw.Src)
+        return dst
 }
 
 // getRarityColor returns the RGBA color for a rarity string.
@@ -729,8 +829,9 @@ func GenerateSummonDetailGIF(c *gin.Context) {
         gifPath := getSummonIdleGifPath(summon.Species, assetsPath)
 
         type gifData struct {
-                frames []image.Image
-                delays []int
+                frames   []image.Image
+                delays   []int
+                cropRect image.Rectangle
         }
         var gd gifData
         maxFrames := 1
@@ -756,7 +857,9 @@ func GenerateSummonDetailGIF(c *gin.Context) {
                                                 draw.Draw(fullFrame, bounds, subFrame, bounds.Min, draw.Over)
                                                 fullFrames[fi] = fullFrame
                                         }
-                                        gd = gifData{frames: fullFrames, delays: g.Delay}
+                                        // 💡 Compute fixed crop rect (union of all frames)
+                                        cropRect := computeUnionVisibleBounds(fullFrames)
+                                        gd = gifData{frames: fullFrames, delays: g.Delay, cropRect: cropRect}
                                         maxFrames = len(g.Image)
                                 }
                         }
@@ -764,7 +867,8 @@ func GenerateSummonDetailGIF(c *gin.Context) {
                         // Static PNG
                         img, err := utils.LoadImage(gifPath)
                         if err == nil {
-                                gd = gifData{frames: []image.Image{img}, delays: []int{10}}
+                                cropRect := computeUnionVisibleBounds([]image.Image{img})
+                                gd = gifData{frames: []image.Image{img}, delays: []int{10}, cropRect: cropRect}
                                 maxFrames = 1
                         }
                 }
@@ -794,9 +898,36 @@ func GenerateSummonDetailGIF(c *gin.Context) {
 
                 name := summon.Nickname
                 if name == "" { name = summon.Species }
-                dc.SetColor(color.RGBA{255, 215, 0, 255})
+                rarityColor := getRarityColor(summon.Rarity)
+
+                // 💡 FIX 2026-08-04: Header name colored by rarity + rarity badge.
+                // Draw a small colored circle (badge) before the name, then the
+                // name in the rarity color. "🐉" emoji stays gold for consistency.
                 if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "dogicapixelbold.otf"), 22); err != nil {}
-                dc.DrawStringAnchored("🐉 "+name, 30, 35, 0, 0.5)
+                emojiStr := "🐉 "
+                emojiW, _ := dc.MeasureString(emojiStr)
+                nameW, _ := dc.MeasureString(name)
+                badgeR := 7.0
+                badgeGap := 6.0
+                _ = emojiW + badgeR*2 + badgeGap + nameW // headerGroupW (unused, kept for clarity)
+                headerStartX := 30.0
+
+                // Draw dragon emoji in gold
+                dc.SetColor(color.RGBA{255, 215, 0, 255})
+                dc.DrawStringAnchored(emojiStr, headerStartX+emojiW/2, 35, 0.5, 0.5)
+
+                // Draw rarity badge
+                badgeX := headerStartX + emojiW + badgeR
+                dc.SetColor(rarityColor)
+                dc.DrawCircle(badgeX, 35, badgeR)
+                dc.Fill()
+                dc.SetColor(color.RGBA{255, 255, 255, 220})
+                dc.DrawCircle(badgeX, 35, badgeR*0.4)
+                dc.Fill()
+
+                // Draw name in rarity color
+                dc.SetColor(rarityColor)
+                dc.DrawStringAnchored(name, badgeX+badgeR+badgeGap+nameW/2, 35, 0.5, 0.5)
 
                 rarityText := fmt.Sprintf("%s | Lv.%d", summon.Rarity, summon.Level)
                 dc.SetColor(color.RGBA{255, 255, 255, 200})
@@ -804,46 +935,49 @@ func GenerateSummonDetailGIF(c *gin.Context) {
                 dc.DrawStringAnchored(rarityText, float64(W-30), 35, 1, 0.5)
 
                 // ── Draw the summon sprite (large, centered) ──
-                const spriteH = 350
+                // 💡 FIX 2026-08-04: Use imaging.Fit for consistent sizing with codex.
+                // Shadow radius is FIXED (not scaled with sprite).
+                const spriteH = 360
                 const maxSpriteW = 400
-                const groundY = 400
+                const groundY = 410
+                const shadowRadiusFixed = 80.0
 
                 if len(gd.frames) > 0 {
                         gifFrameIdx := frameIdx % len(gd.frames)
                         spriteImg := gd.frames[gifFrameIdx]
 
-                        srcW := spriteImg.Bounds().Dx()
-                        srcH := spriteImg.Bounds().Dy()
+                        // 💡 FIX 2026-08-04: Apply FIXED crop rect (same as codex).
+                        // Preserves bobbing animation — crop region is constant across frames.
+                        croppedImg := applyCrop(spriteImg, gd.cropRect)
 
-                        scale := float64(spriteH) / float64(srcH)
-                        dstW := int(float64(srcW) * scale)
-                        dstH := spriteH
-                        if dstW > maxSpriteW {
-                                dstW = maxSpriteW
-                                dstH = int(float64(srcH) * (float64(maxSpriteW) / float64(srcW)))
-                        }
+                        // 💡 FIX 2026-08-04: Manual contain-fit (scale UP or DOWN).
+                        // imaging.Fit does NOT upscale — if the source is smaller than
+                        // the target box, it returns the original. Many sprites (chest,
+                        // ships) are smaller than the target, so they'd stay tiny.
+                        // We calculate the scale factor and use imaging.Resize instead.
+                        cb := croppedImg.Bounds()
+                        cW := cb.Dx()
+                        cH := cb.Dy()
+                        sW := float64(maxSpriteW) / float64(cW)
+                        sH := float64(spriteH) / float64(cH)
+                        fitScale := sW
+                        if sH < fitScale { fitScale = sH }
+                        dstW := int(float64(cW) * fitScale)
+                        dstH := int(float64(cH) * fitScale)
+                        if dstW < 1 { dstW = 1 }
+                        if dstH < 1 { dstH = 1 }
+                        resized := imaging.Resize(croppedImg, dstW, dstH, imaging.NearestNeighbor)
 
-                        resized := imaging.Resize(spriteImg, dstW, dstH, imaging.NearestNeighbor)
-
-                        // Find visible bottom
-                        visibleBottom := dstH - 1
-                        bounds := resized.Bounds()
-                        for y := bounds.Max.Y - 1; y >= bounds.Min.Y; y-- {
-                                foundPixel := false
-                                for x := bounds.Min.X; x < bounds.Max.X; x++ {
-                                        _, _, _, a := resized.At(x, y).RGBA()
-                                        if a > 10 { foundPixel = true; break }
-                                }
-                                if foundPixel { visibleBottom = y; break }
-                        }
-                        bottomPadding := (dstH - 1) - visibleBottom
+                        // 💡 FIX 2026-08-04: No per-frame visibleBottom adjustment.
+                        // Crop already handles padding. Bobbing is preserved because
+                        // the sprite position is FIXED (the sprite bobs within the box).
+                        bottomPadding := 0
 
                         spriteDrawX := W/2 - dstW/2
                         spriteDrawY := groundY - dstH + bottomPadding
 
-                        // Shadow
-                        shadowRadiusX := float64(dstW) * 0.4
-                        if shadowRadiusX < 50 { shadowRadiusX = 50 }
+                        // Shadow (FIXED size)
+                        shadowRadiusX := shadowRadiusFixed
                         shadowRadiusY := shadowRadiusX * 0.28
                         shadowCtx := gg.NewContext(int(shadowRadiusX*2)+6, int(shadowRadiusY*2)+6)
                         shadowCtx.SetColor(color.RGBA{0, 0, 0, 120})
@@ -862,18 +996,40 @@ func GenerateSummonDetailGIF(c *gin.Context) {
                 dc.SetColor(color.RGBA{0, 0, 0, 180})
                 dc.DrawRoundedRectangle(15, float64(hubY), float64(W-30), float64(hubH), 10)
                 dc.Fill()
-                rarityColor := getRarityColor(summon.Rarity)
                 dc.SetColor(rarityColor)
                 dc.SetLineWidth(2)
                 dc.DrawRoundedRectangle(15, float64(hubY), float64(W-30), float64(hubH), 10)
                 dc.Stroke()
 
-                // Summon name + deployed indicator
-                dc.SetColor(color.RGBA{255, 215, 0, 255})
+                // Summon name + deployed indicator + rarity badge
+                // 💡 FIX 2026-08-04: Name colored by rarity, with badge beside it.
                 if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "dogicapixelbold.otf"), 20); err != nil {}
-                displayName := name
-                if summon.IsDeployed { displayName = "⭐ " + displayName }
-                dc.DrawStringAnchored(displayName, 30, float64(hubY+25), 0, 0.5)
+                starStr := ""
+                if summon.IsDeployed { starStr = "⭐ " }
+                starW, _ := dc.MeasureString(starStr)
+                nameWHub, _ := dc.MeasureString(name)
+                badgeRHub := 7.0
+                badgeGapHub := 6.0
+                hubStartX := 30.0
+
+                // Draw star (gold) if deployed
+                if summon.IsDeployed {
+                        dc.SetColor(color.RGBA{255, 215, 0, 255})
+                        dc.DrawStringAnchored(starStr, hubStartX+starW/2, float64(hubY+25), 0.5, 0.5)
+                }
+
+                // Draw rarity badge
+                badgeXHub := hubStartX + starW + badgeRHub
+                dc.SetColor(rarityColor)
+                dc.DrawCircle(badgeXHub, float64(hubY+25), badgeRHub)
+                dc.Fill()
+                dc.SetColor(color.RGBA{255, 255, 255, 220})
+                dc.DrawCircle(badgeXHub, float64(hubY+25), badgeRHub*0.4)
+                dc.Fill()
+
+                // Draw name in rarity color
+                dc.SetColor(rarityColor)
+                dc.DrawStringAnchored(name, badgeXHub+badgeRHub+badgeGapHub+nameWHub/2, float64(hubY+25), 0.5, 0.5)
 
                 // Subtitle: element, archetype, rarity
                 dc.SetColor(color.RGBA{255, 255, 255, 200})
