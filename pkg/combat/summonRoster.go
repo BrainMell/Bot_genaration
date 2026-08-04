@@ -81,69 +81,81 @@ func GenerateSummonRosterGIF(c *gin.Context) {
         maxFrames := 1
 
         for _, s := range req.Summons {
-                gifPath := getSummonIdleGifPath(s.Species, assetsPath)
-                if gifPath == "" || !fileExists(gifPath) {
+                spritePath := getSummonIdleGifPath(s.Species, assetsPath)
+                if spritePath == "" || !fileExists(spritePath) {
                         continue
                 }
 
-                f, err := os.Open(gifPath)
-                if err != nil {
-                        continue
-                }
-                g, err := gif.DecodeAll(f)
-                f.Close()
-                if err != nil || len(g.Image) == 0 {
-                        continue
-                }
+                // 💡 FIX 2026-08-04: Handle BOTH .gif and .png sprite files.
+                // Ship sprites (Torrent summons) are static PNGs, not animated GIFs.
+                // gif.DecodeAll fails on PNG — so check the extension.
+                var fullFrames []image.Image
+                var frameDelays []int
 
-                // Get GIF logical canvas size
-                gifW := g.Config.Width
-                gifH := g.Config.Height
-                if gifW <= 0 || gifH <= 0 {
-                        b := g.Image[0].Bounds()
-                        gifW = b.Dx()
-                        gifH = b.Dy()
-                }
-
-                // Composite each sub-frame onto a full-size canvas
-                fullFrames := make([]image.Image, len(g.Image))
-                var prevFrame *image.RGBA
-                for fi, subFrame := range g.Image {
-                        fullFrame := image.NewRGBA(image.Rect(0, 0, gifW, gifH))
-                        if prevFrame != nil {
-                                // Copy previous frame (for proper GIF disposal)
-                                copy(fullFrame.Pix, prevFrame.Pix)
+                if strings.HasSuffix(spritePath, ".gif") {
+                        // Animated GIF
+                        f, err := os.Open(spritePath)
+                        if err != nil {
+                                continue
                         }
-                        // Draw the sub-frame at its proper offset
-                        bounds := subFrame.Bounds()
-                        draw.Draw(fullFrame, bounds, subFrame, bounds.Min, draw.Over)
-                        fullFrames[fi] = fullFrame
-                        prevFrame = fullFrame
+                        g, err := gif.DecodeAll(f)
+                        f.Close()
+                        if err != nil || len(g.Image) == 0 {
+                                continue
+                        }
+
+                        gifW := g.Config.Width
+                        gifH := g.Config.Height
+                        if gifW <= 0 || gifH <= 0 {
+                                b := g.Image[0].Bounds()
+                                gifW = b.Dx()
+                                gifH = b.Dy()
+                        }
+
+                        // Composite each sub-frame onto a full-size canvas
+                        // 💡 FIX: Go's gif decoder returns sub-frames with their own
+                        // Rect bounds that may be offset from 0,0. We need to draw
+                        // them at their correct position within the full canvas.
+                        fullFrames = make([]image.Image, len(g.Image))
+                        for fi, subFrame := range g.Image {
+                                fullFrame := image.NewRGBA(image.Rect(0, 0, gifW, gifH))
+                                // Draw the sub-frame at its own offset within the canvas
+                                draw.Draw(fullFrame, subFrame.Bounds(), subFrame, subFrame.Bounds().Min, draw.Over)
+                                fullFrames[fi] = fullFrame
+                        }
+                        frameDelays = g.Delay
+                } else {
+                        // Static PNG — load as single frame
+                        img, err := utils.LoadImage(spritePath)
+                        if err != nil {
+                                continue
+                        }
+                        fullFrames = []image.Image{img}
+                        frameDelays = []int{10}
                 }
 
                 gd := gifData{
                         frames: fullFrames,
-                        delays: g.Delay,
+                        delays: frameDelays,
                         sprite: s.Species,
                 }
                 gifs = append(gifs, gd)
-                if len(g.Image) > maxFrames {
-                        maxFrames = len(g.Image)
+                if len(fullFrames) > maxFrames {
+                        maxFrames = len(fullFrames)
                 }
         }
 
         // ── 3. Calculate summon positions ──
-        // 💡 CODEX LAYOUT 2026-08-04: 5 per page in a 3-back / 2-front arrangement.
-        // Back row: 3 sprites (positions 0, 1, 2)
-        // Front row: 2 sprites (positions 3, 4) — offset between back row sprites
-        // This creates depth and keeps all sprites inside the frame.
-        const spriteH = 160   // smaller for codex (5 per page)
+        // 💡 CODEX LAYOUT: 5 per page in a 2-back / 3-front arrangement.
+        // Back row: 2 sprites (positions 0, 1)
+        // Front row: 3 sprites (positions 2, 3, 4)
+        const spriteH = 160
         const maxSpriteW = 180
         const slotW = 200
-        const backRowY = 280  // back row ground line
+        const backRowY = 260  // back row ground line (higher = further away)
         const frontRowY = 400 // front row ground line (lower = closer)
         _ = len(gifs)
-        // Calculate total width for 3 columns
+        // Calculate total width for 3 columns (front row width)
         totalWidth := 3 * slotW
         startX := (W - totalWidth) / 2
 
@@ -221,16 +233,20 @@ func GenerateSummonRosterGIF(c *gin.Context) {
                         // How much empty space is below the visible content
                         bottomPadding := (dstH - 1) - visibleBottom
 
-                        // 💡 2-ROW LAYOUT: Back row = positions 0,1,2. Front row = 3,4 (offset between back).
+                        // 💡 2-ROW LAYOUT: Back row = positions 0,1. Front row = 2,3,4.
+                        // Back row sprites are centered between front row columns.
                         var slotCenterX, groundY int
-                        if i < 3 {
-                                // Back row: 3 sprites in columns 0, 1, 2
-                                slotCenterX = startX + i*slotW + slotW/2
+                        if i < 2 {
+                                // Back row: 2 sprites, each centered between front row columns
+                                // Front columns are at: startX+100, startX+300, startX+500
+                                // Back col 0: between front 0 and 1 → startX+200
+                                // Back col 1: between front 1 and 2 → startX+400
+                                slotCenterX = startX + (i+1)*slotW + slotW/2 - slotW/2
                                 groundY = backRowY
                         } else {
-                                // Front row: 2 sprites offset between back row columns
-                                frontCol := i - 3 // 0 or 1
-                                slotCenterX = startX + frontCol*slotW + slotW + slotW/2
+                                // Front row: 3 sprites in columns 0, 1, 2
+                                frontCol := i - 2 // 0, 1, or 2
+                                slotCenterX = startX + frontCol*slotW + slotW/2
                                 groundY = frontRowY
                         }
 
@@ -720,32 +736,36 @@ func GenerateSummonDetailGIF(c *gin.Context) {
         maxFrames := 1
 
         if gifPath != "" && fileExists(gifPath) {
-                f, err := os.Open(gifPath)
-                if err == nil {
-                        g, err := gif.DecodeAll(f)
-                        f.Close()
-                        if err == nil && len(g.Image) > 0 {
-                                gifW := g.Config.Width
-                                gifH := g.Config.Height
-                                if gifW <= 0 || gifH <= 0 {
-                                        b := g.Image[0].Bounds()
-                                        gifW = b.Dx()
-                                        gifH = b.Dy()
-                                }
-                                fullFrames := make([]image.Image, len(g.Image))
-                                var prevFrame *image.RGBA
-                                for fi, subFrame := range g.Image {
-                                        fullFrame := image.NewRGBA(image.Rect(0, 0, gifW, gifH))
-                                        if prevFrame != nil {
-                                                copy(fullFrame.Pix, prevFrame.Pix)
+                if strings.HasSuffix(gifPath, ".gif") {
+                        f, err := os.Open(gifPath)
+                        if err == nil {
+                                g, err := gif.DecodeAll(f)
+                                f.Close()
+                                if err == nil && len(g.Image) > 0 {
+                                        gifW := g.Config.Width
+                                        gifH := g.Config.Height
+                                        if gifW <= 0 || gifH <= 0 {
+                                                b := g.Image[0].Bounds()
+                                                gifW = b.Dx()
+                                                gifH = b.Dy()
                                         }
-                                        bounds := subFrame.Bounds()
-                                        draw.Draw(fullFrame, bounds, subFrame, bounds.Min, draw.Over)
-                                        fullFrames[fi] = fullFrame
-                                        prevFrame = fullFrame
+                                        fullFrames := make([]image.Image, len(g.Image))
+                                        for fi, subFrame := range g.Image {
+                                                fullFrame := image.NewRGBA(image.Rect(0, 0, gifW, gifH))
+                                                bounds := subFrame.Bounds()
+                                                draw.Draw(fullFrame, bounds, subFrame, bounds.Min, draw.Over)
+                                                fullFrames[fi] = fullFrame
+                                        }
+                                        gd = gifData{frames: fullFrames, delays: g.Delay}
+                                        maxFrames = len(g.Image)
                                 }
-                                gd = gifData{frames: fullFrames, delays: g.Delay}
-                                maxFrames = len(g.Image)
+                        }
+                } else {
+                        // Static PNG
+                        img, err := utils.LoadImage(gifPath)
+                        if err == nil {
+                                gd = gifData{frames: []image.Image{img}, delays: []int{10}}
+                                maxFrames = 1
                         }
                 }
         }
