@@ -203,6 +203,7 @@ func main() {
         api.POST("/combat/endscreen", combat.GenerateEndScreen)
         api.POST("/combat/splash", combat.GenerateBossSplash)
         api.POST("/hunt/card", combat.GenerateHuntCard) // NEW 2026-07-29: hunting image card
+        api.POST("/summons/roster", combat.GenerateSummonRosterGIF) // NEW 2026-08-03: animated summon roster GIF
         api.POST("/ludo", ludo.RenderBoard)
         api.POST("/ttt", ttt.RenderBoard)
         api.POST("/ttt/leaderboard", ttt.RenderLeaderboard)
