@@ -158,17 +158,18 @@ func GenerateSummonRosterGIF(c *gin.Context) {
         // Back row: 2 sprites (positions 0, 1)
         // Front row: 3 sprites (positions 2, 3, 4)
         //
-        // 💡 FIX 2026-08-04: Sprites doubled in size (320px, was 160px).
-        // All sprites now use imaging.Fit (contain) so they're the SAME
-        // bounding-box size regardless of source aspect ratio. Shadow
-        // radius is FIXED (not scaled with sprite) to keep shadows at
-        // their previous visual size.
-        const spriteH = 320
-        const maxSpriteW = 360
-        const slotW = 200
-        const backRowY = 320  // back row ground line (moved down for bigger sprites)
-        const frontRowY = 480 // front row ground line (moved down for bigger sprites)
-        const shadowRadiusFixed = 75.0 // fixed shadow radius (was dstW*0.42 ~75)
+        // 💡 FIX 2026-08-04 (v2): Sprite size tuned to fit 5 sprites in 720px
+        // canvas WITHOUT overlap. Previous 320px height / 360px width was too
+        // big — front-row sprites overlapped each other and clipped edges.
+        // Now: 220px height, 200px width, 230px slots. Still ~1.4x the
+        // original 160px, but fits the layout cleanly.
+        // Shadow radius is FIXED (not scaled with sprite).
+        const spriteH = 220
+        const maxSpriteW = 200
+        const slotW = 230
+        const backRowY = 280  // back row ground line
+        const frontRowY = 430 // front row ground line
+        const shadowRadiusFixed = 65.0 // fixed shadow radius
         _ = len(gifs)
         // Calculate total width for 3 columns (front row width)
         totalWidth := 3 * slotW
@@ -328,8 +329,8 @@ func GenerateSummonRosterGIF(c *gin.Context) {
                 }
 
                 // ── Info Hub (codex-specific) ──
-                hubY := 520
-                hubH := 190
+                hubY := 480
+                hubH := 230
                 dc.SetColor(color.RGBA{0, 0, 0, 180})
                 dc.DrawRoundedRectangle(15, float64(hubY), float64(W-30), float64(hubH), 10)
                 dc.Fill()
