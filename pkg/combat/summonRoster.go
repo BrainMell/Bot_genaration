@@ -730,3 +730,256 @@ func createSolidBackground(w, h int, c color.RGBA) image.Image {
         dc.Fill()
         return dc.Image()
 }
+
+// ════════════════════════════════════════════════════════════════
+// 💡 SINGLE SUMMON DETAIL GIF — .summon <#>
+// Renders one summon's idle.gif large + detailed info hub
+// ════════════════════════════════════════════════════════════════
+
+func GenerateSummonDetailGIF(c *gin.Context) {
+        var req SummonRosterRequest
+        if err := c.ShouldBindJSON(&req); err != nil {
+                c.JSON(400, gin.H{"error": err.Error()})
+                return
+        }
+
+        if len(req.Summons) == 0 {
+                c.JSON(400, gin.H{"error": "no summon provided"})
+                return
+        }
+
+        assetsPath := "assets"
+        const W = 720
+        const H = 720
+
+        // ── 1. Load background ──
+        bgPath := filepath.Join(assetsPath, "rpgasset", "environment", "spark_7.png")
+        bgImg, err := utils.LoadImage(bgPath)
+        if err != nil {
+                bgImg = createSolidBackground(W, H, color.RGBA{26, 26, 46, 255})
+        } else {
+                bgImg = imaging.Fill(bgImg, W, H, imaging.Center, imaging.NearestNeighbor)
+        }
+
+        // ── 2. Load the summon's idle.gif ──
+        summon := req.Summons[0]
+        gifPath := getSummonIdleGifPath(summon.Species, assetsPath)
+
+        type gifData struct {
+                frames []image.Image
+                delays []int
+        }
+        var gd gifData
+        maxFrames := 1
+
+        if gifPath != "" && fileExists(gifPath) {
+                f, err := os.Open(gifPath)
+                if err == nil {
+                        g, err := gif.DecodeAll(f)
+                        f.Close()
+                        if err == nil && len(g.Image) > 0 {
+                                gifW := g.Config.Width
+                                gifH := g.Config.Height
+                                if gifW <= 0 || gifH <= 0 {
+                                        b := g.Image[0].Bounds()
+                                        gifW = b.Dx()
+                                        gifH = b.Dy()
+                                }
+                                fullFrames := make([]image.Image, len(g.Image))
+                                var prevFrame *image.RGBA
+                                for fi, subFrame := range g.Image {
+                                        fullFrame := image.NewRGBA(image.Rect(0, 0, gifW, gifH))
+                                        if prevFrame != nil {
+                                                copy(fullFrame.Pix, prevFrame.Pix)
+                                        }
+                                        bounds := subFrame.Bounds()
+                                        draw.Draw(fullFrame, bounds, subFrame, bounds.Min, draw.Over)
+                                        fullFrames[fi] = fullFrame
+                                        prevFrame = fullFrame
+                                }
+                                gd = gifData{frames: fullFrames, delays: g.Delay}
+                                maxFrames = len(g.Image)
+                        }
+                }
+        }
+
+        // ── 3. Render each frame ──
+        var outFrames []*image.Paletted
+        var outDelays []int
+
+        for frameIdx := 0; frameIdx < maxFrames; frameIdx++ {
+                dc := gg.NewContext(W, H)
+
+                // Background
+                dc.DrawImage(bgImg, 0, 0)
+                dc.SetColor(color.RGBA{0, 0, 0, 130})
+                dc.DrawRectangle(0, 0, W, H)
+                dc.Fill()
+
+                // ── Header ──
+                dc.SetColor(color.RGBA{0, 0, 0, 160})
+                dc.DrawRoundedRectangle(15, 10, float64(W-30), 50, 8)
+                dc.Fill()
+                dc.SetColor(color.RGBA{255, 215, 0, 100})
+                dc.SetLineWidth(2)
+                dc.DrawRoundedRectangle(15, 10, float64(W-30), 50, 8)
+                dc.Stroke()
+
+                name := summon.Nickname
+                if name == "" { name = summon.Species }
+                dc.SetColor(color.RGBA{255, 215, 0, 255})
+                if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "dogicapixelbold.otf"), 22); err != nil {}
+                dc.DrawStringAnchored("🐉 "+name, 30, 35, 0, 0.5)
+
+                rarityText := fmt.Sprintf("%s | Lv.%d", summon.Rarity, summon.Level)
+                dc.SetColor(color.RGBA{255, 255, 255, 200})
+                if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "PixeloidSans.ttf"), 15); err != nil {}
+                dc.DrawStringAnchored(rarityText, float64(W-30), 35, 1, 0.5)
+
+                // ── Draw the summon sprite (large, centered) ──
+                const spriteH = 350
+                const maxSpriteW = 400
+                const groundY = 400
+
+                if len(gd.frames) > 0 {
+                        gifFrameIdx := frameIdx % len(gd.frames)
+                        spriteImg := gd.frames[gifFrameIdx]
+
+                        srcW := spriteImg.Bounds().Dx()
+                        srcH := spriteImg.Bounds().Dy()
+
+                        scale := float64(spriteH) / float64(srcH)
+                        dstW := int(float64(srcW) * scale)
+                        dstH := spriteH
+                        if dstW > maxSpriteW {
+                                dstW = maxSpriteW
+                                dstH = int(float64(srcH) * (float64(maxSpriteW) / float64(srcW)))
+                        }
+
+                        resized := imaging.Resize(spriteImg, dstW, dstH, imaging.NearestNeighbor)
+
+                        // Find visible bottom
+                        visibleBottom := dstH - 1
+                        bounds := resized.Bounds()
+                        for y := bounds.Max.Y - 1; y >= bounds.Min.Y; y-- {
+                                foundPixel := false
+                                for x := bounds.Min.X; x < bounds.Max.X; x++ {
+                                        _, _, _, a := resized.At(x, y).RGBA()
+                                        if a > 10 { foundPixel = true; break }
+                                }
+                                if foundPixel { visibleBottom = y; break }
+                        }
+                        bottomPadding := (dstH - 1) - visibleBottom
+
+                        spriteDrawX := W/2 - dstW/2
+                        spriteDrawY := groundY - dstH + bottomPadding
+
+                        // Shadow
+                        shadowRadiusX := float64(dstW) * 0.4
+                        if shadowRadiusX < 50 { shadowRadiusX = 50 }
+                        shadowRadiusY := shadowRadiusX * 0.28
+                        shadowCtx := gg.NewContext(int(shadowRadiusX*2)+6, int(shadowRadiusY*2)+6)
+                        shadowCtx.SetColor(color.RGBA{0, 0, 0, 120})
+                        shadowCtx.DrawEllipse(float64(shadowCtx.Width())/2, float64(shadowCtx.Height())/2, shadowRadiusX, shadowRadiusY)
+                        shadowCtx.Fill()
+                        blurredShadow := imaging.Blur(shadowCtx.Image(), 3.0)
+                        dc.DrawImageAnchored(blurredShadow, W/2, int(float64(groundY)-2), 0.5, 0.5)
+
+                        // Draw sprite
+                        dc.DrawImage(resized, spriteDrawX, spriteDrawY)
+                }
+
+                // ── Detail Info Hub (bottom, much bigger) ──
+                hubY := 430
+                hubH := 280
+                dc.SetColor(color.RGBA{0, 0, 0, 180})
+                dc.DrawRoundedRectangle(15, float64(hubY), float64(W-30), float64(hubH), 10)
+                dc.Fill()
+                rarityColor := getRarityColor(summon.Rarity)
+                dc.SetColor(rarityColor)
+                dc.SetLineWidth(2)
+                dc.DrawRoundedRectangle(15, float64(hubY), float64(W-30), float64(hubH), 10)
+                dc.Stroke()
+
+                // Summon name + deployed indicator
+                dc.SetColor(color.RGBA{255, 215, 0, 255})
+                if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "dogicapixelbold.otf"), 20); err != nil {}
+                displayName := name
+                if summon.IsDeployed { displayName = "⭐ " + displayName }
+                dc.DrawStringAnchored(displayName, 30, float64(hubY+25), 0, 0.5)
+
+                // Subtitle: element, archetype, rarity
+                dc.SetColor(color.RGBA{255, 255, 255, 200})
+                if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "PixeloidSans.ttf"), 14); err != nil {}
+                subtitle := fmt.Sprintf("%s | %s | %s | Lv.%d", summon.Element, summon.Archetype, summon.Rarity, summon.Level)
+                dc.DrawStringAnchored(subtitle, 30, float64(hubY+50), 0, 0.5)
+
+                // Stats grid (2 rows, 3 columns)
+                statY1 := hubY + 80
+                statY2 := hubY + 120
+                colW := (W - 60) / 3
+                stats := []struct {
+                        label string
+                        value int
+                        color color.RGBA
+                }{
+                        {"HP", summon.HP, color.RGBA{255, 107, 107, 255}},
+                        {"ATK", summon.ATK, color.RGBA{255, 217, 61, 255}},
+                        {"DEF", summon.DEF, color.RGBA{79, 195, 247, 255}},
+                        {"MAG", summon.MAG, color.RGBA{156, 39, 176, 255}},
+                        {"SPD", summon.SPD, color.RGBA{76, 175, 80, 255}},
+                        {"LOY", summon.Loyalty, color.RGBA{255, 193, 7, 255}},
+                }
+                for si, stat := range stats {
+                        col := si % 3
+                        row := si / 3
+                        sx := 30 + col*colW
+                        sy := statY1
+                        if row == 1 { sy = statY2 }
+
+                        dc.SetColor(stat.color)
+                        if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "dogicapixelbold.otf"), 14); err != nil {}
+                        dc.DrawStringAnchored(stat.label, float64(sx), float64(sy), 0, 0.5)
+
+                        dc.SetColor(color.RGBA{255, 255, 255, 240})
+                        if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "PixeloidSans.ttf"), 18); err != nil {}
+                        valStr := fmt.Sprintf("%d", stat.value)
+                        if stat.label == "LOY" { valStr = fmt.Sprintf("%d%%", stat.value) }
+                        dc.DrawStringAnchored(valStr, float64(sx+45), float64(sy), 0, 0.5)
+                }
+
+                // Loyalty bar
+                loyBarY := hubY + 155
+                loyBarW := W - 60
+                dc.SetColor(color.RGBA{0, 0, 0, 120})
+                dc.DrawRectangle(30, float64(loyBarY), float64(loyBarW), 8)
+                dc.Fill()
+                loyPct := float64(summon.Loyalty) / 100.0
+                loyColor := color.RGBA{76, 175, 80, 255}
+                if summon.Loyalty < 50 { loyColor = color.RGBA{255, 152, 0, 255} }
+                if summon.Loyalty < 25 { loyColor = color.RGBA{244, 67, 54, 255} }
+                dc.SetColor(loyColor)
+                dc.DrawRectangle(30, float64(loyBarY), float64(loyBarW)*loyPct, 8)
+                dc.Fill()
+
+                // Commands hint
+                dc.SetColor(color.RGBA{255, 255, 255, 120})
+                if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "PixeloidSans.ttf"), 12); err != nil {}
+                p := ".s"
+                hintStr := fmt.Sprintf("%s summon deploy  |  %s summon skill  |  %s summon trial  |  %s summon forge", p, p, p, p)
+                dc.DrawStringAnchored(hintStr, float64(W/2), float64(hubY+hubH-15), 0.5, 0.5)
+
+                // Convert to paletted
+                frameImg := dc.Image()
+                paletted := imageToPaletted(frameImg, W, H)
+                outFrames = append(outFrames, paletted)
+                outDelays = append(outDelays, 10)
+        }
+
+        // ── Encode as GIF ──
+        out := &gif.GIF{Image: outFrames, Delay: outDelays}
+        c.Header("Content-Type", "image/gif")
+        if err := gif.EncodeAll(c.Writer, out); err != nil {
+                c.JSON(500, gin.H{"error": "GIF encoding failed: " + err.Error()})
+        }
+}
