@@ -154,9 +154,9 @@ func GenerateSummonRosterGIF(c *gin.Context) {
         }
 
         // ── 3. Calculate summon positions ──
-        // 💡 CODEX LAYOUT: 5 per page in a 2-back / 3-front arrangement.
-        // Back row: 2 sprites (positions 0, 1)
-        // Front row: 3 sprites (positions 2, 3, 4)
+        // 💡 CODEX LAYOUT: 5 per page in a 3-front / 2-back arrangement.
+        // Front row: 3 sprites (positions 0, 1, 2) — fills first
+        // Back row: 2 sprites (positions 3, 4) — overflow
         //
         // 💡 FIX 2026-08-04 (v2): Sprite size tuned to fit 5 sprites in 720px
         // canvas WITHOUT overlap. Previous 320px height / 360px width was too
@@ -244,21 +244,22 @@ func GenerateSummonRosterGIF(c *gin.Context) {
                         // crop box, but the box itself doesn't move).
                         bottomPadding := 0 // no per-frame adjustment — crop already handled it
 
-                        // 💡 2-ROW LAYOUT: Back row = positions 0,1. Front row = 2,3,4.
+                        // 💡 2-ROW LAYOUT: Front row = positions 0,1,2. Back row = 3,4.
+                        // Front row fills first (3 slots), back row overflows (2 slots).
                         // Back row sprites are centered between front row columns.
                         var slotCenterX, groundY int
-                        if i < 2 {
-                                // Back row: 2 sprites, each centered between front row columns
-                                // Front columns are at: startX+100, startX+300, startX+500
-                                // Back col 0: between front 0 and 1 → startX+200
-                                // Back col 1: between front 1 and 2 → startX+400
-                                slotCenterX = startX + (i+1)*slotW + slotW/2 - slotW/2
-                                groundY = backRowY
-                        } else {
+                        if i < 3 {
                                 // Front row: 3 sprites in columns 0, 1, 2
-                                frontCol := i - 2 // 0, 1, or 2
-                                slotCenterX = startX + frontCol*slotW + slotW/2
+                                slotCenterX = startX + i*slotW + slotW/2
                                 groundY = frontRowY
+                        } else {
+                                // Back row: 2 sprites, each centered between front row columns
+                                // Front columns are at: startX+slotW/2, startX+slotW+slotW/2, startX+2*slotW+slotW/2
+                                // Back col 0: between front 0 and 1 → startX+slotW
+                                // Back col 1: between front 1 and 2 → startX+2*slotW
+                                backCol := i - 3 // 0 or 1
+                                slotCenterX = startX + (backCol+1)*slotW
+                                groundY = backRowY
                         }
 
                         // Position sprite so the BOTTOM of the crop region sits on the ground line
