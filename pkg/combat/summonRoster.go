@@ -413,6 +413,21 @@ func getSummonIdleGifPath(species string, assetsPath string) string {
                 "abyssal_phantom":    "ghost",
                 "blossom_sylph":      "mushroom",
                 "world_tree_spirit":  "mushroom",
+                // Legacy RPG species → sparklinlabs mappings
+                "skeleton":         "ghost",      // undead → ghost
+                "skeleton_knight":  "ghost",      // undead → ghost
+                "lich_minion":      "ghost",      // undead → ghost
+                "imp":              "bat",        // small demon → bat
+                "void_walker":      "ghost",      // dark entity → ghost
+                "flame_elemental":  "dragon",     // fire → dragon
+                "frost_elemental":  "ghost",      // ice → ghost
+                "storm_elemental":  "bat",        // lightning → bat
+                "wolf":             "boar",       // beast → boar
+                "bear":             "giant",      // large beast → giant
+                "turret_mk1":       "mimic",      // construct → mimic
+                "cannon_turret":    "mimic",      // construct → mimic
+                "wyrmling":         "dragon",     // dragon → dragon
+                "juvenile_dragon":  "dragon",     // dragon → dragon
                 // Direct sparklinlabs names
                 "bat":       "bat",
                 "boar":      "boar",
