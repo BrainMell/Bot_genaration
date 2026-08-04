@@ -397,60 +397,46 @@ func GenerateSummonRosterGIF(c *gin.Context) {
 func getSummonIdleGifPath(species string, assetsPath string) string {
         species = strings.ToLower(strings.TrimSpace(species))
 
-        // Map our species IDs to sparklinlabs monster names
+        // Map our species IDs to sparklinlabs monster names.
+        // 💡 2026-08-04: 1:1 mapping — each summon has its OWN dedicated sprite.
+        // No sharing. The species ID IS the sprite filename.
         speciesMap := map[string]string{
-                // Starters
-                "stoneguard":     "giant",
-                "emberdrake":     "dragon",
-                "mistwisp":       "ghost",
-                "bloompixie":     "mushroom",
-                // Evolved starters
-                "iron_sentinel":      "giant",
-                "mountain_titan":     "giant",
-                "flare_wyrm":         "dragon",
-                "infernal_dragon":    "dragon",
-                "frost_spectre":      "ghost",
-                "abyssal_phantom":    "ghost",
-                "blossom_sylph":      "mushroom",
-                "world_tree_spirit":  "mushroom",
-                // Legacy RPG species → sparklinlabs mappings
-                "skeleton":         "ghost",      // undead → ghost
-                "skeleton_knight":  "ghost",      // undead → ghost
-                "lich_minion":      "ghost",      // undead → ghost
-                "imp":              "bat",        // small demon → bat
-                "void_walker":      "ghost",      // dark entity → ghost
-                "flame_elemental":  "dragon",     // fire → dragon
-                "frost_elemental":  "ghost",      // ice → ghost
-                "storm_elemental":  "bat",        // lightning → bat
-                "wolf":             "boar",       // beast → boar
-                "bear":             "giant",      // large beast → giant
-                "turret_mk1":       "mimic",      // construct → mimic
-                "cannon_turret":    "mimic",      // construct → mimic
-                "wyrmling":         "dragon",     // dragon → dragon
-                "juvenile_dragon":  "dragon",     // dragon → dragon
-                // Direct sparklinlabs names
+                // Animated idle.gif sprites (14)
                 "bat":       "bat",
                 "boar":      "boar",
+                "chest":     "chest",
                 "dino":      "dino",
                 "dragon":    "dragon",
                 "ghost":     "ghost",
                 "giant":     "giant",
                 "mimic":     "mimic",
                 "mushroom":  "mushroom",
+                "octopus":   "octopus",
                 "reptile":   "reptile",
                 "slime":     "slime",
                 "snake":     "snake",
+                "yeti":      "yeti",
+                // Static PNG sprites (3) — ship sprites for Grand Inventor
+                "ship_cruiser":   "ship_cruiser",
+                "ship_fighter":   "ship_fighter",
+                "ship_squid":     "ship_squid",
         }
 
         monsterName, ok := speciesMap[species]
         if !ok {
-                // Try direct match
+                // Try direct match — species ID might be the sprite name directly
                 monsterName = species
         }
 
+        // Try idle.gif first (animated sprites)
         gifPath := filepath.Join(assetsPath, "rpgasset", "summons", "sparklinlabs", monsterName+"_idle.gif")
         if fileExists(gifPath) {
                 return gifPath
+        }
+        // Try static PNG (ship sprites)
+        pngPath := filepath.Join(assetsPath, "rpgasset", "summons", "sparklinlabs", monsterName+".png")
+        if fileExists(pngPath) {
+                return pngPath
         }
         return ""
 }
