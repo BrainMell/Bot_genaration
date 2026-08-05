@@ -66,7 +66,10 @@ var SpriteFacing = map[string]string{
         "Berserker3.png": "CENTER",
         "DoomSlayer1.png": "CENTER",
         "DoomSlayer2.png": "CENTER",
-        "Fighter1.png": "CENTER",
+        // 💡 FIX 2026-08-05: Fighter1.png actually faces RIGHT (VLM confirmed).
+        // Was mislabeled as CENTER, causing ShouldFlipForPvE to flip it →
+        // rendered facing LEFT in the PvP left battle slot (away from opponent).
+        "Fighter1.png": "RIGHT",
         "God_hand (1).png": "RIGHT",
         "God_hand (2).png": "RIGHT",
         "Monk.png": "RIGHT",
@@ -481,7 +484,7 @@ var SummonSprites = map[string]string{
 
 // GetSummonSpritePath returns the sprite file path for a summon species.
 // Checks multiple folders in priority order:
-// 1. summons/sparklinlabs/ (NEW: sparklinlabs monster sprites)
+// 1. summons/sparklinlabs/ (NEW: sparklinlabs monster sprites — .png first, then .gif)
 // 2. summons/digimon/ (cached Digimon API sprites, transparent PNGs)
 // 3. summons/ (SD sprites like Ifrit/Leviathan/Shiva)
 // 4. summons/retromon/ (Retromon monster sprites)
@@ -489,10 +492,14 @@ var SummonSprites = map[string]string{
 func GetSummonSpritePath(species string, assetsPath string) string {
         species = strings.ToLower(strings.TrimSpace(species))
 
-        // 0. Check sparklinlabs (NEW: primary summon sprites)
-        sparkPath := filepath.Join(assetsPath, "rpgasset", "summons", "sparklinlabs", species+".png")
-        if fileExists(sparkPath) {
-                return sparkPath
+        // 0. Check sparklinlabs (NEW: primary summon sprites — try .png first, then .gif)
+        sparkPathPng := filepath.Join(assetsPath, "rpgasset", "summons", "sparklinlabs", species+".png")
+        if fileExists(sparkPathPng) {
+                return sparkPathPng
+        }
+        sparkPathGif := filepath.Join(assetsPath, "rpgasset", "summons", "sparklinlabs", species+"_idle.gif")
+        if fileExists(sparkPathGif) {
+                return sparkPathGif
         }
 
         // 1. Check digimon cache

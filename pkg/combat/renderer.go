@@ -332,7 +332,13 @@ func GenerateCombatImage(c *gin.Context) {
                 }
 
                 // 5. Player Sprite (Main - CROPPED TOP 30%)
-                spritePath := GetCharacterSpritePath(p.Class, p.SpriteIndex, assetsPath)
+                // 💡 FIX 2026-08-05: Use summon sprite if player is a summon (mode='summon')
+                var spritePath string
+                if p.Mode == "summon" && p.Species != "" {
+                        spritePath = GetSummonSpritePath(p.Species, assetsPath)
+                } else {
+                        spritePath = GetCharacterSpritePath(p.Class, p.SpriteIndex, assetsPath)
+                }
                 pSprite, err := utils.LoadImage(spritePath)
                 if err == nil {
                         if p.CurrentHP <= 0 {
@@ -354,7 +360,13 @@ func GenerateCombatImage(c *gin.Context) {
                         // 6. Small full-body sprites on battlefield
                         if req.CombatType == "PVP" {
                                 drawPvPFighter := func(player Player, x, y int, flip bool, isAtk bool) {
-                                        path := GetCharacterSpritePath(player.Class, player.SpriteIndex, assetsPath)
+                                        // 💡 FIX 2026-08-05: Use summon sprite if player is a summon
+                                        var path string
+                                        if player.Mode == "summon" && player.Species != "" {
+                                                path = GetSummonSpritePath(player.Species, assetsPath)
+                                        } else {
+                                                path = GetCharacterSpritePath(player.Class, player.SpriteIndex, assetsPath)
+                                        }
                                         sprite, err := utils.LoadImage(path)
                                         if err != nil {
                                                 return
@@ -394,17 +406,27 @@ func GenerateCombatImage(c *gin.Context) {
                                         }
                                 }
 
-                                // 💡 FIX 2026-08-03: Per-sprite facing detection.
+                                // 💡 FIX 2026-08-05: Summon sprites in PvP use unconditional flip
+                                // (summon source art faces LEFT, flip makes it face RIGHT).
+                                // Player sprites use per-sprite ShouldFlipForPvE/ShouldFlipForPvPRight.
                                 // Player 1 (LEFT) should face RIGHT (toward player 2).
                                 // Player 2 (RIGHT) should face LEFT (toward player 1).
-                                // Use ShouldFlipForPvE (makes sprite face RIGHT) for player 1.
-                                // Use ShouldFlipForPvPRight (makes sprite face LEFT) for player 2.
-                                p1SpriteFile := GetCharacterSpriteFile(p.Class, p.SpriteIndex, assetsPath)
-                                p1Flip := ShouldFlipForPvE(filepath.Base(p1SpriteFile))
+                                var p1Flip bool
+                                if p.Mode == "summon" {
+                                        p1Flip = true // summon art faces LEFT, flip → faces RIGHT
+                                } else {
+                                        p1SpriteFile := GetCharacterSpriteFile(p.Class, p.SpriteIndex, assetsPath)
+                                        p1Flip = ShouldFlipForPvE(filepath.Base(p1SpriteFile))
+                                }
                                 drawPvPFighter(p, int(startX-560), int(startY-30), p1Flip, isAttacker("player", 0))
                                 if len(req.Players) > 1 {
-                                        p2SpriteFile := GetCharacterSpriteFile(req.Players[1].Class, req.Players[1].SpriteIndex, assetsPath)
-                                        p2Flip := ShouldFlipForPvPRight(filepath.Base(p2SpriteFile))
+                                        var p2Flip bool
+                                        if req.Players[1].Mode == "summon" {
+                                                p2Flip = false // summon art faces LEFT, no flip → faces LEFT (toward player 1)
+                                        } else {
+                                                p2SpriteFile := GetCharacterSpriteFile(req.Players[1].Class, req.Players[1].SpriteIndex, assetsPath)
+                                                p2Flip = ShouldFlipForPvPRight(filepath.Base(p2SpriteFile))
+                                        }
                                         drawPvPFighter(req.Players[1], int(startX-170), int(startY-30), p2Flip, isAttacker("player", 1))
                                 }
                         } else {

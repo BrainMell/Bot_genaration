@@ -14,6 +14,13 @@ import (
 
         "github.com/gin-gonic/gin"
 
+        // 💡 Register image decoders so imaging.Open can load PNG, JPEG, AND GIF.
+        // Without these blank imports, imaging.Open returns "format: not supported"
+        // for GIF files (used by sparklinlabs summon sprites).
+        _ "image/gif"
+        _ "image/png"
+        _ "image/jpeg"
+
         "image-service/pkg/cards"
         "image-service/pkg/chess"
         "image-service/pkg/combat"
