@@ -158,16 +158,17 @@ func GenerateSummonRosterGIF(c *gin.Context) {
         // Front row: 3 sprites (positions 0, 1, 2) — fills first, LARGER
         // Back row: 2 sprites (positions 3, 4) — overflow, SMALLER (perspective)
         //
-        // 💡 FIX 2026-08-05 (v2): Zero vertical overlap between rows.
-        // Back row bottom = front row top. Back row is drawn FIRST (z-order).
-        // Back row is ~60% the size of front row (clear perspective).
+        // 💡 FIX 2026-08-05 (v3): Back row at original Y position (not pushed up).
+        // Natural overlap is OK — back row is drawn FIRST, so front row occludes
+        // it naturally (back row feet behind front row heads = realistic depth).
+        // Back row is ~75% the size of front row (subtle perspective, not extreme).
         const frontSpriteH = 260
         const frontMaxSpriteW = 220
-        const backSpriteH = 150
-        const backMaxSpriteW = 140
+        const backSpriteH = 190
+        const backMaxSpriteW = 170
         const slotW = 240
-        const backRowY = 215   // back row ground line (bottom = 215)
-        const frontRowY = 475  // front row ground line (top = 475-260=215 → zero gap)
+        const backRowY = 320   // back row ground line (original position, not pushed up)
+        const frontRowY = 475  // front row ground line (lower = closer)
         const shadowRadiusFixed = 60.0
         _ = len(gifs)
         // Calculate total width for 3 columns (front row width)
