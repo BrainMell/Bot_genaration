@@ -397,21 +397,28 @@ func getSummonIdleGifPath(species string, assetsPath string) string {
         // 💡 2026-08-04: 1:1 mapping — each summon has its OWN dedicated sprite.
         // No sharing. The species ID IS the sprite filename.
         speciesMap := map[string]string{
-                // Animated idle.gif sprites (14)
-                "bat":       "bat",
-                "boar":      "boar",
-                "chest":     "chest",
-                "dino":      "dino",
-                "dragon":    "dragon",
-                "ghost":     "ghost",
-                "giant":     "giant",
-                "mimic":     "mimic",
-                "mushroom":  "mushroom",
-                "octopus":   "octopus",
-                "reptile":   "reptile",
-                "slime":     "slime",
-                "snake":     "snake",
-                "yeti":      "yeti",
+                // Animated idle.gif sprites (20)
+                "bat":         "bat",
+                "boar":        "boar",
+                "chest":       "chest",
+                "dino":        "dino",
+                "dragon":      "dragon",
+                "ghost":       "ghost",
+                "giant":       "giant",
+                "mimic":       "mimic",
+                "mushroom":    "mushroom",
+                "octopus":     "octopus",
+                "reptile":     "reptile",
+                "slime":       "slime",
+                "snake":       "snake",
+                "yeti":        "yeti",
+                // Batch 6 new summons (6)
+                "plaguefang":  "plaguefang",
+                "lumenmoth":   "lumenmoth",
+                "emberwick":   "emberwick",
+                "skitterswarm": "skitterswarm",
+                "tidalmaw":    "tidalmaw",
+                "fireguard":   "fireguard",
                 // Static PNG sprites (3) — ship sprites for Grand Inventor
                 "ship_cruiser":   "ship_cruiser",
                 "ship_fighter":   "ship_fighter",
