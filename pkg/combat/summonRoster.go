@@ -155,21 +155,20 @@ func GenerateSummonRosterGIF(c *gin.Context) {
 
         // ── 3. Calculate summon positions ──
         // 💡 CODEX LAYOUT: 5 per page in a 3-front / 2-back arrangement.
-        // Front row: 3 sprites (positions 0, 1, 2) — fills first
-        // Back row: 2 sprites (positions 3, 4) — overflow
+        // Front row: 3 sprites (positions 0, 1, 2) — fills first, LARGER
+        // Back row: 2 sprites (positions 3, 4) — overflow, SMALLER (perspective)
         //
-        // 💡 FIX 2026-08-04 (v2): Sprite size tuned to fit 5 sprites in 720px
-        // canvas WITHOUT overlap. Previous 320px height / 360px width was too
-        // big — front-row sprites overlapped each other and clipped edges.
-        // Now: 220px height, 200px width, 230px slots. Still ~1.4x the
-        // original 160px, but fits the layout cleanly.
-        // Shadow radius is FIXED (not scaled with sprite).
-        const spriteH = 220
-        const maxSpriteW = 200
-        const slotW = 230
-        const backRowY = 280  // back row ground line
-        const frontRowY = 430 // front row ground line
-        const shadowRadiusFixed = 65.0 // fixed shadow radius
+        // 💡 FIX 2026-08-05 (v2): Zero vertical overlap between rows.
+        // Back row bottom = front row top. Back row is drawn FIRST (z-order).
+        // Back row is ~60% the size of front row (clear perspective).
+        const frontSpriteH = 260
+        const frontMaxSpriteW = 220
+        const backSpriteH = 150
+        const backMaxSpriteW = 140
+        const slotW = 240
+        const backRowY = 215   // back row ground line (bottom = 215)
+        const frontRowY = 475  // front row ground line (top = 475-260=215 → zero gap)
+        const shadowRadiusFixed = 60.0
         _ = len(gifs)
         // Calculate total width for 3 columns (front row width)
         totalWidth := 3 * slotW
@@ -207,26 +206,41 @@ func GenerateSummonRosterGIF(c *gin.Context) {
                 dc.DrawStringAnchored(slotStr, float64(W-30), 35, 1, 0.5)
 
                 // ── Draw each summon ──
-                for i, gd := range gifs {
+                // 💡 FIX 2026-08-05: Draw BACK ROW FIRST (z-order), then FRONT ROW.
+                // This way front row sprites occlude back row sprites naturally,
+                // creating depth instead of the back row overlaying the front.
+                // Back row uses smaller sprite size (perspective: further = smaller).
+                drawOrder := []int{}
+                for i := range gifs {
+                        if i >= 3 { drawOrder = append(drawOrder, i) } // back row first
+                }
+                for i := range gifs {
+                        if i < 3 { drawOrder = append(drawOrder, i) } // front row second
+                }
+
+                for _, i := range drawOrder {
+                        gd := gifs[i]
                         gifFrameIdx := frameIdx % len(gd.frames)
                         spriteImg := gd.frames[gifFrameIdx]
 
-                        // 💡 FIX 2026-08-04: Apply the FIXED crop rect (computed once
-                        // from the union of all frames' visible bounds). This removes
-                        // transparent padding so imaging.Fit scales the actual sprite
-                        // content — while preserving the bobbing animation (the crop
-                        // region is the same for every frame, so the sprite's position
-                        // within the crop changes with the bob).
+                        // Determine row-specific sprite size
+                        isBackRow := i >= 3
+                        rowSpriteH := frontSpriteH
+                        rowMaxSpriteW := frontMaxSpriteW
+                        if isBackRow {
+                                rowSpriteH = backSpriteH
+                                rowMaxSpriteW = backMaxSpriteW
+                        }
+
+                        // Apply the FIXED crop rect (computed once from union of all frames)
                         croppedImg := applyCrop(spriteImg, gd.cropRect)
 
-                        // 💡 FIX 2026-08-04: Manual contain-fit (scale UP or DOWN).
-                        // imaging.Fit does NOT upscale small images. We calculate the
-                        // scale factor ourselves and use imaging.Resize which always scales.
+                        // Manual contain-fit (scale UP or DOWN)
                         cb := croppedImg.Bounds()
                         cW := cb.Dx()
                         cH := cb.Dy()
-                        sW := float64(maxSpriteW) / float64(cW)
-                        sH := float64(spriteH) / float64(cH)
+                        sW := float64(rowMaxSpriteW) / float64(cW)
+                        sH := float64(rowSpriteH) / float64(cH)
                         fitScale := sW
                         if sH < fitScale { fitScale = sH }
                         dstW := int(float64(cW) * fitScale)
@@ -235,34 +249,19 @@ func GenerateSummonRosterGIF(c *gin.Context) {
                         if dstH < 1 { dstH = 1 }
                         resized := imaging.Resize(croppedImg, dstW, dstH, imaging.NearestNeighbor)
 
-                        // 💡 FIX 2026-08-04: Do NOT recalculate visibleBottom per-frame.
-                        // Since we already cropped to the UNION of all frames' visible
-                        // bounds, the crop region's bottom IS the lowest the sprite
-                        // ever goes. Position the sprite so the BOTTOM of the resized
-                        // image sits on the ground line. The bobbing happens WITHIN
-                        // this fixed position (the sprite moves up/down inside the
-                        // crop box, but the box itself doesn't move).
-                        bottomPadding := 0 // no per-frame adjustment — crop already handled it
+                        bottomPadding := 0
 
-                        // 💡 2-ROW LAYOUT: Front row = positions 0,1,2. Back row = 3,4.
-                        // Front row fills first (3 slots), back row overflows (2 slots).
-                        // Back row sprites are centered between front row columns.
+                        // Position: front row fills first (3 slots), back row between
                         var slotCenterX, groundY int
-                        if i < 3 {
-                                // Front row: 3 sprites in columns 0, 1, 2
+                        if !isBackRow {
                                 slotCenterX = startX + i*slotW + slotW/2
                                 groundY = frontRowY
                         } else {
-                                // Back row: 2 sprites, each centered between front row columns
-                                // Front columns are at: startX+slotW/2, startX+slotW+slotW/2, startX+2*slotW+slotW/2
-                                // Back col 0: between front 0 and 1 → startX+slotW
-                                // Back col 1: between front 1 and 2 → startX+2*slotW
-                                backCol := i - 3 // 0 or 1
+                                backCol := i - 3
                                 slotCenterX = startX + (backCol+1)*slotW
                                 groundY = backRowY
                         }
 
-                        // Position sprite so the BOTTOM of the crop region sits on the ground line
                         spriteDrawX := slotCenterX - dstW/2
                         spriteDrawY := groundY - dstH + bottomPadding
 
@@ -290,12 +289,8 @@ func GenerateSummonRosterGIF(c *gin.Context) {
 
                         rarityColor := getRarityColor(summon.Rarity)
 
-                        // 💡 FIX 2026-08-04: Rarity badge (filled circle) beside the name.
-                        // Name text is colored by rarity. Badge is drawn to the left of
-                        // the name, both centered as a group under the sprite.
                         if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "dogicapixelbold.otf"), 14); err != nil {}
 
-                        // Measure name width to center badge+name group
                         nameW, _ := dc.MeasureString(name)
                         badgeR := 5.0
                         badgeGap := 4.0
@@ -303,12 +298,11 @@ func GenerateSummonRosterGIF(c *gin.Context) {
                         groupStartX := float64(slotCenterX) - groupW/2
                         nameY := float64(groundY + 14)
 
-                        // Draw rarity badge (filled circle with slight glow)
+                        // Draw rarity badge
                         badgeX := groupStartX + badgeR
                         dc.SetColor(rarityColor)
                         dc.DrawCircle(badgeX, nameY, badgeR)
                         dc.Fill()
-                        // White inner dot for contrast
                         dc.SetColor(color.RGBA{255, 255, 255, 200})
                         dc.DrawCircle(badgeX, nameY, badgeR*0.4)
                         dc.Fill()
@@ -325,13 +319,14 @@ func GenerateSummonRosterGIF(c *gin.Context) {
 
                         if summon.IsDeployed {
                                 dc.SetColor(color.RGBA{255, 215, 0, 255})
-                                dc.DrawStringAnchored("⭐", float64(slotCenterX), float64(groundY-spriteH+5), 0.5, 0.5)
+                                deployedY := groundY - rowSpriteH + 5
+                                dc.DrawStringAnchored("⭐", float64(slotCenterX), float64(deployedY), 0.5, 0.5)
                         }
                 }
 
                 // ── Info Hub (codex-specific) ──
-                hubY := 480
-                hubH := 230
+                hubY := 520
+                hubH := 190
                 dc.SetColor(color.RGBA{0, 0, 0, 180})
                 dc.DrawRoundedRectangle(15, float64(hubY), float64(W-30), float64(hubH), 10)
                 dc.Fill()
