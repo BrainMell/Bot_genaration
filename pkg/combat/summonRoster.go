@@ -415,6 +415,10 @@ func getSummonIdleGifPath(species string, assetsPath string) string {
                 "skitterswarm": "skitterswarm",
                 "tidalmaw":    "tidalmaw",
                 "fireguard":   "fireguard",
+                // Batch 7 new summons (3)
+                "boglurk":     "boglurk",
+                "frostpeep":   "frostpeep",
+                "starnail":    "starnail",
                 // Static PNG sprites (3) — ship sprites for Grand Inventor
                 "ship_cruiser":   "ship_cruiser",
                 "ship_fighter":   "ship_fighter",
