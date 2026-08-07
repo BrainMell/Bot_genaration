@@ -283,10 +283,10 @@ func GenerateCombatImage(c *gin.Context) {
         // - Scaled to ~85% of player sprite size (not fixed enemy-relative size)
         // - Drawn BEFORE players (z-order: behind owner)
         // - Facing: inherits owner's side (left side → face RIGHT)
-        // 💡 FIX 2026-08-07 (#4): playerCenterX=350 (compromise between panel
-        // overlap at 280 and too-close-to-enemy at 460). MAIN_FEET_Y=490 keeps
-        // feet above the UI panel top (Y=469) so no vertical overlap.
-        playerCenterX := 350.0 // player formation center X
+        // 💡 FIX 2026-08-07 (#4): playerCenterX=500 — sprite X range 439→561
+        // is FULLY outside the player_state.png panel (X:-22→431).
+        // Zero overlap, not masked by z-order. Gap to enemy at X=800 is 300px.
+        playerCenterX := 500.0 // player formation center X (past UI panel, left of center)
         playerSpriteW := 122   // player PvE sprite width
         summonSpriteW := int(float64(playerSpriteW) * 0.85) // 85% of player size
 
