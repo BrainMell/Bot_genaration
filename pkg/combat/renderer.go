@@ -205,7 +205,7 @@ func GenerateCombatImage(c *gin.Context) {
 
                 // Tint Red if dead
                 if enemy.CurrentHP <= 0 {
-                        eSprite = utils.TintImage(eSprite, color.RGBA{255, 0, 0, 150})
+                        eSprite = utils.TintImage(eSprite, color.RGBA{80, 0, 80, 180})
                 }
 
                 // 💡 FIX 2026-08-07: Feet-anchor positioning in ground zone.
@@ -320,7 +320,7 @@ func GenerateCombatImage(c *gin.Context) {
 
                 // Tint red if dead
                 if summon.CurrentHP <= 0 {
-                        sSprite = utils.TintImage(sSprite, color.RGBA{255, 0, 0, 150})
+                        sSprite = utils.TintImage(sSprite, color.RGBA{80, 0, 80, 180})
                 }
 
                 // 💡 FIX 2026-08-07 (#4/#5): Summon positioned relative to player.
@@ -425,7 +425,7 @@ func GenerateCombatImage(c *gin.Context) {
                 pSprite, err := utils.LoadImage(spritePath)
                 if err == nil {
                         if p.CurrentHP <= 0 {
-                                pSprite = utils.TintImage(pSprite, color.RGBA{255, 0, 0, 150})
+                                pSprite = utils.TintImage(pSprite, color.RGBA{80, 0, 80, 180})
                         }
 
                         // Resize to 314px width
@@ -456,7 +456,7 @@ func GenerateCombatImage(c *gin.Context) {
                                                 return
                                         }
                                         if player.CurrentHP <= 0 {
-                                                sprite = utils.TintImage(sprite, color.RGBA{255, 0, 0, 150})
+                                                sprite = utils.TintImage(sprite, color.RGBA{80, 0, 80, 180})
                                         }
                                         sprite = imaging.Resize(sprite, 160, 0, imaging.NearestNeighbor)
                                         // 💡 FIX 2026-08-07 (#2): Crop transparent padding so feet sit on ground
