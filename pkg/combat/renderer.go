@@ -283,7 +283,11 @@ func GenerateCombatImage(c *gin.Context) {
         // - Scaled to ~85% of player sprite size (not fixed enemy-relative size)
         // - Drawn BEFORE players (z-order: behind owner)
         // - Facing: inherits owner's side (left side → face RIGHT)
-        playerCenterX := 280.0 // player formation center X (left side)
+        // 💡 FIX 2026-08-07 (#4): Moved playerCenterX from 280 to 460.
+        // At 280, the player sprite overlapped the player_state.png UI panel
+        // (X:-22→431, Y:469→713). At 460, the player is past the panel's
+        // right edge (431) and still left of screen center (512).
+        playerCenterX := 460.0 // player formation center X (left side, past UI panel)
         playerSpriteW := 122   // player PvE sprite width
         summonSpriteW := int(float64(playerSpriteW) * 0.85) // 85% of player size
 
@@ -303,13 +307,17 @@ func GenerateCombatImage(c *gin.Context) {
                 // 💡 FIX 2026-08-07 (#2): Crop transparent padding so feet sit on ground
                 sSprite = cropToVisibleBounds(sSprite)
 
-                // Facing: inherits owner's side. Player is on LEFT → face RIGHT.
-                // Summon source art faces LEFT, so flip to face RIGHT.
+                // 💡 FIX 2026-08-07 (#5): Use flipForSide instead of unconditional FlipH.
+                // Summon source art may face LEFT, RIGHT, or CENTER — only flip if needed.
                 // Ship sprites face forward — rotate 90° instead.
                 if strings.Contains(summon.Species, "ship_") {
                         sSprite = imaging.Rotate90(sSprite)
                 } else {
-                        sSprite = imaging.FlipH(sSprite)
+                        // Summon is on LEFT side (player side) → should face RIGHT
+                        summonSpriteFile := filepath.Base(GetSummonSpritePath(summon.Species, assetsPath))
+                        if flipForSide(summonSpriteFile, true) {
+                                sSprite = imaging.FlipH(sSprite)
+                        }
                 }
 
                 // Tint red if dead
@@ -317,12 +325,10 @@ func GenerateCombatImage(c *gin.Context) {
                         sSprite = utils.TintImage(sSprite, color.RGBA{255, 0, 0, 100})
                 }
 
-                // 💡 Position relative to player (Spec 1B):
-                // X: player.X - 15% scene width (further from enemy = visually behind)
-                // Feet Y: HIGHER than player (further back = depth), NOT lower.
-                // Previous code used playerFeetY+20 which put the summon BELOW
-                // the ground zone boundary (525 > 515 = GROUND_BOTTOM_Y).
-                summonFeetX := playerCenterX - float64(CANVAS_W)*0.15
+                // 💡 FIX 2026-08-07 (#4/#5): Summon positioned relative to player.
+                // X: 80px to the LEFT of player (behind, further from enemy)
+                // Y: BACK_FEET_Y (higher = further back, depth cue)
+                summonFeetX := playerCenterX - 80
                 summonFeetY := float64(BACK_FEET_Y) // higher = further back (depth)
                 // Formation offset for multiple summons
                 sub := i % 4
