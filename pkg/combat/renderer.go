@@ -284,7 +284,6 @@ func GenerateCombatImage(c *gin.Context) {
         // - Drawn BEFORE players (z-order: behind owner)
         // - Facing: inherits owner's side (left side → face RIGHT)
         playerCenterX := 280.0 // player formation center X (left side)
-        playerFeetY := float64(MAIN_FEET_Y)
         playerSpriteW := 122   // player PvE sprite width
         summonSpriteW := int(float64(playerSpriteW) * 0.85) // 85% of player size
 
@@ -320,9 +319,11 @@ func GenerateCombatImage(c *gin.Context) {
 
                 // 💡 Position relative to player (Spec 1B):
                 // X: player.X - 15% scene width (further from enemy = visually behind)
-                // Feet Y: slightly greater than player's feet Y (closer to UI = in front)
+                // Feet Y: HIGHER than player (further back = depth), NOT lower.
+                // Previous code used playerFeetY+20 which put the summon BELOW
+                // the ground zone boundary (525 > 515 = GROUND_BOTTOM_Y).
                 summonFeetX := playerCenterX - float64(CANVAS_W)*0.15
-                summonFeetY := playerFeetY + 20 // slightly lower = closer to camera
+                summonFeetY := float64(BACK_FEET_Y) // higher = further back (depth)
                 // Formation offset for multiple summons
                 sub := i % 4
                 if sub == 1 || sub == 2 {
@@ -331,7 +332,7 @@ func GenerateCombatImage(c *gin.Context) {
                         summonFeetX -= float64(spX) * 1.6
                 }
                 if sub > 0 {
-                        summonFeetY = float64(BACK_FEET_Y) + 20 // background summons higher
+                        summonFeetY = float64(BACK_FEET_Y) - 15 // background summons even higher
                 }
 
                 // Convert feet to draw position
@@ -739,7 +740,7 @@ func GenerateEndScreen(c *gin.Context) {
 
         // Rewards panel (victory only)
         if req.Victory && (req.Gold > 0 || req.XP > 0 || req.Items != "") {
-                panelY := 360.0
+                panelY := 420.0
                 panelH := 200.0
                 dc.SetRGBA(0, 0, 0, 0.5)
                 dc.DrawRoundedRectangle(150, panelY, float64(CANVAS_W-300), panelH, 12)
