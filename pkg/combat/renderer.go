@@ -4,6 +4,7 @@ import (
         "fmt"
         "image"
         "image/color"
+        "image/draw"
         "math"
         "os"
         "path/filepath"
@@ -17,6 +18,41 @@ import (
         "github.com/gin-gonic/gin"
 )
 
+// 💡 FIX 2026-08-07 (#2): cropToVisibleBounds crops transparent padding from
+// a sprite image so the visible content's bottom edge aligns with the ground.
+// Without this, sprites with bottom transparent padding "float" above the
+// ground line because their bounding-box bottom isn't their visible bottom.
+func cropToVisibleBounds(img image.Image) image.Image {
+        bounds := img.Bounds()
+        minX := bounds.Max.X
+        minY := bounds.Max.Y
+        maxX := bounds.Min.X
+        maxY := bounds.Min.Y
+
+        for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+                for x := bounds.Min.X; x < bounds.Max.X; x++ {
+                        _, _, _, a := img.At(x, y).RGBA()
+                        if a > 10 {
+                                if x < minX { minX = x }
+                                if x > maxX { maxX = x }
+                                if y < minY { minY = y }
+                                if y > maxY { maxY = y }
+                        }
+                }
+        }
+        if maxX < 0 || maxY < 0 {
+                return img // fully transparent — return as-is
+        }
+        // 💡 FIX: Always use NewRGBA (0,0 origin), NOT SubImage.
+        // SubImage returns offset bounds which cause DrawImage to draw at
+        // wrong position (position drift = ghosting/floating artifact).
+        cropW := maxX - minX + 1
+        cropH := maxY - minY + 1
+        dst := image.NewRGBA(image.Rect(0, 0, cropW, cropH))
+        draw.Draw(dst, dst.Bounds(), img, image.Pt(minX, minY), draw.Src)
+        return dst
+}
+
 const (
         CANVAS_W = 1024
         CANVAS_H = 687
@@ -27,8 +63,8 @@ const (
         // Ground zone: HORIZON_Y to GROUND_BOTTOM_Y. All sprite feet go here.
         HORIZON_Y       = 309 // 45% of CANVAS_H — sky/ground boundary
         GROUND_BOTTOM_Y = 515 // 75% of CANVAS_H — top of UI panel
-        MAIN_FEET_Y     = 470 // main player/enemy feet (lower = closer to camera)
-        BACK_FEET_Y     = 400 // summon/background entity feet (higher = further away)
+        MAIN_FEET_Y     = 480 // main player/enemy feet (lower = closer to camera)
+        BACK_FEET_Y     = 410 // summon/background entity feet (higher = further away)
 )
 
 func GenerateCombatImage(c *gin.Context) {
@@ -156,6 +192,8 @@ func GenerateCombatImage(c *gin.Context) {
                         eW = enemySpriteSize * 1.5
                 }
                 eSprite = imaging.Resize(eSprite, int(eW), 0, imaging.NearestNeighbor)
+                // 💡 FIX 2026-08-07 (#2): Crop transparent padding so feet sit on ground
+                eSprite = cropToVisibleBounds(eSprite)
 
                 // 💡 FIX 2026-08-07: Side-based facing — enemies on RIGHT side face LEFT (Spec 1C)
                 if flipForSide(filepath.Base(spritePath), false) {
@@ -260,6 +298,8 @@ func GenerateCombatImage(c *gin.Context) {
 
                 // Resize — 85% of player sprite size (Spec 1B)
                 sSprite = imaging.Resize(sSprite, summonSpriteW, 0, imaging.NearestNeighbor)
+                // 💡 FIX 2026-08-07 (#2): Crop transparent padding so feet sit on ground
+                sSprite = cropToVisibleBounds(sSprite)
 
                 // Facing: inherits owner's side. Player is on LEFT → face RIGHT.
                 // Summon source art faces LEFT, so flip to face RIGHT.
@@ -411,6 +451,8 @@ func GenerateCombatImage(c *gin.Context) {
                                                 sprite = utils.TintImage(sprite, color.RGBA{255, 0, 0, 100})
                                         }
                                         sprite = imaging.Resize(sprite, 160, 0, imaging.NearestNeighbor)
+                                        // 💡 FIX 2026-08-07 (#2): Crop transparent padding so feet sit on ground
+                                        sprite = cropToVisibleBounds(sprite)
                                         if flip {
                                                 sprite = imaging.FlipH(sprite)
                                         }
@@ -471,7 +513,9 @@ func GenerateCombatImage(c *gin.Context) {
                                 // 💡 FIX 2026-08-07: Feet-anchor + ground zone (Spec 1A/1C).
                                 // Players on LEFT side, feet in ground zone, face RIGHT.
                                 s2Size := 122
-                                smallSprite := imaging.Resize(pSprite, s2Size, 0, imaging.NearestNeighbor)
+                                var smallSprite image.Image = imaging.Resize(pSprite, s2Size, 0, imaging.NearestNeighbor)
+                                // 💡 FIX 2026-08-07 (#2): Crop transparent padding so feet sit on ground
+                                smallSprite = cropToVisibleBounds(smallSprite)
                                 pSpriteFile := GetCharacterSpriteFile(p.Class, p.SpriteIndex, assetsPath)
                                 var flippedSprite image.Image
                                 if flipForSide(pSpriteFile, true) {
@@ -515,7 +559,9 @@ func GenerateCombatImage(c *gin.Context) {
                                         apPath := GetCharacterSpritePath(ap.Class, ap.SpriteIndex, assetsPath)
                                         apSprite, err := utils.LoadImage(apPath)
                                         if err != nil { continue }
-                                        apResized := imaging.Resize(apSprite, s2Size, 0, imaging.NearestNeighbor)
+                                        var apResized image.Image = imaging.Resize(apSprite, s2Size, 0, imaging.NearestNeighbor)
+                                        // 💡 FIX 2026-08-07 (#2): Crop transparent padding so feet sit on ground
+                                        apResized = cropToVisibleBounds(apResized)
                                         apSpriteFile := GetCharacterSpriteFile(ap.Class, ap.SpriteIndex, assetsPath)
                                         var apFlipped image.Image
                                         if flipForSide(apSpriteFile, true) {

@@ -219,6 +219,29 @@ var EnemySprites = map[string][]string{
         "FIRE_ELITE":  {"fire (11).png"},
 }
 
+// 💡 FIX 2026-08-07 (P4.4): Name-based enemy sprite lookup.
+//
+// DIFF RESULT: 11 newer enemy sprite files exist on Box 2 but are ALL
+// spritesheets (multi-frame: 1350x900, 2700x1080, 2925x1300, etc.),
+// NOT single sprites. They CANNOT be rendered directly in combat without
+// frame extraction. The old level-based EnemySprites rotation (using
+// single-frame files like "fire (5).png") works correctly for all enemies.
+//
+// The name-based lookup infrastructure is kept (empty map + lookup code)
+// so that when single-frame versions of these sprites are added in the
+// future, they just need to be added to this map.
+//
+// Files that need frame extraction before they can be mapped:
+//   wolf_0001_brown.png (2925x1300), Bat_0000_dark.png (1350x900),
+//   kobold_0000_red.png (2700x1080), troll_0000_green.png (3915x1436),
+//   Werewolf_0004_brown.png (3600x1385), goblin sheet.png (2700x900),
+//   crab sheet.png, gnoll sheet.png, sahuagin sheet.png,
+//   skelleton sheet.png, slime waterB sheet.png
+var EnemyNameSprites = map[string]string{
+        // Empty — all newer enemy sprite files are spritesheets.
+        // Add entries here ONLY for single-frame PNG files.
+}
+
 var BossSprites = map[string][]string{
         "MID_BOSSES":  {"midlevelbosses (1).png", "midlevelbosses (2).png", "midlevelbosses (3).png", "midlevelbosses (4).png", "midlevelbosses (5).png", "midlevelbosses (6).png", "midlevelbosses (7).png"},
         "HIGH_BOSSES": {"highlevelbosses (7).png", "highlevelbosses (8).png", "highlevelbosses (9).png", "highlevelbosses (10).png", "highlevelbosses (11).png", "highlevelbosses (12).png", "highlevelbosses (13).png"},
@@ -373,6 +396,21 @@ func GetEnemySpritePath(name string, level int, index int, isBoss bool, assetsPa
                 }
                 filename = list[index%len(list)]
         } else {
+                // 💡 FIX 2026-08-07 (P4.4): Name-based lookup for non-boss enemies.
+                // Check EnemyNameSprites first — if this enemy name has a specific
+                // sprite mapped, use it. Falls back to level-based rotation if no match.
+                if name != "" {
+                        upperName := strings.ToUpper(strings.TrimSpace(name))
+                        // Also try with underscores (Node side sends bossId with underscores)
+                        underscoreName := strings.ReplaceAll(upperName, " ", "_")
+                        if specific, ok := EnemyNameSprites[upperName]; ok && specific != "" {
+                                return filepath.Join(assetsPath, "rpgasset", "enemies", specific)
+                        }
+                        if specific, ok := EnemyNameSprites[underscoreName]; ok && specific != "" {
+                                return filepath.Join(assetsPath, "rpgasset", "enemies", specific)
+                        }
+                }
+
                 var list []string
                 if level <= 10 {
                         list = EnemySprites["FIRE_LOW"]
