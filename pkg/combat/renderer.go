@@ -211,13 +211,21 @@ func GenerateCombatImage(c *gin.Context) {
                 // 💡 FIX 2026-08-07: Feet-anchor positioning in ground zone.
                 // feetX = horizontal center, feetY = ground line for this entity.
                 // Main enemy (sub 0): feet at MAIN_FEET_Y. Others: BACK_FEET_Y (depth).
+                //
+                // 💡 FIX 2026-08-08: Formation overlap bug — sub=1 and sub=2 were
+                // both at feetX-spX (same X), causing 2 of 3 enemies to overlap.
+                // Now uses a 2x2 grid: sub=0 front-center, sub=1 back-left,
+                // sub=2 back-right, sub=3 far-back-center.
                 feetX := enemyStartX
                 feetY := float64(MAIN_FEET_Y)
                 sub := i % 4
-                if sub == 1 || sub == 2 {
-                        feetX -= spX
-                } else if sub == 3 {
-                        feetX -= spX * 2
+                switch sub {
+                case 1:
+                        feetX -= spX // back-left
+                case 2:
+                        feetX += spX // back-right (was -= spX, overlapping sub=1)
+                case 3:
+                        feetX -= spX * 2 // far-back-left
                 }
                 if sub > 0 {
                         feetY = float64(BACK_FEET_Y) // background enemies higher (depth)
