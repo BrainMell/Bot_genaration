@@ -544,22 +544,30 @@ func GetSpriteFacing(filename string) string {
         return "CENTER"
 }
 
-// ShouldFlipForPvE returns true if the sprite should be flipped horizontally
-// so it faces RIGHT (toward enemies on the right side of the screen).
-// - LEFT sprites: flip to face RIGHT ✓
-// - RIGHT sprites: don't flip (already facing RIGHT) ✓
-// - CENTER sprites: flip (same as before — CENTER sprites are usually symmetric)
-func ShouldFlipForPvE(filename string) bool {
+// 💡 FIX 2026-08-07: Side-based facing rule (Spec 1C).
+// Replaces ShouldFlipForPvE + ShouldFlipForPvPRight with a single function.
+// Left-side entities must face RIGHT; Right-side entities must face LEFT.
+// CENTER (symmetric) sprites are NOT flipped — harmless either way, and
+// avoids flipping mislabeled CENTER sprites that actually face a direction.
+//
+// flipForSide returns true if the sprite needs horizontal flipping to face
+// the correct direction for its screen side.
+func flipForSide(filename string, isLeftSide bool) bool {
         facing := GetSpriteFacing(filename)
-        return facing == "LEFT" || facing == "CENTER"
+        if isLeftSide {
+                return facing == "LEFT" // flip LEFT→RIGHT; RIGHT and CENTER stay
+        }
+        return facing == "RIGHT" // flip RIGHT→LEFT; LEFT and CENTER stay
 }
 
-// ShouldFlipForPvPRight returns true if the sprite (used for the RIGHT player
-// in PvP) should be flipped so it faces LEFT (toward the left player).
-// - RIGHT sprites: flip to face LEFT ✓
-// - LEFT sprites: don't flip (already facing LEFT) ✓
-// - CENTER sprites: flip (same as before)
+// ShouldFlipForPvE returns true if the sprite should be flipped horizontally
+// so it faces RIGHT (toward enemies on the right side of the screen).
+func ShouldFlipForPvE(filename string) bool {
+        return flipForSide(filename, true)
+}
+
+// ShouldFlipForPvPRight returns true if the sprite should be flipped so it
+// faces LEFT (toward the left player).
 func ShouldFlipForPvPRight(filename string) bool {
-        facing := GetSpriteFacing(filename)
-        return facing == "RIGHT" || facing == "CENTER"
+        return flipForSide(filename, false)
 }

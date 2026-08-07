@@ -22,6 +22,13 @@ const (
         CANVAS_H = 687
         OFF_X    = 694
         OFF_Y    = 356
+        // 💡 FIX 2026-08-07: Horizon line + ground zone (Spec 1A).
+        // Sky zone: Y=0 to HORIZON_Y. No sprite feet may be placed here.
+        // Ground zone: HORIZON_Y to GROUND_BOTTOM_Y. All sprite feet go here.
+        HORIZON_Y       = 309 // 45% of CANVAS_H — sky/ground boundary
+        GROUND_BOTTOM_Y = 515 // 75% of CANVAS_H — top of UI panel
+        MAIN_FEET_Y     = 470 // main player/enemy feet (lower = closer to camera)
+        BACK_FEET_Y     = 400 // summon/background entity feet (higher = further away)
 )
 
 func GenerateCombatImage(c *gin.Context) {
@@ -106,9 +113,13 @@ func GenerateCombatImage(c *gin.Context) {
         }
 
         // 2. Mobs / Enemies
+        // 💡 FIX 2026-08-07: Feet-anchor + ground zone (Spec 1A).
+        // Enemies are on the RIGHT side, feet in ground zone (HORIZON_Y to GROUND_BOTTOM_Y).
+        // Main enemy (index 0): feet at MAIN_FEET_Y (lower = closer to camera).
+        // Background enemies (index 1+): feet at BACK_FEET_Y (higher = further away, depth cue).
         enemySpriteSize := 190.0
-        startX, startY := 780.0, 160.0
-        spX, spY := 130.0, 110.0
+        enemyStartX := 800.0 // center X for main enemy
+        spX := 120.0         // horizontal formation spacing
 
         // Determine avg level for sprite selection
         avgLevel := 1
@@ -146,23 +157,37 @@ func GenerateCombatImage(c *gin.Context) {
                 }
                 eSprite = imaging.Resize(eSprite, int(eW), 0, imaging.NearestNeighbor)
 
+                // 💡 FIX 2026-08-07: Side-based facing — enemies on RIGHT side face LEFT (Spec 1C)
+                if flipForSide(filepath.Base(spritePath), false) {
+                        eSprite = imaging.FlipH(eSprite)
+                }
+
                 // Tint Red if dead
                 if enemy.CurrentHP <= 0 {
                         eSprite = utils.TintImage(eSprite, color.RGBA{255, 0, 0, 100})
                 }
 
-                // Calculate Position
-                ex, ey := startX, startY
+                // 💡 FIX 2026-08-07: Feet-anchor positioning in ground zone.
+                // feetX = horizontal center, feetY = ground line for this entity.
+                // Main enemy (sub 0): feet at MAIN_FEET_Y. Others: BACK_FEET_Y (depth).
+                feetX := enemyStartX
+                feetY := float64(MAIN_FEET_Y)
                 sub := i % 4
                 if sub == 1 || sub == 2 {
-                        ex -= spX
+                        feetX -= spX
                 } else if sub == 3 {
-                        ex -= spX * 2
+                        feetX -= spX * 2
                 }
-                if sub == 1 || sub == 3 {
-                        ey += spY
+                if sub > 0 {
+                        feetY = float64(BACK_FEET_Y) // background enemies higher (depth)
                 }
-                ex += float64(i/4) * -250.0
+                feetX += float64(i/4) * -250.0
+
+                // Convert feet position to draw position (top-left anchor for DrawImage)
+                spriteW := eSprite.Bounds().Dx()
+                spriteH := eSprite.Bounds().Dy()
+                ex := feetX - float64(spriteW)/2
+                ey := feetY - float64(spriteH)
 
                 hpPerc := 0.0
                 if enemy.MaxHP > 0 {
@@ -177,8 +202,8 @@ func GenerateCombatImage(c *gin.Context) {
 
         // Draw Mobs
         for _, mob := range mobQueue {
-                // Shadow (drawn FIRST, under everything)
-                utils.DrawShadow(dc, mob.x+float64(mob.img.Bounds().Dx())/2, mob.y+float64(mob.img.Bounds().Dy())-10, float64(mob.img.Bounds().Dx())*0.4, 0.6)
+                // Shadow (drawn FIRST, under everything) — at feet position
+                utils.DrawShadow(dc, mob.x+float64(mob.img.Bounds().Dx())/2, mob.y+float64(mob.img.Bounds().Dy()), float64(mob.img.Bounds().Dx())*0.4, 0.6)
                 // 💡 TURN INDICATOR: draw golden ellipse ON TOP of shadow, UNDER sprite.
                 // Must be after shadow so the golden circle is visible (shadow would cover it otherwise).
                 if isAttacker("enemy", mob.origIndex) {
@@ -212,9 +237,16 @@ func GenerateCombatImage(c *gin.Context) {
         }
 
         // 💡 Summoner System (Phase 7): Draw summoned allies.
-        // Summons are rendered on the player's side of the battlefield,
-        // arranged side-by-side like enemies (same formation pattern).
-        // Drawn after mobs but before UI so UI overlays on top.
+        // 💡 FIX 2026-08-07: Summon placement per Spec 1B + 1D.
+        // - Positioned relative to player (X offset, feet Y slightly lower = in front)
+        // - Scaled to ~85% of player sprite size (not fixed enemy-relative size)
+        // - Drawn BEFORE players (z-order: behind owner)
+        // - Facing: inherits owner's side (left side → face RIGHT)
+        playerCenterX := 280.0 // player formation center X (left side)
+        playerFeetY := float64(MAIN_FEET_Y)
+        playerSpriteW := 122   // player PvE sprite width
+        summonSpriteW := int(float64(playerSpriteW) * 0.85) // 85% of player size
+
         for i, summon := range req.Summons {
                 if summon.CurrentHP <= 0 && !summon.JustDied {
                         continue
@@ -226,15 +258,15 @@ func GenerateCombatImage(c *gin.Context) {
                         continue
                 }
 
-                // Resize — summons are 80% of enemy sprite size
-                sW := enemySpriteSize * 0.8
-                sSprite = imaging.Resize(sSprite, int(sW), 0, imaging.NearestNeighbor)
+                // Resize — 85% of player sprite size (Spec 1B)
+                sSprite = imaging.Resize(sSprite, summonSpriteW, 0, imaging.NearestNeighbor)
 
-                // 💡 Ship sprites (Grand Inventor) face forward — rotate 90° to face right
+                // Facing: inherits owner's side. Player is on LEFT → face RIGHT.
+                // Summon source art faces LEFT, so flip to face RIGHT.
+                // Ship sprites face forward — rotate 90° instead.
                 if strings.Contains(summon.Species, "ship_") {
                         sSprite = imaging.Rotate90(sSprite)
                 } else {
-                        // Normal sprites: flip to face enemies (right)
                         sSprite = imaging.FlipH(sSprite)
                 }
 
@@ -243,42 +275,45 @@ func GenerateCombatImage(c *gin.Context) {
                         sSprite = utils.TintImage(sSprite, color.RGBA{255, 0, 0, 100})
                 }
 
-                // 💡 Position — summons stand BESIDE players as their own entity.
-                // Players are at startX-500. Summons at startX-350 (150px right of players,
-                // between players and enemies). Same Y as enemies for symmetry.
-                // This makes summons visible as separate combat participants.
-                sx := startX - 350
-                sy := startY
+                // 💡 Position relative to player (Spec 1B):
+                // X: player.X - 15% scene width (further from enemy = visually behind)
+                // Feet Y: slightly greater than player's feet Y (closer to UI = in front)
+                summonFeetX := playerCenterX - float64(CANVAS_W)*0.15
+                summonFeetY := playerFeetY + 20 // slightly lower = closer to camera
+                // Formation offset for multiple summons
                 sub := i % 4
                 if sub == 1 || sub == 2 {
-                        sx -= spX
+                        summonFeetX -= float64(spX) * 0.8
                 } else if sub == 3 {
-                        sx -= spX * 2
+                        summonFeetX -= float64(spX) * 1.6
                 }
-                if sub == 1 || sub == 3 {
-                        sy += spY
+                if sub > 0 {
+                        summonFeetY = float64(BACK_FEET_Y) + 20 // background summons higher
                 }
-                sx += float64(i/4) * -250.0
 
-                // Shadow (drawn FIRST)
-                utils.DrawShadow(dc, sx+float64(sSprite.Bounds().Dx())/2, sy+float64(sSprite.Bounds().Dy())-10, float64(sSprite.Bounds().Dx())*0.4, 0.6)
+                // Convert feet to draw position
+                sSpriteW := sSprite.Bounds().Dx()
+                sSpriteH := sSprite.Bounds().Dy()
+                sx := summonFeetX - float64(sSpriteW)/2
+                sy := summonFeetY - float64(sSpriteH)
 
-                // 💡 TURN INDICATOR: draw golden ellipse ON TOP of shadow, UNDER sprite.
+                // Shadow at feet
+                utils.DrawShadow(dc, summonFeetX, summonFeetY, float64(sSpriteW)*0.4, 0.6)
+
+                // Turn indicator
                 if isAttacker("summon", i) {
-                        cx := sx + float64(sSprite.Bounds().Dx())/2
-                        cy := sy + float64(sSprite.Bounds().Dy()) - 5
-                        drawTurnIndicator(cx, cy, float64(sSprite.Bounds().Dx()))
+                        drawTurnIndicator(summonFeetX, summonFeetY-5, float64(sSpriteW))
                 }
 
                 // Sprite
                 dc.DrawImage(sSprite, int(sx), int(sy))
 
-                // HP bar (same style as enemy HP bars)
+                // HP bar
                 if summon.MaxHP > 0 && summon.CurrentHP > 0 {
                         uiPath2 := func(f string) string { return filepath.Join(assetsPath, "rpgasset", "ui", f) }
                         hpBarImg, err := utils.LoadImage(uiPath2("hp5.png"))
                         if err == nil {
-                                barW := 80.0
+                                barW := 70.0
                                 barH := 10.0
                                 hpPerc := float64(summon.CurrentHP) / float64(summon.MaxHP)
                                 currentBarW := int(barW * hpPerc)
@@ -286,7 +321,7 @@ func GenerateCombatImage(c *gin.Context) {
                                         currentBarW = 1
                                 }
                                 hpBarImg = imaging.Resize(hpBarImg, currentBarW, int(barH), imaging.NearestNeighbor)
-                                bx := sx + (float64(sSprite.Bounds().Dx())-barW)/2
+                                bx := summonFeetX - barW/2
                                 by := sy - 12
                                 dc.DrawImage(hpBarImg, int(bx), int(by))
                         }
@@ -359,8 +394,9 @@ func GenerateCombatImage(c *gin.Context) {
 
                         // 6. Small full-body sprites on battlefield
                         if req.CombatType == "PVP" {
-                                drawPvPFighter := func(player Player, x, y int, flip bool, isAtk bool) {
-                                        // 💡 FIX 2026-08-05: Use summon sprite if player is a summon
+                                // 💡 FIX 2026-08-07: Feet-anchor + ground zone (Spec 1A/1C).
+                                // drawPvPFighter now takes feetX/feetY (bottom-center) instead of top-left.
+                                drawPvPFighter := func(player Player, feetX, feetY int, flip bool, isAtk bool) {
                                         var path string
                                         if player.Mode == "summon" && player.Species != "" {
                                                 path = GetSummonSpritePath(player.Species, assetsPath)
@@ -379,17 +415,20 @@ func GenerateCombatImage(c *gin.Context) {
                                                 sprite = imaging.FlipH(sprite)
                                         }
 
-                                        // Shadow (drawn FIRST)
-                                        utils.DrawShadow(dc, float64(x)+80, float64(y)+float64(sprite.Bounds().Dy()), 165, 0.6)
+                                        // Convert feet to draw position
+                                        spriteW := sprite.Bounds().Dx()
+                                        spriteH := sprite.Bounds().Dy()
+                                        drawX := feetX - spriteW/2
+                                        drawY := feetY - spriteH
 
-                                        // 💡 TURN INDICATOR: draw golden ellipse ON TOP of shadow, UNDER sprite.
+                                        // Shadow at feet
+                                        utils.DrawShadow(dc, float64(feetX), float64(feetY), 165, 0.6)
+
                                         if isAtk {
-                                                cx := float64(x) + float64(sprite.Bounds().Dx())/2
-                                                cy := float64(y) + float64(sprite.Bounds().Dy()) - 5
-                                                drawTurnIndicator(cx, cy, float64(sprite.Bounds().Dx()))
+                                                drawTurnIndicator(float64(feetX), float64(feetY)-5, float64(spriteW))
                                         }
 
-                                        dc.DrawImage(sprite, x, y)
+                                        dc.DrawImage(sprite, drawX, drawY)
 
                                         hpPercent := 0.0
                                         if player.MaxHP > 0 {
@@ -402,62 +441,57 @@ func GenerateCombatImage(c *gin.Context) {
                                                         barW = 1
                                                 }
                                                 hpBarImg = imaging.Resize(hpBarImg, barW, 12, imaging.NearestNeighbor)
-                                                dc.DrawImage(hpBarImg, x+20, y-18)
+                                                dc.DrawImage(hpBarImg, drawX+20, drawY-18)
                                         }
                                 }
 
-                                // 💡 FIX 2026-08-05: Summon sprites in PvP use unconditional flip
-                                // (summon source art faces LEFT, flip makes it face RIGHT).
-                                // Player sprites use per-sprite ShouldFlipForPvE/ShouldFlipForPvPRight.
-                                // Player 1 (LEFT) should face RIGHT (toward player 2).
-                                // Player 2 (RIGHT) should face LEFT (toward player 1).
+                                // 💡 FIX 2026-08-07: Side-based facing (Spec 1C).
+                                // Left side → face RIGHT. Right side → face LEFT.
+                                // Uses flipForSide for ALL entities (players + summons).
                                 var p1Flip bool
                                 if p.Mode == "summon" {
                                         p1Flip = true // summon art faces LEFT, flip → faces RIGHT
                                 } else {
                                         p1SpriteFile := GetCharacterSpriteFile(p.Class, p.SpriteIndex, assetsPath)
-                                        p1Flip = ShouldFlipForPvE(filepath.Base(p1SpriteFile))
+                                        p1Flip = flipForSide(filepath.Base(p1SpriteFile), true)
                                 }
-                                drawPvPFighter(p, int(startX-560), int(startY-30), p1Flip, isAttacker("player", 0))
+                                drawPvPFighter(p, 300, MAIN_FEET_Y, p1Flip, isAttacker("player", 0))
                                 if len(req.Players) > 1 {
                                         var p2Flip bool
                                         if req.Players[1].Mode == "summon" {
-                                                p2Flip = false // summon art faces LEFT, no flip → faces LEFT (toward player 1)
+                                                p2Flip = false // summon art faces LEFT, no flip → faces LEFT
                                         } else {
                                                 p2SpriteFile := GetCharacterSpriteFile(req.Players[1].Class, req.Players[1].SpriteIndex, assetsPath)
-                                                p2Flip = ShouldFlipForPvPRight(filepath.Base(p2SpriteFile))
+                                                p2Flip = flipForSide(filepath.Base(p2SpriteFile), false)
                                         }
-                                        drawPvPFighter(req.Players[1], int(startX-170), int(startY-30), p2Flip, isAttacker("player", 1))
+                                        drawPvPFighter(req.Players[1], 690, MAIN_FEET_Y, p2Flip, isAttacker("player", 1))
                                 }
                         } else {
                                 // PVE: draw ALL players in formation on the battlefield.
-                                // Players are on the LEFT side, facing RIGHT toward enemies.
-                                // Same Y level as enemies for visual symmetry.
+                                // 💡 FIX 2026-08-07: Feet-anchor + ground zone (Spec 1A/1C).
+                                // Players on LEFT side, feet in ground zone, face RIGHT.
                                 s2Size := 122
                                 smallSprite := imaging.Resize(pSprite, s2Size, 0, imaging.NearestNeighbor)
-                                // 💡 FIX 2026-08-03: Per-sprite facing detection.
-                                // Only flip if the sprite faces LEFT or CENTER (to make it face RIGHT).
-                                // Don't flip sprites that already face RIGHT.
                                 pSpriteFile := GetCharacterSpriteFile(p.Class, p.SpriteIndex, assetsPath)
                                 var flippedSprite image.Image
-                                if ShouldFlipForPvE(pSpriteFile) {
+                                if flipForSide(pSpriteFile, true) {
                                         flippedSprite = imaging.FlipH(smallSprite)
                                 } else {
                                         flippedSprite = smallSprite
                                 }
 
-                                // Player[0] — same Y as enemies (startY), left side
-                                s2X := int(startX - 500)
-                                s2Y := int(startY)
+                                // Player[0] — feet at (playerCenterX, MAIN_FEET_Y)
+                                p0FeetX := int(playerCenterX)
+                                p0FeetY := MAIN_FEET_Y
+                                p0SpriteH := flippedSprite.Bounds().Dy()
+                                s2X := p0FeetX - s2Size/2
+                                s2Y := p0FeetY - p0SpriteH
 
-                                // Shadow (drawn FIRST)
-                                utils.DrawShadow(dc, float64(s2X)+float64(s2Size)/2, float64(s2Y)+float64(flippedSprite.Bounds().Dy()), 150, 0.6)
+                                // Shadow at feet
+                                utils.DrawShadow(dc, float64(p0FeetX), float64(p0FeetY), 150, 0.6)
 
-                                // 💡 TURN INDICATOR: draw golden ellipse ON TOP of shadow, UNDER sprite.
                                 if isAttacker("player", 0) {
-                                        cx := float64(s2X) + float64(s2Size)/2
-                                        cy := float64(s2Y) + float64(flippedSprite.Bounds().Dy()) - 5
-                                        drawTurnIndicator(cx, cy, float64(s2Size))
+                                        drawTurnIndicator(float64(p0FeetX), float64(p0FeetY)-5, float64(s2Size))
                                 }
 
                                 dc.DrawImage(flippedSprite, s2X, s2Y)
@@ -470,11 +504,11 @@ func GenerateCombatImage(c *gin.Context) {
                                                 barW := int(80.0 * hpPerc)
                                                 if barW < 1 { barW = 1 }
                                                 hpBarImg = imaging.Resize(hpBarImg, barW, 10, imaging.NearestNeighbor)
-                                                dc.DrawImage(hpBarImg, s2X+(s2Size/2)-40, s2Y-12)
+                                                dc.DrawImage(hpBarImg, p0FeetX-40, s2Y-12)
                                         }
                                 }
 
-                                // Additional players (1+) in formation — same pattern as enemies
+                                // Additional players (1+) in formation
                                 for pi := 1; pi < len(req.Players); pi++ {
                                         ap := req.Players[pi]
                                         if ap.CurrentHP <= 0 { continue }
@@ -482,33 +516,28 @@ func GenerateCombatImage(c *gin.Context) {
                                         apSprite, err := utils.LoadImage(apPath)
                                         if err != nil { continue }
                                         apResized := imaging.Resize(apSprite, s2Size, 0, imaging.NearestNeighbor)
-                                        // 💡 FIX 2026-08-03: Per-sprite facing — only flip if LEFT/CENTER
                                         apSpriteFile := GetCharacterSpriteFile(ap.Class, ap.SpriteIndex, assetsPath)
                                         var apFlipped image.Image
-                                        if ShouldFlipForPvE(apSpriteFile) {
+                                        if flipForSide(apSpriteFile, true) {
                                                 apFlipped = imaging.FlipH(apResized)
                                         } else {
                                                 apFlipped = apResized
                                         }
 
-                                        // Formation: mirror enemy pattern, 4 per row
-                                        apX := int(startX - 500)
-                                        apY := int(startY)
+                                        // Formation: feet-anchor, background players higher (depth)
+                                        apFeetX := int(playerCenterX)
+                                        apFeetY := BACK_FEET_Y
                                         sub := pi % 4
-                                        spXF := 130.0
-                                        spYF := 110.0
-                                        if sub == 1 || sub == 2 { apX -= int(spXF) } else if sub == 3 { apX -= int(spXF * 2) }
-                                        if sub == 1 || sub == 3 { apY += int(spYF) }
-                                        apX += int(float64(pi/4) * -250.0)
+                                        if sub == 1 || sub == 2 { apFeetX -= 120 } else if sub == 3 { apFeetX -= 240 }
+                                        apFeetX += int(float64(pi/4) * -250.0)
+                                        apSpriteH := apFlipped.Bounds().Dy()
+                                        apX := apFeetX - s2Size/2
+                                        apY := apFeetY - apSpriteH
 
-                                        // Shadow (drawn FIRST)
-                                        utils.DrawShadow(dc, float64(apX)+float64(s2Size)/2, float64(apY)+float64(apFlipped.Bounds().Dy()), 150, 0.6)
+                                        utils.DrawShadow(dc, float64(apFeetX), float64(apFeetY), 150, 0.6)
 
-                                        // 💡 TURN INDICATOR: draw golden ellipse ON TOP of shadow, UNDER sprite.
                                         if isAttacker("player", pi) {
-                                                cx := float64(apX) + float64(s2Size)/2
-                                                cy := float64(apY) + float64(apFlipped.Bounds().Dy()) - 5
-                                                drawTurnIndicator(cx, cy, float64(s2Size))
+                                                drawTurnIndicator(float64(apFeetX), float64(apFeetY)-5, float64(s2Size))
                                         }
 
                                         dc.DrawImage(apFlipped, apX, apY)
@@ -520,7 +549,7 @@ func GenerateCombatImage(c *gin.Context) {
                                                         barW2 := int(80.0 * hpPerc2)
                                                         if barW2 < 1 { barW2 = 1 }
                                                         hpBarImg2 = imaging.Resize(hpBarImg2, barW2, 10, imaging.NearestNeighbor)
-                                                        dc.DrawImage(hpBarImg2, apX+(s2Size/2)-40, apY-12)
+                                                        dc.DrawImage(hpBarImg2, apFeetX-40, apY-12)
                                                 }
                                         }
                                 }
@@ -654,7 +683,9 @@ func GenerateEndScreen(c *gin.Context) {
         if face, err := utils.LoadFont(fontPath, 28); err == nil {
                 dc.SetFontFace(face)
                 dc.SetRGBA(0.85, 0.85, 0.85, 0.9)
-                dc.DrawStringAnchored(subtitleText, float64(CANVAS_W/2), 300, 0.5, 0.5)
+                // 💡 FIX 2026-08-07: Moved subtitle from Y=300 to Y=340 to prevent
+                // overlap with the 110px title (which spans ~165-275 at Y=220 center).
+                dc.DrawStringAnchored(subtitleText, float64(CANVAS_W/2), 340, 0.5, 0.5)
         }
 
         // Rewards panel (victory only)
