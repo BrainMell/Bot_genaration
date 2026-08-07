@@ -331,10 +331,18 @@ func GenerateCombatImage(c *gin.Context) {
                         sSprite = utils.TintImage(sSprite, color.RGBA{80, 0, 80, 180})
                 }
 
-                // 💡 FIX 2026-08-07 (#4/#5): Summon positioned relative to player.
-                // X: 80px to the LEFT of player (behind, further from enemy)
-                // Y: BACK_FEET_Y (higher = further back, depth cue)
-                summonFeetX := playerCenterX - 80
+                // 💡 FIX 2026-08-08 (#3): Summon staggered behind player, not stacked on top.
+                // BEFORE: summonFeetX = playerCenterX - 80 (only 80px offset). With sprite
+                // widths ~103 (summon) + 122 (player), the half-widths sum to ~112px.
+                // 80px < 112px → sprites overlapped horizontally.
+                //
+                // AFTER: 150px offset (summonFeetX = 500 - 150 = 350). Sprite ranges:
+                //   Player: 439-561 (width 122, center 500)
+                //   Summon: 299-401 (width 103, center 350)
+                //   Gap between summon right edge (401) and player left edge (439) = 38px. ✅
+                // Combined with BACK_FEET_Y=410 (vs player at 505), the summon is clearly
+                // staggered behind and to the left — depth + horizontal separation.
+                summonFeetX := playerCenterX - 150
                 summonFeetY := float64(BACK_FEET_Y) // higher = further back (depth)
                 // Formation offset for multiple summons
                 sub := i % 4
@@ -398,10 +406,16 @@ func GenerateCombatImage(c *gin.Context) {
         }
 
         // UI elements
+        // 💡 FIX 2026-08-08: Options_menu.png (right-side action menu) is PvE-only.
+        // In PvP, the action menu is replaced by action text overlay, and player 2's
+        // sprite needs the right half of the canvas (X=720). Drawing the menu panel
+        // there would cause overlap. So skip it in PvP.
         drawImage(uiPath("player_state.png"), -716, 113, 453, 244)
         drawImage(uiPath("heart.png"), -678, 209, 38, 47)
         drawImage(uiPath("mana.png"), -673, 256, 29, 44)
-        drawImage(uiPath("Options_menu.png"), -97, 99, 443, 258)
+        if req.CombatType != "PVP" {
+                drawImage(uiPath("Options_menu.png"), -97, 99, 443, 258)
+        }
         drawImage(uiPath("banner.png"), -582, -410, 800, 160)
 
         // 4. UI Bars (Main Player)
@@ -450,8 +464,20 @@ func GenerateCombatImage(c *gin.Context) {
 
                         // 6. Small full-body sprites on battlefield
                         if req.CombatType == "PVP" {
-                                // 💡 FIX 2026-08-07: Feet-anchor + ground zone (Spec 1A/1C).
-                                // drawPvPFighter now takes feetX/feetY (bottom-center) instead of top-left.
+                                // 💡 FIX 2026-08-08: Unified PvP positioning with PvE.
+                                // BEFORE: PvP used X=300/690 with sprite width=160 — player 1 at X=300
+                                // overlapped the left UI panel (X=-22 to 431). PvP summon sprites were
+                                // 160px (different from PvE's 103px). These separate constants caused
+                                // the "fixed in PvE but not PvP" pattern.
+                                //
+                                // AFTER: PvP now uses the SAME constants as PvE:
+                                //   - Player 1: X=500 (same as PvE playerCenterX, outside left panel)
+                                //   - Player 2: X=720 (outside right panel, which is skipped in PvP)
+                                //   - Sprite width: 122px humans, 103px summons (85% per Spec 1B)
+                                //   - Feet Y: MAIN_FEET_Y=505 (grounded)
+                                //
+                                // Options_menu.png (right UI panel) is now PvP-only-skipped below
+                                // so player 2 can use the right half of the canvas without overlap.
                                 drawPvPFighter := func(player Player, feetX, feetY int, flip bool, isAtk bool) {
                                         var path string
                                         if player.Mode == "summon" && player.Species != "" {
@@ -466,24 +492,32 @@ func GenerateCombatImage(c *gin.Context) {
                                         if player.CurrentHP <= 0 {
                                                 sprite = utils.TintImage(sprite, color.RGBA{80, 0, 80, 180})
                                         }
-                                        sprite = imaging.Resize(sprite, 160, 0, imaging.NearestNeighbor)
-                                        // 💡 FIX 2026-08-07 (#2): Crop transparent padding so feet sit on ground
+                                        // 💡 FIX 2026-08-08: Match PvE sprite sizes.
+                                        // Humans: 122px (same as PvE playerSpriteW).
+                                        // Summons: 103px (85% of 122, same as PvE summonSpriteW per Spec 1B).
+                                        var spriteW int
+                                        if player.Mode == "summon" && player.Species != "" {
+                                                spriteW = int(float64(playerSpriteW) * 0.85) // 103 — matches PvE summon
+                                        } else {
+                                                spriteW = playerSpriteW // 122 — matches PvE player
+                                        }
+                                        sprite = imaging.Resize(sprite, spriteW, 0, imaging.NearestNeighbor)
                                         sprite = cropToVisibleBounds(sprite)
                                         if flip {
                                                 sprite = imaging.FlipH(sprite)
                                         }
 
                                         // Convert feet to draw position
-                                        spriteW := sprite.Bounds().Dx()
-                                        spriteH := sprite.Bounds().Dy()
-                                        drawX := feetX - spriteW/2
-                                        drawY := feetY - spriteH
+                                        sW := sprite.Bounds().Dx()
+                                        sH := sprite.Bounds().Dy()
+                                        drawX := feetX - sW/2
+                                        drawY := feetY - sH
 
                                         // Shadow at feet
-                                        utils.DrawShadow(dc, float64(feetX), float64(feetY)-2, 180, 0.85)
+                                        utils.DrawShadow(dc, float64(feetX), float64(feetY)-2, float64(sW)*0.6, 0.85)
 
                                         if isAtk {
-                                                drawTurnIndicator(float64(feetX), float64(feetY)-5, float64(spriteW))
+                                                drawTurnIndicator(float64(feetX), float64(feetY)-5, float64(sW))
                                         }
 
                                         dc.DrawImage(sprite, drawX, drawY)
@@ -494,18 +528,20 @@ func GenerateCombatImage(c *gin.Context) {
                                         }
                                         hpBarImg, err := utils.LoadImage(uiPath("hp5.png"))
                                         if err == nil && hpPercent > 0 {
-                                                barW := int(120 * hpPercent)
+                                                barW := int(100 * hpPercent)
                                                 if barW < 1 {
                                                         barW = 1
                                                 }
-                                                hpBarImg = imaging.Resize(hpBarImg, barW, 12, imaging.NearestNeighbor)
-                                                dc.DrawImage(hpBarImg, drawX+20, drawY-18)
+                                                hpBarImg = imaging.Resize(hpBarImg, barW, 10, imaging.NearestNeighbor)
+                                                dc.DrawImage(hpBarImg, drawX+10, drawY-15)
                                         }
                                 }
 
-                                // 💡 FIX 2026-08-07: Side-based facing (Spec 1C).
-                                // Left side → face RIGHT. Right side → face LEFT.
-                                // Uses flipForSide for ALL entities (players + summons).
+                                // 💡 FIX 2026-08-08: PvP positions unified with PvE.
+                                // Player 1 (left): X=500 — same as PvE playerCenterX.
+                                //   Sprite range: 439-561. Left panel ends at 431. Gap=8px. ✅
+                                // Player 2 (right): X=720 — Options_menu skipped in PvP.
+                                //   Sprite range: 659-781. No right panel to overlap. ✅
                                 var p1Flip bool
                                 if p.Mode == "summon" && p.Species != "" {
                                         p1SpriteFile := filepath.Base(GetSummonSpritePath(p.Species, assetsPath))
@@ -514,7 +550,7 @@ func GenerateCombatImage(c *gin.Context) {
                                         p1SpriteFile := GetCharacterSpriteFile(p.Class, p.SpriteIndex, assetsPath)
                                         p1Flip = flipForSide(filepath.Base(p1SpriteFile), true)
                                 }
-                                drawPvPFighter(p, 300, MAIN_FEET_Y, p1Flip, isAttacker("player", 0))
+                                drawPvPFighter(p, 500, MAIN_FEET_Y, p1Flip, isAttacker("player", 0))
                                 if len(req.Players) > 1 {
                                         var p2Flip bool
                                         if req.Players[1].Mode == "summon" && req.Players[1].Species != "" {
@@ -524,7 +560,7 @@ func GenerateCombatImage(c *gin.Context) {
                                                 p2SpriteFile := GetCharacterSpriteFile(req.Players[1].Class, req.Players[1].SpriteIndex, assetsPath)
                                                 p2Flip = flipForSide(filepath.Base(p2SpriteFile), false)
                                         }
-                                        drawPvPFighter(req.Players[1], 690, MAIN_FEET_Y, p2Flip, isAttacker("player", 1))
+                                        drawPvPFighter(req.Players[1], 720, MAIN_FEET_Y, p2Flip, isAttacker("player", 1))
                                 }
                         } else {
                                 // PVE: draw ALL players in formation on the battlefield.
