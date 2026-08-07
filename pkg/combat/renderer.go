@@ -63,8 +63,8 @@ const (
         // Ground zone: HORIZON_Y to GROUND_BOTTOM_Y. All sprite feet go here.
         HORIZON_Y       = 309 // 45% of CANVAS_H — sky/ground boundary
         GROUND_BOTTOM_Y = 515 // 75% of CANVAS_H — top of UI panel
-        MAIN_FEET_Y     = 505 // main player/enemy feet (just above UI panel)
-        BACK_FEET_Y     = 430 // summon/background entity feet (higher = further away)
+        MAIN_FEET_Y     = 505 // main player/enemy feet (above UI panel top at 469... wait)
+        BACK_FEET_Y     = 410 // summon/background entity feet (higher = further away)
 )
 
 func GenerateCombatImage(c *gin.Context) {
@@ -205,7 +205,7 @@ func GenerateCombatImage(c *gin.Context) {
 
                 // Tint Red if dead
                 if enemy.CurrentHP <= 0 {
-                        eSprite = utils.TintImage(eSprite, color.RGBA{255, 0, 0, 100})
+                        eSprite = utils.TintImage(eSprite, color.RGBA{255, 0, 0, 150})
                 }
 
                 // 💡 FIX 2026-08-07: Feet-anchor positioning in ground zone.
@@ -283,11 +283,10 @@ func GenerateCombatImage(c *gin.Context) {
         // - Scaled to ~85% of player sprite size (not fixed enemy-relative size)
         // - Drawn BEFORE players (z-order: behind owner)
         // - Facing: inherits owner's side (left side → face RIGHT)
-        // 💡 FIX 2026-08-07 (#4): Moved playerCenterX from 280 to 460.
-        // At 280, the player sprite overlapped the player_state.png UI panel
-        // (X:-22→431, Y:469→713). At 460, the player is past the panel's
-        // right edge (431) and still left of screen center (512).
-        playerCenterX := 460.0 // player formation center X (left side, past UI panel)
+        // 💡 FIX 2026-08-07 (#4): playerCenterX=350 (compromise between panel
+        // overlap at 280 and too-close-to-enemy at 460). MAIN_FEET_Y=490 keeps
+        // feet above the UI panel top (Y=469) so no vertical overlap.
+        playerCenterX := 350.0 // player formation center X
         playerSpriteW := 122   // player PvE sprite width
         summonSpriteW := int(float64(playerSpriteW) * 0.85) // 85% of player size
 
@@ -321,7 +320,7 @@ func GenerateCombatImage(c *gin.Context) {
 
                 // Tint red if dead
                 if summon.CurrentHP <= 0 {
-                        sSprite = utils.TintImage(sSprite, color.RGBA{255, 0, 0, 100})
+                        sSprite = utils.TintImage(sSprite, color.RGBA{255, 0, 0, 150})
                 }
 
                 // 💡 FIX 2026-08-07 (#4/#5): Summon positioned relative to player.
@@ -426,7 +425,7 @@ func GenerateCombatImage(c *gin.Context) {
                 pSprite, err := utils.LoadImage(spritePath)
                 if err == nil {
                         if p.CurrentHP <= 0 {
-                                pSprite = utils.TintImage(pSprite, color.RGBA{255, 0, 0, 100})
+                                pSprite = utils.TintImage(pSprite, color.RGBA{255, 0, 0, 150})
                         }
 
                         // Resize to 314px width
@@ -457,7 +456,7 @@ func GenerateCombatImage(c *gin.Context) {
                                                 return
                                         }
                                         if player.CurrentHP <= 0 {
-                                                sprite = utils.TintImage(sprite, color.RGBA{255, 0, 0, 100})
+                                                sprite = utils.TintImage(sprite, color.RGBA{255, 0, 0, 150})
                                         }
                                         sprite = imaging.Resize(sprite, 160, 0, imaging.NearestNeighbor)
                                         // 💡 FIX 2026-08-07 (#2): Crop transparent padding so feet sit on ground
