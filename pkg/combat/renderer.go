@@ -392,6 +392,67 @@ func GenerateCombatImage(c *gin.Context) {
                 }
         }
 
+        // 💡 FIX 2026-08-08: Dedicated PvP-summon render path.
+        // Decoupled from drawPvPFighter (shared with 1v1) so summon scale,
+        // position, and z-order can be tuned independently.
+        //
+        // Detection: both players are summons (mode="summon" + species set).
+        isPvPSummonDuel := req.CombatType == "PVP" && len(req.Players) >= 2 &&
+                req.Players[0].Mode == "summon" && req.Players[0].Species != "" &&
+                req.Players[1].Mode == "summon" && req.Players[1].Species != ""
+
+        // PvP-summon sprites drawn HERE (before UI panels) so panels occlude
+        // any upper-body overlap (z-order fix #3).
+        if isPvPSummonDuel {
+                // #2: Larger sprite size — target 210px (was 103px from 1v1 constant).
+                const pvpSummonSpriteW = 210
+
+                // #4: Repositioned outward, symmetric, 100px+ clear of panel edges.
+                // Left panel inner edge: X=431. Left summon at X=220 → range ~115-325.
+                //   Gap to panel: 431-325 = 106px ✅ (>100px)
+                // Right panel inner edge: X=571. Right summon at X=800 → range ~695-905.
+                //   Gap to panel: 695-571 = 124px ✅ (>100px)
+                // Gap between summons: 695-325 = 370px ✅
+                pvpSummonPositions := []struct{ x, y int }{
+                        {220, MAIN_FEET_Y},
+                        {800, MAIN_FEET_Y},
+                }
+
+                for i, pos := range pvpSummonPositions {
+                        player := req.Players[i]
+                        spritePath := GetSummonSpritePath(player.Species, assetsPath)
+                        sprite, err := utils.LoadImage(spritePath)
+                        if err != nil {
+                                continue
+                        }
+                        if player.CurrentHP <= 0 {
+                                sprite = utils.TintImage(sprite, color.RGBA{80, 0, 80, 180})
+                        }
+                        sprite = imaging.Resize(sprite, pvpSummonSpriteW, 0, imaging.NearestNeighbor)
+                        sprite = cropToVisibleBounds(sprite)
+
+                        // Facing: left side faces RIGHT, right side faces LEFT
+                        spriteFile := filepath.Base(spritePath)
+                        if flipForSide(spriteFile, i == 0) {
+                                sprite = imaging.FlipH(sprite)
+                        }
+
+                        sW := sprite.Bounds().Dx()
+                        sH := sprite.Bounds().Dy()
+                        drawX := pos.x - sW/2
+                        drawY := pos.y - sH
+
+                        // Shadow at feet
+                        utils.DrawShadow(dc, float64(pos.x), float64(pos.y)-2, float64(sW)*0.6, 0.85)
+
+                        if isAttacker("player", i) {
+                                drawTurnIndicator(float64(pos.x), float64(pos.y)-5, float64(sW))
+                        }
+
+                        dc.DrawImage(sprite, drawX, drawY)
+                }
+        }
+
         // 3. UI Base Layer
         uiPath := func(f string) string { return filepath.Join(assetsPath, "rpgasset", "ui", f) }
 
@@ -415,22 +476,17 @@ func GenerateCombatImage(c *gin.Context) {
         drawImage(uiPath("mana.png"), -673, 256, 29, 44)
         if req.CombatType == "PVP" && len(req.Players) > 1 {
                 // 💡 FIX 2026-08-08 #1: Right-side player 2 state panel (was missing).
-                // Mirrors the left panel: same player_state.png, flipped horizontally.
-                // Position: normX(-123) = -123 + 694 = 571. Width 453 → X=571 to 1024.
-                // (22px clipped off right edge, same as left panel clips 22px off left.)
                 panelImg, err := utils.LoadImage(uiPath("player_state.png"))
                 if err == nil {
                         panelImg = imaging.Resize(panelImg, 453, 244, imaging.NearestNeighbor)
-                        panelImg = imaging.FlipH(panelImg) // mirror for right side
+                        panelImg = imaging.FlipH(panelImg)
                         dc.DrawImage(panelImg, normX(-123), normY(113))
                 }
-                // Heart icon (flipped position — on right side of panel)
                 heartImg, err := utils.LoadImage(uiPath("heart.png"))
                 if err == nil {
                         heartImg = imaging.Resize(heartImg, 38, 47, imaging.NearestNeighbor)
                         dc.DrawImage(heartImg, normX(-89), normY(209))
                 }
-                // Mana icon
                 manaImg, err := utils.LoadImage(uiPath("mana.png"))
                 if err == nil {
                         manaImg = imaging.Resize(manaImg, 29, 44, imaging.NearestNeighbor)
@@ -440,6 +496,75 @@ func GenerateCombatImage(c *gin.Context) {
                 drawImage(uiPath("Options_menu.png"), -97, 99, 443, 258)
         }
         drawImage(uiPath("banner.png"), -582, -410, 800, 160)
+
+        // 💡 FIX 2026-08-08 #1: Text name labels on PvP panels (replaces broken portrait crop).
+        // Placement spec:
+        //   - Horizontally centered within EACH panel's own width (panel-center, not canvas-center)
+        //   - Vertically centered in the top strip (between panel top border and scroll-divider line)
+        //   - Font size shrinks to fit panel inner width with 10px margin on each side
+        //
+        // Panel geometry (canvas coordinates):
+        //   Left panel:  X=-22 to 431, center X = 204.5
+        //   Right panel: X=571 to 1024, center X = 797.5
+        //   Top border (ornate):  Y=469 to ~489 (panel Y=20)
+        //   Scroll divider line:  Y=549 (panel Y=80)
+        //   Top strip center:     Y=(489+549)/2 = 519
+        if req.CombatType == "PVP" && len(req.Players) >= 2 {
+                // Panel centers (using full panel bounds, not visible bounds)
+                panelCenters := []float64{204.5, 797.5}
+                // Top strip vertical center (between ornate top border and scroll divider)
+                const labelY = 519.0
+                // Panel inner width (between ornate side borders, ~20px each side)
+                const panelInnerW = 453.0 - 40.0 // 413px
+                // Max text width with 10px margin each side
+                const maxTextW = panelInnerW - 20.0 // 393px
+
+                boldFontPath := filepath.Join(assetsPath, "rpgasset", "ui", "Inter-Bold.ttf")
+                for i, player := range req.Players {
+                        // Draw HP/EN bars for player 2 in PvP (player 1 bars already drawn above)
+                        if i == 1 {
+                                p2HpCoords := []int{326, 236, 145}
+                                p2EnCoords := []int{322, 232, 141}
+                                p2HpSeg := float64(player.MaxHP) / 3.0
+                                p2EnSeg := float64(player.MaxEnergy) / 3.0
+                                for j := 0; j < 3; j++ {
+                                        hCur := math.Max(0, math.Min(p2HpSeg, float64(player.CurrentHP)-(float64(j)*p2HpSeg)))
+                                        drawBar(dc, uiPath, normX(p2HpCoords[j]), normY(209), hCur, p2HpSeg, "hp", 121, 47)
+                                        eCur := math.Max(0, math.Min(p2EnSeg, float64(player.Energy)-(float64(j)*p2EnSeg)))
+                                        drawBar(dc, uiPath, normX(p2EnCoords[j]), normY(256), eCur, p2EnSeg, "mana", 119, 42)
+                                }
+                        }
+
+                        name := player.Name
+                        if name == "" {
+                                name = player.Species
+                        }
+                        if name == "" {
+                                continue
+                        }
+
+                        // Try font sizes from 28 down to 14 until the name fits
+                        for fontSize := 28; fontSize >= 14; fontSize -= 2 {
+                                face, err := utils.LoadFont(boldFontPath, fontSize)
+                                if err != nil {
+                                        continue
+                                }
+                                dc.SetFontFace(face)
+                                textW, _ := dc.MeasureString(name)
+
+                                if textW <= maxTextW || fontSize == 14 {
+                                        // Draw text centered in panel
+                                        // Shadow for readability
+                                        dc.SetColor(color.RGBA{0, 0, 0, 200})
+                                        dc.DrawStringAnchored(name, panelCenters[i]+2, labelY+2, 0.5, 0.5)
+                                        // White text
+                                        dc.SetColor(color.RGBA{255, 255, 255, 255})
+                                        dc.DrawStringAnchored(name, panelCenters[i], labelY, 0.5, 0.5)
+                                        break
+                                }
+                        }
+                }
+        }
 
         // 4. UI Bars (Main Player)
         if len(req.Players) > 0 {
@@ -461,6 +586,7 @@ func GenerateCombatImage(c *gin.Context) {
 
                 // 5. Player Sprite (Main - CROPPED TOP 30%)
                 // 💡 FIX 2026-08-05: Use summon sprite if player is a summon (mode='summon')
+                // 💡 FIX 2026-08-08: Skip portrait crop for PvP-summon (replaced with text label)
                 var spritePath string
                 if p.Mode == "summon" && p.Species != "" {
                         spritePath = GetSummonSpritePath(p.Species, assetsPath)
@@ -477,68 +603,58 @@ func GenerateCombatImage(c *gin.Context) {
                         s1W := 314
                         pSprite = imaging.Resize(pSprite, s1W, 0, imaging.NearestNeighbor)
 
-                        // Crop TOP 30% - CRITICAL FIX
-                        bounds := pSprite.Bounds()
-                        cropH := int(float64(bounds.Dy()) * 0.3)
-                        croppedSprite := imaging.Crop(pSprite, image.Rect(0, 0, bounds.Dx(), cropH))
+                        // 💡 FIX 2026-08-08: Portrait crop skipped for PvP-summon (text label replaces it)
+                        if !isPvPSummonDuel {
+                                // Crop TOP 30% - CRITICAL FIX
+                                bounds := pSprite.Bounds()
+                                cropH := int(float64(bounds.Dy()) * 0.3)
+                                croppedSprite := imaging.Crop(pSprite, image.Rect(0, 0, bounds.Dx(), cropH))
 
-                        // Position at normX(-660), normY(220) - cropH
-                        dc.DrawImage(croppedSprite, normX(-660), normY(220)-cropH+40)
+                                // Position at normX(-660), normY(220) - cropH
+                                dc.DrawImage(croppedSprite, normX(-660), normY(220)-cropH+40)
 
-                        // 💡 FIX 2026-08-08 #1: Player 2 portrait + HP/EN bars (PvP only).
-                        // Mirrors player 1's portrait on the right-side panel.
-                        if req.CombatType == "PVP" && len(req.Players) > 1 {
-                                p2 := req.Players[1]
+                                // 💡 FIX 2026-08-08 #1: Player 2 portrait + HP/EN bars (PvP-1v1 only).
+                                if req.CombatType == "PVP" && len(req.Players) > 1 {
+                                        p2 := req.Players[1]
 
-                                // Player 2 HP/EN bars (mirrored X coordinates)
-                                // Player 1 bar X coords: -640, -550, -459 (3 segments)
-                                // Player 2 mirrored: negate and shift: 640-694=... actually
-                                // mirror around canvas center (512). Player 1 at normX(-640)=54,
-                                // mirror to 1024-54=970, which is normX(970-694)=normX(276).
-                                // But the right panel is at X=571-1024. Bars should be within that.
-                                // Right panel inner area: X~600 to ~1010.
-                                // 3 segments at X=620, 730, 820 (roughly mirroring left's 54, 144, 235)
-                                p2HpCoords := []int{326, 236, 145}  // normX(326)=1020, normX(236)=930, normX(145)=839
-                                p2EnCoords := []int{322, 232, 141}
-                                p2HpSeg := float64(p2.MaxHP) / 3.0
-                                p2EnSeg := float64(p2.MaxEnergy) / 3.0
+                                        p2HpCoords := []int{326, 236, 145}
+                                        p2EnCoords := []int{322, 232, 141}
+                                        p2HpSeg := float64(p2.MaxHP) / 3.0
+                                        p2EnSeg := float64(p2.MaxEnergy) / 3.0
 
-                                for i := 0; i < 3; i++ {
-                                        hCur := math.Max(0, math.Min(p2HpSeg, float64(p2.CurrentHP)-(float64(i)*p2HpSeg)))
-                                        drawBar(dc, uiPath, normX(p2HpCoords[i]), normY(209), hCur, p2HpSeg, "hp", 121, 47)
+                                        for i := 0; i < 3; i++ {
+                                                hCur := math.Max(0, math.Min(p2HpSeg, float64(p2.CurrentHP)-(float64(i)*p2HpSeg)))
+                                                drawBar(dc, uiPath, normX(p2HpCoords[i]), normY(209), hCur, p2HpSeg, "hp", 121, 47)
 
-                                        eCur := math.Max(0, math.Min(p2EnSeg, float64(p2.Energy)-(float64(i)*p2EnSeg)))
-                                        drawBar(dc, uiPath, normX(p2EnCoords[i]), normY(256), eCur, p2EnSeg, "mana", 119, 42)
-                                }
-
-                                // Player 2 portrait (cropped top 30%, flipped)
-                                var p2SpritePath string
-                                if p2.Mode == "summon" && p2.Species != "" {
-                                        p2SpritePath = GetSummonSpritePath(p2.Species, assetsPath)
-                                } else {
-                                        p2SpritePath = GetCharacterSpritePath(p2.Class, p2.SpriteIndex, assetsPath)
-                                }
-                                p2Sprite, err := utils.LoadImage(p2SpritePath)
-                                if err == nil {
-                                        if p2.CurrentHP <= 0 {
-                                                p2Sprite = utils.TintImage(p2Sprite, color.RGBA{80, 0, 80, 180})
+                                                eCur := math.Max(0, math.Min(p2EnSeg, float64(p2.Energy)-(float64(i)*p2EnSeg)))
+                                                drawBar(dc, uiPath, normX(p2EnCoords[i]), normY(256), eCur, p2EnSeg, "mana", 119, 42)
                                         }
-                                        p2Sprite = imaging.Resize(p2Sprite, 314, 0, imaging.NearestNeighbor)
-                                        p2Bounds := p2Sprite.Bounds()
-                                        p2CropH := int(float64(p2Bounds.Dy()) * 0.3)
-                                        p2Cropped := imaging.Crop(p2Sprite, image.Rect(0, 0, p2Bounds.Dx(), p2CropH))
-                                        p2Cropped = imaging.FlipH(p2Cropped) // mirror for right side
-                                        // Position: mirror of player 1's normX(-660)=34.
-                                        // Mirror: 1024-34-314 = 676. normX(676-694) = normX(-18).
-                                        // Actually player 1 at normX(-660)=34, width 314 → X=34-348.
-                                        // Player 2 mirror: X=1024-348 to 1024-34 = 676-990.
-                                        // normX(-18) = 676. So use normX(-18).
-                                        dc.DrawImage(p2Cropped, normX(-18), normY(220)-p2CropH+40)
+
+                                        // Player 2 portrait (cropped top 30%, flipped)
+                                        var p2SpritePath string
+                                        if p2.Mode == "summon" && p2.Species != "" {
+                                                p2SpritePath = GetSummonSpritePath(p2.Species, assetsPath)
+                                        } else {
+                                                p2SpritePath = GetCharacterSpritePath(p2.Class, p2.SpriteIndex, assetsPath)
+                                        }
+                                        p2Sprite, err := utils.LoadImage(p2SpritePath)
+                                        if err == nil {
+                                                if p2.CurrentHP <= 0 {
+                                                        p2Sprite = utils.TintImage(p2Sprite, color.RGBA{80, 0, 80, 180})
+                                                }
+                                                p2Sprite = imaging.Resize(p2Sprite, 314, 0, imaging.NearestNeighbor)
+                                                p2Bounds := p2Sprite.Bounds()
+                                                p2CropH := int(float64(p2Bounds.Dy()) * 0.3)
+                                                p2Cropped := imaging.Crop(p2Sprite, image.Rect(0, 0, p2Bounds.Dx(), p2CropH))
+                                                p2Cropped = imaging.FlipH(p2Cropped)
+                                                dc.DrawImage(p2Cropped, normX(-18), normY(220)-p2CropH+40)
+                                        }
                                 }
                         }
 
                         // 6. Small full-body sprites on battlefield
-                        if req.CombatType == "PVP" {
+                        // 💡 FIX 2026-08-08: Skip drawPvPFighter for PvP-summon (drawn in dedicated path)
+                        if req.CombatType == "PVP" && !isPvPSummonDuel {
                                 // 💡 FIX 2026-08-08: Unified PvP positioning with PvE.
                                 // BEFORE: PvP used X=300/690 with sprite width=160 — player 1 at X=300
                                 // overlapped the left UI panel (X=-22 to 431). PvP summon sprites were
