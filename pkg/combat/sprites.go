@@ -238,8 +238,33 @@ var EnemySprites = map[string][]string{
 //   crab sheet.png, gnoll sheet.png, sahuagin sheet.png,
 //   skelleton sheet.png, slime waterB sheet.png
 var EnemyNameSprites = map[string]string{
-        // Empty — all newer enemy sprite files are spritesheets.
-        // Add entries here ONLY for single-frame PNG files.
+        // 💡 Single-frame sprites extracted from spritesheets (first frame)
+        "WOLF":              "wolf_single.png",
+        "BAT":               "bat_single.png",
+        "KOBOLD":            "kobold_single.png",
+        "TROLL":             "troll_single.png",
+        "WEREWOLF":          "werewolf_single.png",
+        "GOBLIN":            "goblin_single.png",
+        "CRAB":              "crab_single.png",
+        "GNOLL":             "gnoll_single.png",
+        "SAHUAGIN":          "sahuagin_single.png",
+        "SKELETON":          "skeleton_single.png",
+        "SLIME":             "slime_single.png",
+        // Enemy name variants → closest sprite match
+        "DRAKE_SCOUT":       "wolf_single.png",
+        "SHADOW_STALKER":    "wolf_single.png",
+        "SHADOW_STALKER_MUTANT": "wolf_single.png",
+        "FROST_GHOUL":       "bat_single.png",
+        "GLACIAL_BEAST":     "bat_single.png",
+        "MAGMA_BRUTE":       "troll_single.png",
+        "STONE_HULK":        "troll_single.png",
+        "CHIMERA_BEAST":     "werewolf_single.png",
+        "DROWNED_ONE":       "sahuagin_single.png",
+        "TIDE_LURKER":       "sahuagin_single.png",
+        "CRYSTAL_CORRUPTED": "kobold_single.png",
+        "DIAMOND_SENTINEL":  "kobold_single.png",
+        "STONE_NEMESIS":     "troll_single.png",
+        "MOUNTAIN_COLOSSUS": "troll_single.png",
 }
 
 var BossSprites = map[string][]string{

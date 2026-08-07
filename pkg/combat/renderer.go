@@ -63,8 +63,8 @@ const (
         // Ground zone: HORIZON_Y to GROUND_BOTTOM_Y. All sprite feet go here.
         HORIZON_Y       = 309 // 45% of CANVAS_H — sky/ground boundary
         GROUND_BOTTOM_Y = 515 // 75% of CANVAS_H — top of UI panel
-        MAIN_FEET_Y     = 480 // main player/enemy feet (lower = closer to camera)
-        BACK_FEET_Y     = 410 // summon/background entity feet (higher = further away)
+        MAIN_FEET_Y     = 505 // main player/enemy feet (just above UI panel)
+        BACK_FEET_Y     = 430 // summon/background entity feet (higher = further away)
 )
 
 func GenerateCombatImage(c *gin.Context) {
