@@ -729,9 +729,9 @@ func GenerateEndScreen(c *gin.Context) {
         if face, err := utils.LoadFont(fontPath, 28); err == nil {
                 dc.SetFontFace(face)
                 dc.SetRGBA(0.85, 0.85, 0.85, 0.9)
-                // 💡 FIX 2026-08-07: Moved subtitle from Y=300 to Y=355 to prevent
+                // 💡 FIX 2026-08-07: Moved subtitle from Y=300 to Y=375 to prevent
                 // overlap with the 110px title (which spans ~165-275 at Y=220 center).
-                dc.DrawStringAnchored(subtitleText, float64(CANVAS_W/2), 355, 0.5, 0.5)
+                dc.DrawStringAnchored(subtitleText, float64(CANVAS_W/2), 375, 0.5, 0.5)
         }
 
         // Rewards panel (victory only)
