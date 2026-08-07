@@ -307,13 +307,12 @@ func GenerateCombatImage(c *gin.Context) {
                 // 💡 FIX 2026-08-07 (#2): Crop transparent padding so feet sit on ground
                 sSprite = cropToVisibleBounds(sSprite)
 
-                // 💡 FIX 2026-08-07 (#5): Use flipForSide instead of unconditional FlipH.
-                // Summon source art may face LEFT, RIGHT, or CENTER — only flip if needed.
-                // Ship sprites face forward — rotate 90° instead.
+                // 💡 FIX 2026-08-07 (#5): Summon facing via flipForSide.
+                // Summon sprites now have facing directions in SummonSpriteFacing map.
+                // flipForSide checks the map and flips only if needed.
                 if strings.Contains(summon.Species, "ship_") {
                         sSprite = imaging.Rotate90(sSprite)
                 } else {
-                        // Summon is on LEFT side (player side) → should face RIGHT
                         summonSpriteFile := filepath.Base(GetSummonSpritePath(summon.Species, assetsPath))
                         if flipForSide(summonSpriteFile, true) {
                                 sSprite = imaging.FlipH(sSprite)
@@ -501,8 +500,9 @@ func GenerateCombatImage(c *gin.Context) {
                                 // Left side → face RIGHT. Right side → face LEFT.
                                 // Uses flipForSide for ALL entities (players + summons).
                                 var p1Flip bool
-                                if p.Mode == "summon" {
-                                        p1Flip = true // summon art faces LEFT, flip → faces RIGHT
+                                if p.Mode == "summon" && p.Species != "" {
+                                        p1SpriteFile := filepath.Base(GetSummonSpritePath(p.Species, assetsPath))
+                                        p1Flip = flipForSide(p1SpriteFile, true)
                                 } else {
                                         p1SpriteFile := GetCharacterSpriteFile(p.Class, p.SpriteIndex, assetsPath)
                                         p1Flip = flipForSide(filepath.Base(p1SpriteFile), true)
@@ -510,8 +510,9 @@ func GenerateCombatImage(c *gin.Context) {
                                 drawPvPFighter(p, 300, MAIN_FEET_Y, p1Flip, isAttacker("player", 0))
                                 if len(req.Players) > 1 {
                                         var p2Flip bool
-                                        if req.Players[1].Mode == "summon" {
-                                                p2Flip = false // summon art faces LEFT, no flip → faces LEFT
+                                        if req.Players[1].Mode == "summon" && req.Players[1].Species != "" {
+                                                p2SpriteFile := filepath.Base(GetSummonSpritePath(req.Players[1].Species, assetsPath))
+                                                p2Flip = flipForSide(p2SpriteFile, false)
                                         } else {
                                                 p2SpriteFile := GetCharacterSpriteFile(req.Players[1].Class, req.Players[1].SpriteIndex, assetsPath)
                                                 p2Flip = flipForSide(filepath.Base(p2SpriteFile), false)

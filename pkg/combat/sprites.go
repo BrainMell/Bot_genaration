@@ -604,7 +604,49 @@ func GetSpriteFacing(filename string) string {
         if dir, ok := SpriteFacing[filename]; ok {
                 return dir
         }
+        // 💡 FIX 2026-08-07: Summon sprites aren't in SpriteFacing map.
+        // Check SummonSpriteFacing for known summon facing directions.
+        // These were determined by pixel analysis (left vs right content ratio).
+        if dir, ok := SummonSpriteFacing[filename]; ok {
+                return dir
+        }
         return "CENTER"
+}
+
+// 💡 NEW 2026-08-07: Summon sprite facing directions.
+// Determined by pixel analysis: compared non-transparent pixel count on
+// left half vs right half of each sprite's first frame.
+// LEFT = more content on left side (sprite faces left)
+// RIGHT = more content on right side (sprite faces right)
+// CENTER = roughly symmetric
+var SummonSpriteFacing = map[string]string{
+        "bat_idle.gif":       "RIGHT",
+        "boar_idle.gif":      "LEFT",
+        "boglurk_idle.gif":   "CENTER",
+        "chest_idle.gif":     "CENTER",
+        "dino_idle.gif":      "RIGHT",
+        "dragon_idle.gif":    "LEFT",
+        "emberwick_idle.gif": "LEFT",
+        "fireguard_idle.gif": "RIGHT",
+        "frostpeep_idle.gif": "LEFT",
+        "ghost_idle.gif":     "CENTER",
+        "giant_idle.gif":     "LEFT",
+        "lumenmoth_idle.gif": "CENTER",
+        "mimic_idle.gif":     "LEFT",
+        "mushroom_idle.gif":  "LEFT",
+        "octopus_idle.gif":   "CENTER",
+        "plaguefang_idle.gif":"RIGHT",
+        "reptile_idle.gif":   "CENTER",
+        "skitterswarm_idle.gif":"CENTER",
+        "slime_idle.gif":     "RIGHT",
+        "snake_idle.gif":     "RIGHT",
+        "starnail_idle.gif":  "CENTER",
+        "tidalmaw_idle.gif":  "CENTER",
+        "yeti_idle.gif":      "RIGHT",
+        // Ship sprites are rotated, not flipped — facing doesn't apply
+        "ship_cruiser_idle.gif":  "CENTER",
+        "ship_fighter_idle.gif":  "CENTER",
+        "ship_squid_idle.gif":    "CENTER",
 }
 
 // 💡 FIX 2026-08-07: Side-based facing rule (Spec 1C).
