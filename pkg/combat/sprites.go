@@ -647,6 +647,14 @@ var SummonSpriteFacing = map[string]string{
         "ship_cruiser_idle.gif":  "CENTER",
         "ship_fighter_idle.gif":  "CENTER",
         "ship_squid_idle.gif":    "CENTER",
+
+        // 💡 FIX 2026-08-08 #3: .png entries for species where the .png art faces a
+        // DIFFERENT direction than the _idle.gif art. GetSummonSpritePath loads .png
+        // first (priority), so without these entries the facing map lookup fails and
+        // defaults to CENTER — causing sprites to not be flipped when they should be.
+        // Only species where .png facing ≠ .gif facing need entries here.
+        // (Verified by pixel analysis: all other .png files match their .gif facing.)
+        "giant.png":          "RIGHT", // giant_idle.gif = LEFT, but giant.png faces RIGHT
 }
 
 // 💡 FIX 2026-08-07: Side-based facing rule (Spec 1C).

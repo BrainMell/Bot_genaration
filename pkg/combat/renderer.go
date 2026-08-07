@@ -406,14 +406,37 @@ func GenerateCombatImage(c *gin.Context) {
         }
 
         // UI elements
-        // 💡 FIX 2026-08-08: Options_menu.png (right-side action menu) is PvE-only.
-        // In PvP, the action menu is replaced by action text overlay, and player 2's
-        // sprite needs the right half of the canvas (X=720). Drawing the menu panel
-        // there would cause overlap. So skip it in PvP.
+        // 💡 FIX 2026-08-08: PvP now draws a MIRRORED player_state panel on the right
+        // side for player 2 (was missing entirely). Options_menu.png is PvE-only.
+        // In PvE: left panel (player_state) + right panel (Options_menu action buttons).
+        // In PvP: left panel (player 1 state) + right panel (player 2 state, mirrored).
         drawImage(uiPath("player_state.png"), -716, 113, 453, 244)
         drawImage(uiPath("heart.png"), -678, 209, 38, 47)
         drawImage(uiPath("mana.png"), -673, 256, 29, 44)
-        if req.CombatType != "PVP" {
+        if req.CombatType == "PVP" && len(req.Players) > 1 {
+                // 💡 FIX 2026-08-08 #1: Right-side player 2 state panel (was missing).
+                // Mirrors the left panel: same player_state.png, flipped horizontally.
+                // Position: normX(-123) = -123 + 694 = 571. Width 453 → X=571 to 1024.
+                // (22px clipped off right edge, same as left panel clips 22px off left.)
+                panelImg, err := utils.LoadImage(uiPath("player_state.png"))
+                if err == nil {
+                        panelImg = imaging.Resize(panelImg, 453, 244, imaging.NearestNeighbor)
+                        panelImg = imaging.FlipH(panelImg) // mirror for right side
+                        dc.DrawImage(panelImg, normX(-123), normY(113))
+                }
+                // Heart icon (flipped position — on right side of panel)
+                heartImg, err := utils.LoadImage(uiPath("heart.png"))
+                if err == nil {
+                        heartImg = imaging.Resize(heartImg, 38, 47, imaging.NearestNeighbor)
+                        dc.DrawImage(heartImg, normX(-89), normY(209))
+                }
+                // Mana icon
+                manaImg, err := utils.LoadImage(uiPath("mana.png"))
+                if err == nil {
+                        manaImg = imaging.Resize(manaImg, 29, 44, imaging.NearestNeighbor)
+                        dc.DrawImage(manaImg, normX(-84), normY(256))
+                }
+        } else if req.CombatType != "PVP" {
                 drawImage(uiPath("Options_menu.png"), -97, 99, 443, 258)
         }
         drawImage(uiPath("banner.png"), -582, -410, 800, 160)
@@ -461,6 +484,58 @@ func GenerateCombatImage(c *gin.Context) {
 
                         // Position at normX(-660), normY(220) - cropH
                         dc.DrawImage(croppedSprite, normX(-660), normY(220)-cropH+40)
+
+                        // 💡 FIX 2026-08-08 #1: Player 2 portrait + HP/EN bars (PvP only).
+                        // Mirrors player 1's portrait on the right-side panel.
+                        if req.CombatType == "PVP" && len(req.Players) > 1 {
+                                p2 := req.Players[1]
+
+                                // Player 2 HP/EN bars (mirrored X coordinates)
+                                // Player 1 bar X coords: -640, -550, -459 (3 segments)
+                                // Player 2 mirrored: negate and shift: 640-694=... actually
+                                // mirror around canvas center (512). Player 1 at normX(-640)=54,
+                                // mirror to 1024-54=970, which is normX(970-694)=normX(276).
+                                // But the right panel is at X=571-1024. Bars should be within that.
+                                // Right panel inner area: X~600 to ~1010.
+                                // 3 segments at X=620, 730, 820 (roughly mirroring left's 54, 144, 235)
+                                p2HpCoords := []int{326, 236, 145}  // normX(326)=1020, normX(236)=930, normX(145)=839
+                                p2EnCoords := []int{322, 232, 141}
+                                p2HpSeg := float64(p2.MaxHP) / 3.0
+                                p2EnSeg := float64(p2.MaxEnergy) / 3.0
+
+                                for i := 0; i < 3; i++ {
+                                        hCur := math.Max(0, math.Min(p2HpSeg, float64(p2.CurrentHP)-(float64(i)*p2HpSeg)))
+                                        drawBar(dc, uiPath, normX(p2HpCoords[i]), normY(209), hCur, p2HpSeg, "hp", 121, 47)
+
+                                        eCur := math.Max(0, math.Min(p2EnSeg, float64(p2.Energy)-(float64(i)*p2EnSeg)))
+                                        drawBar(dc, uiPath, normX(p2EnCoords[i]), normY(256), eCur, p2EnSeg, "mana", 119, 42)
+                                }
+
+                                // Player 2 portrait (cropped top 30%, flipped)
+                                var p2SpritePath string
+                                if p2.Mode == "summon" && p2.Species != "" {
+                                        p2SpritePath = GetSummonSpritePath(p2.Species, assetsPath)
+                                } else {
+                                        p2SpritePath = GetCharacterSpritePath(p2.Class, p2.SpriteIndex, assetsPath)
+                                }
+                                p2Sprite, err := utils.LoadImage(p2SpritePath)
+                                if err == nil {
+                                        if p2.CurrentHP <= 0 {
+                                                p2Sprite = utils.TintImage(p2Sprite, color.RGBA{80, 0, 80, 180})
+                                        }
+                                        p2Sprite = imaging.Resize(p2Sprite, 314, 0, imaging.NearestNeighbor)
+                                        p2Bounds := p2Sprite.Bounds()
+                                        p2CropH := int(float64(p2Bounds.Dy()) * 0.3)
+                                        p2Cropped := imaging.Crop(p2Sprite, image.Rect(0, 0, p2Bounds.Dx(), p2CropH))
+                                        p2Cropped = imaging.FlipH(p2Cropped) // mirror for right side
+                                        // Position: mirror of player 1's normX(-660)=34.
+                                        // Mirror: 1024-34-314 = 676. normX(676-694) = normX(-18).
+                                        // Actually player 1 at normX(-660)=34, width 314 → X=34-348.
+                                        // Player 2 mirror: X=1024-348 to 1024-34 = 676-990.
+                                        // normX(-18) = 676. So use normX(-18).
+                                        dc.DrawImage(p2Cropped, normX(-18), normY(220)-p2CropH+40)
+                                }
+                        }
 
                         // 6. Small full-body sprites on battlefield
                         if req.CombatType == "PVP" {
