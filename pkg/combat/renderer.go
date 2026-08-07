@@ -545,7 +545,7 @@ func GenerateCombatImage(c *gin.Context) {
 
                         // Try font sizes from 28 down to 14 until the name fits
                         for fontSize := 28; fontSize >= 14; fontSize -= 2 {
-                                face, err := utils.LoadFont(boldFontPath, fontSize)
+                                face, err := utils.LoadFont(boldFontPath, float64(fontSize))
                                 if err != nil {
                                         continue
                                 }
