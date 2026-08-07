@@ -116,7 +116,10 @@ func GenerateCombatImage(c *gin.Context) {
         }
 
         // Dark Overlay (40% black)
-        dc.SetColor(color.RGBA{0, 0, 0, 102})
+        // 💡 FIX 2026-08-07: Reduced from 102 (40%) to 80 (31%) to prevent
+        // dark sprite areas (wolf legs, bat wings) from blending into the
+        // background and appearing "floating" to viewers.
+        dc.SetColor(color.RGBA{0, 0, 0, 80})
         dc.DrawRectangle(0, 0, CANVAS_W, CANVAS_H)
         dc.Fill()
 
@@ -241,7 +244,7 @@ func GenerateCombatImage(c *gin.Context) {
         // Draw Mobs
         for _, mob := range mobQueue {
                 // Shadow (drawn FIRST, under everything) — at feet position
-                utils.DrawShadow(dc, mob.x+float64(mob.img.Bounds().Dx())/2, mob.y+float64(mob.img.Bounds().Dy()), float64(mob.img.Bounds().Dx())*0.4, 0.6)
+                utils.DrawShadow(dc, mob.x+float64(mob.img.Bounds().Dx())/2, mob.y+float64(mob.img.Bounds().Dy())-2, float64(mob.img.Bounds().Dx())*0.6, 0.85)
                 // 💡 TURN INDICATOR: draw golden ellipse ON TOP of shadow, UNDER sprite.
                 // Must be after shadow so the golden circle is visible (shadow would cover it otherwise).
                 if isAttacker("enemy", mob.origIndex) {
@@ -338,7 +341,7 @@ func GenerateCombatImage(c *gin.Context) {
                 sy := summonFeetY - float64(sSpriteH)
 
                 // Shadow at feet
-                utils.DrawShadow(dc, summonFeetX, summonFeetY, float64(sSpriteW)*0.4, 0.6)
+                utils.DrawShadow(dc, summonFeetX, summonFeetY-2, float64(sSpriteW)*0.6, 0.85)
 
                 // Turn indicator
                 if isAttacker("summon", i) {
@@ -464,7 +467,7 @@ func GenerateCombatImage(c *gin.Context) {
                                         drawY := feetY - spriteH
 
                                         // Shadow at feet
-                                        utils.DrawShadow(dc, float64(feetX), float64(feetY), 165, 0.6)
+                                        utils.DrawShadow(dc, float64(feetX), float64(feetY)-2, 180, 0.85)
 
                                         if isAtk {
                                                 drawTurnIndicator(float64(feetX), float64(feetY)-5, float64(spriteW))
@@ -532,7 +535,7 @@ func GenerateCombatImage(c *gin.Context) {
                                 s2Y := p0FeetY - p0SpriteH
 
                                 // Shadow at feet
-                                utils.DrawShadow(dc, float64(p0FeetX), float64(p0FeetY), 150, 0.6)
+                                utils.DrawShadow(dc, float64(p0FeetX), float64(p0FeetY)-2, 170, 0.85)
 
                                 if isAttacker("player", 0) {
                                         drawTurnIndicator(float64(p0FeetX), float64(p0FeetY)-5, float64(s2Size))
@@ -580,7 +583,7 @@ func GenerateCombatImage(c *gin.Context) {
                                         apX := apFeetX - s2Size/2
                                         apY := apFeetY - apSpriteH
 
-                                        utils.DrawShadow(dc, float64(apFeetX), float64(apFeetY), 150, 0.6)
+                                        utils.DrawShadow(dc, float64(apFeetX), float64(apFeetY)-2, 170, 0.85)
 
                                         if isAttacker("player", pi) {
                                                 drawTurnIndicator(float64(apFeetX), float64(apFeetY)-5, float64(s2Size))
