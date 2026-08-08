@@ -421,8 +421,8 @@ func GenerateCombatImage(c *gin.Context) {
                 // extended 36px INTO the panel zone, causing clipping of legs/shield.
                 // Shadow extends 16px below feet (radius_y=18, center at feetY-2).
                 // At Y=465, shadow bottom=481, overlapped panel top (469) by 12px.
-                // At Y=450, shadow bottom=466, 3px clear of panel top. ✅
-                const pvpSummonFeetY = 450
+                // At Y=445, shadow bottom=461, 8px clear of panel top. ✅
+                const pvpSummonFeetY = 445
                 pvpSummonPositions := []struct{ x, y int }{
                         {220, pvpSummonFeetY},
                         {800, pvpSummonFeetY},
@@ -768,8 +768,8 @@ func GenerateCombatImage(c *gin.Context) {
                                 // Feet Y: 450 — raised from 465 to clear shadow from panel.
                                 //   Shadow extends 16px below feet (radius_y=18, center at feetY-2).
                                 //   At Y=465, shadow bottom=481, overlapped panel top (469) by 12px.
-                                //   At Y=450, shadow bottom=466, 3px clear of panel top. ✅
-                                const pvp1v1FeetY = 450
+                                //   At Y=445, shadow bottom=461, 8px clear of panel top. ✅
+                                const pvp1v1FeetY = 445
                                 var p1Flip bool
                                 if p.Mode == "summon" && p.Species != "" {
                                         p1SpriteFile := filepath.Base(GetSummonSpritePath(p.Species, assetsPath))
