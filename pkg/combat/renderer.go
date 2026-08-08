@@ -654,7 +654,10 @@ func GenerateCombatImage(c *gin.Context) {
                         }
 
                         // 6. Small full-body sprites on battlefield
-                        // 💡 FIX 2026-08-08: Skip drawPvPFighter for PvP-summon (drawn in dedicated path)
+                        // 💡 FIX 2026-08-08: Three-way split:
+                        //   - PvP-summon: sprites drawn in dedicated path above (skip here)
+                        //   - PvP-1v1: drawPvPFighter (shared function)
+                        //   - PvE: player formation on battlefield
                         if req.CombatType == "PVP" && !isPvPSummonDuel {
                                 // 💡 FIX 2026-08-08: Unified PvP positioning with PvE.
                                 // BEFORE: PvP used X=300/690 with sprite width=160 — player 1 at X=300
@@ -754,7 +757,7 @@ func GenerateCombatImage(c *gin.Context) {
                                         }
                                         drawPvPFighter(req.Players[1], 720, MAIN_FEET_Y, p2Flip, isAttacker("player", 1))
                                 }
-                        } else {
+                        } else if !isPvPSummonDuel {
                                 // PVE: draw ALL players in formation on the battlefield.
                                 // 💡 FIX 2026-08-07: Feet-anchor + ground zone (Spec 1A/1C).
                                 // Players on LEFT side, feet in ground zone, face RIGHT.
