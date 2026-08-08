@@ -422,7 +422,7 @@ func GenerateCombatImage(c *gin.Context) {
                 // Shadow extends 16px below feet (radius_y=18, center at feetY-2).
                 // At Y=465, shadow bottom=481, overlapped panel top (469) by 12px.
                 // At Y=445, shadow bottom=461, 8px clear of panel top. ✅
-                const pvpSummonFeetY = 445
+                const pvpSummonFeetY = 440
                 pvpSummonPositions := []struct{ x, y int }{
                         {220, pvpSummonFeetY},
                         {800, pvpSummonFeetY},
@@ -459,8 +459,8 @@ func GenerateCombatImage(c *gin.Context) {
                         drawX := pos.x - sW/2
                         drawY := pos.y - sH
 
-                        // Shadow at feet
-                        utils.DrawShadow(dc, float64(pos.x), float64(pos.y)-2, float64(sW)*0.6, 0.85)
+                        // Shadow at feet — reduced radius for PvP so it doesn't overlap panels
+                        utils.DrawShadow(dc, float64(pos.x), float64(pos.y)-2, float64(sW)*0.35, 0.85)
 
                         if isAttacker("player", i) {
                                 drawTurnIndicator(float64(pos.x), float64(pos.y)-5, float64(sW))
@@ -737,8 +737,8 @@ func GenerateCombatImage(c *gin.Context) {
                                         drawX := feetX - sW/2
                                         drawY := feetY - sH
 
-                                        // Shadow at feet
-                                        utils.DrawShadow(dc, float64(feetX), float64(feetY)-2, float64(sW)*0.6, 0.85)
+                                        // Shadow at feet — reduced radius for PvP so it doesn't overlap panels
+                                        utils.DrawShadow(dc, float64(feetX), float64(feetY)-2, float64(sW)*0.35, 0.85)
 
                                         if isAtk {
                                                 drawTurnIndicator(float64(feetX), float64(feetY)-5, float64(sW))
@@ -769,7 +769,7 @@ func GenerateCombatImage(c *gin.Context) {
                                 //   Shadow extends 16px below feet (radius_y=18, center at feetY-2).
                                 //   At Y=465, shadow bottom=481, overlapped panel top (469) by 12px.
                                 //   At Y=445, shadow bottom=461, 8px clear of panel top. ✅
-                                const pvp1v1FeetY = 445
+                                const pvp1v1FeetY = 440
                                 var p1Flip bool
                                 if p.Mode == "summon" && p.Species != "" {
                                         p1SpriteFile := filepath.Base(GetSummonSpritePath(p.Species, assetsPath))
