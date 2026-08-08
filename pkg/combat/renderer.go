@@ -416,11 +416,11 @@ func GenerateCombatImage(c *gin.Context) {
                 //   Gap to panel: 695-571 = 124px ✅ (>100px)
                 // Gap between summons: 695-325 = 370px ✅
                 //
-                // 💡 FIX 2026-08-08: Feet Y raised from MAIN_FEET_Y (505) to 475.
+                // 💡 FIX 2026-08-08: Feet Y raised from MAIN_FEET_Y (505) to 465.
                 // Panel top edge is at Y=469 (normY(113)). At Y=505, sprite feet
                 // extended 36px INTO the panel zone, causing clipping of legs/shield.
-                // At Y=475, feet sit 6px ABOVE the panel top — clean separation.
-                const pvpSummonFeetY = 475
+                // At Y=465, feet sit 4px ABOVE the panel top — clean separation.
+                const pvpSummonFeetY = 465
                 pvpSummonPositions := []struct{ x, y int }{
                         {220, pvpSummonFeetY},
                         {800, pvpSummonFeetY},
