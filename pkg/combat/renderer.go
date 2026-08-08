@@ -422,7 +422,7 @@ func GenerateCombatImage(c *gin.Context) {
                 // Shadow extends 16px below feet (radius_y=18, center at feetY-2).
                 // At Y=465, shadow bottom=481, overlapped panel top (469) by 12px.
                 // At Y=445, shadow bottom=461, 8px clear of panel top. ✅
-                const pvpSummonFeetY = 440
+                const pvpSummonFeetY = 455
                 pvpSummonPositions := []struct{ x, y int }{
                         {220, pvpSummonFeetY},
                         {800, pvpSummonFeetY},
@@ -459,9 +459,9 @@ func GenerateCombatImage(c *gin.Context) {
                         drawX := pos.x - sW/2
                         drawY := pos.y - sH
 
-                        // Shadow at feet — fixed small radius so it doesn't overlap panels
-                        // (was sW*0.35, but large sprites like giant.png have sW~327 → radius 114, too big)
-                        utils.DrawShadow(dc, float64(pos.x), float64(pos.y)-2, 40, 0.85)
+                        // Shadow at feet — wide flat ellipse (looks like ground shadow, doesn't overlap panel)
+                        // rx = 60% of sprite width (wide), ry = 12px (flat). Total height = 24px.
+                        utils.DrawShadowEllipse(dc, float64(pos.x), float64(pos.y)-2, float64(sW)*0.6, 12, 0.85)
 
                         if isAttacker("player", i) {
                                 drawTurnIndicator(float64(pos.x), float64(pos.y)-5, float64(sW))
@@ -738,8 +738,8 @@ func GenerateCombatImage(c *gin.Context) {
                                         drawX := feetX - sW/2
                                         drawY := feetY - sH
 
-                                        // Shadow at feet — reduced radius for PvP so it doesn't overlap panels
-                                        utils.DrawShadow(dc, float64(feetX), float64(feetY)-2, float64(sW)*0.35, 0.85)
+                                        // Shadow at feet — wide flat ellipse (looks like ground shadow, doesn't overlap panel)
+                                        utils.DrawShadowEllipse(dc, float64(feetX), float64(feetY)-2, float64(sW)*0.6, 12, 0.85)
 
                                         if isAtk {
                                                 drawTurnIndicator(float64(feetX), float64(feetY)-5, float64(sW))
@@ -770,7 +770,7 @@ func GenerateCombatImage(c *gin.Context) {
                                 //   Shadow extends 16px below feet (radius_y=18, center at feetY-2).
                                 //   At Y=465, shadow bottom=481, overlapped panel top (469) by 12px.
                                 //   At Y=445, shadow bottom=461, 8px clear of panel top. ✅
-                                const pvp1v1FeetY = 440
+                                const pvp1v1FeetY = 455
                                 var p1Flip bool
                                 if p.Mode == "summon" && p.Species != "" {
                                         p1SpriteFile := filepath.Base(GetSummonSpritePath(p.Species, assetsPath))

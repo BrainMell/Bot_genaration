@@ -111,6 +111,19 @@ func DrawShadow(dc *gg.Context, x, y, radius float64, alpha float64) {
         dc.Fill()
 }
 
+// DrawShadowEllipse draws a wide, flat elliptical shadow (ground shadow).
+// rx = horizontal radius (wide), ry = vertical radius (short).
+// Used for PvP where a circular shadow would overlap the UI panel below.
+func DrawShadowEllipse(dc *gg.Context, x, y, rx, ry, alpha float64) {
+        grad := gg.NewRadialGradient(x, y, 0, x, y, rx)
+        grad.AddColorStop(0, color.RGBA{20, 10, 0, uint8(alpha * 255)})
+        grad.AddColorStop(0.5, color.RGBA{15, 8, 0, uint8(alpha * 128)})
+        grad.AddColorStop(1, color.RGBA{0, 0, 0, 0})
+        dc.SetFillStyle(grad)
+        dc.DrawEllipse(x, y, rx, ry)
+        dc.Fill()
+}
+
 // TintImage adds a red overlay to an image (for dead units)
 func TintImage(img image.Image, tint color.RGBA) image.Image {
         bounds := img.Bounds()
