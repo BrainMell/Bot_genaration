@@ -431,13 +431,14 @@ func GenerateCombatImage(c *gin.Context) {
                                 sprite = utils.TintImage(sprite, color.RGBA{80, 0, 80, 180})
                         }
 
-                        // #2: Resize by HEIGHT (0 as width = preserve aspect ratio)
-                        // imaging.Resize(img, 0, height, ...) resizes to target height.
+                        // #2: Crop FIRST (remove transparent padding), THEN resize to target height.
+                        // This ensures both sprites have the same visible height after resize,
+                        // regardless of how much padding their raw assets have.
+                        sprite = cropToVisibleBounds(sprite)
                         rawH := sprite.Bounds().Dy()
                         if rawH > 0 {
                                 sprite = imaging.Resize(sprite, 0, pvpSummonSpriteH, imaging.NearestNeighbor)
                         }
-                        sprite = cropToVisibleBounds(sprite)
 
                         // Facing: left side faces RIGHT, right side faces LEFT
                         spriteFile := filepath.Base(spritePath)
@@ -536,11 +537,13 @@ func GenerateCombatImage(c *gin.Context) {
                 for i, player := range req.Players {
                         // Draw HP/EN bars for player 2 in PvP-summon (player 1 bars drawn in section 4)
                         if i == 1 {
-                                // P2 bars: reversed segment order + flipped images for mirrored right panel.
-                                // Segment 3 (last 1/3) at leftmost position, segment 1 (first 1/3) at rightmost.
-                                // This makes the bar fill right-to-left in canvas = left-to-right in panel-local.
-                                p2HpCoords := []int{73, 164, 254}  // reversed: seg3, seg2, seg1
-                                p2EnCoords := []int{69, 160, 250}
+                                // P2 bars: positioned WITHIN right panel (same offsets as left panel bars).
+                                // Left panel bars at canvas X=54, 144, 235 (offsets 76, 166, 257 from panel left at -22).
+                                // Right panel at X=549. Same offsets: 549+76=625, 549+166=715, 549+257=806.
+                                // Reversed segment order (seg3, seg2, seg1) + flipped images for mirrored fill.
+                                // normX values: 625-694=-69, 715-694=21, 806-694=112.
+                                p2HpCoords := []int{-69, 21, 112}
+                                p2EnCoords := []int{-73, 17, 108}
                                 p2HpSeg := float64(player.MaxHP) / 3.0
                                 p2EnSeg := float64(player.MaxEnergy) / 3.0
                                 for j := 0; j < 3; j++ {
@@ -634,9 +637,9 @@ func GenerateCombatImage(c *gin.Context) {
                                 if req.CombatType == "PVP" && len(req.Players) > 1 {
                                         p2 := req.Players[1]
 
-                                        // P2 bars: reversed segment order + flipped images for mirrored right panel
-                                        p2HpCoords := []int{73, 164, 254}
-                                        p2EnCoords := []int{69, 160, 250}
+                                        // P2 bars: positioned within right panel (same offsets as left panel)
+                                        p2HpCoords := []int{-69, 21, 112}
+                                        p2EnCoords := []int{-73, 17, 108}
                                         p2HpSeg := float64(p2.MaxHP) / 3.0
                                         p2EnSeg := float64(p2.MaxEnergy) / 3.0
 
