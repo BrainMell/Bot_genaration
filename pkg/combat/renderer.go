@@ -459,8 +459,9 @@ func GenerateCombatImage(c *gin.Context) {
                         drawX := pos.x - sW/2
                         drawY := pos.y - sH
 
-                        // Shadow at feet — reduced radius for PvP so it doesn't overlap panels
-                        utils.DrawShadow(dc, float64(pos.x), float64(pos.y)-2, float64(sW)*0.35, 0.85)
+                        // Shadow at feet — fixed small radius so it doesn't overlap panels
+                        // (was sW*0.35, but large sprites like giant.png have sW~327 → radius 114, too big)
+                        utils.DrawShadow(dc, float64(pos.x), float64(pos.y)-2, 40, 0.85)
 
                         if isAttacker("player", i) {
                                 drawTurnIndicator(float64(pos.x), float64(pos.y)-5, float64(sW))
