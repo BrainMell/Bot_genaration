@@ -405,9 +405,22 @@ func GetEnemySpritePath(name string, level int, index int, isBoss bool, assetsPa
                 //    a specific sprite mapped in BossNameSprites, use it — no
                 //    level/index rotation, so the boss always renders identically.
                 if name != "" {
-                        if specific, ok := BossNameSprites[strings.ToUpper(strings.TrimSpace(name))]; ok && specific != "" {
+                        upperName := strings.ToUpper(strings.TrimSpace(name))
+                        if specific, ok := BossNameSprites[upperName]; ok && specific != "" {
                                 filename = specific
                                 return filepath.Join(assetsPath, "rpgasset", "enemies", filename)
+                        }
+                        // 💡 FIX 2026-08-08: Also check EnemyNameSprites as fallback.
+                        // Many enemies (MOUNTAIN_COLOSSUS, STONE_HULK, etc.) appear as
+                        // both regular enemies AND bosses. They're in EnemyNameSprites
+                        // but not BossNameSprites. Without this fallback, boss versions
+                        // fall through to level-based rotation and get a random sprite.
+                        underscoreName := strings.ReplaceAll(upperName, " ", "_")
+                        if specific, ok := EnemyNameSprites[upperName]; ok && specific != "" {
+                                return filepath.Join(assetsPath, "rpgasset", "enemies", specific)
+                        }
+                        if specific, ok := EnemyNameSprites[underscoreName]; ok && specific != "" {
+                                return filepath.Join(assetsPath, "rpgasset", "enemies", specific)
                         }
                 }
                 // 2) Fallback: level-based bucket rotation (original behavior)
