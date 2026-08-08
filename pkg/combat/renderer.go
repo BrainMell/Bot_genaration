@@ -497,7 +497,8 @@ func GenerateCombatImage(c *gin.Context) {
         }
         drawImage(uiPath("banner.png"), -582, -410, 800, 160)
 
-        // 💡 FIX 2026-08-08 #1: Text name labels on PvP panels (replaces broken portrait crop).
+        // 💡 FIX 2026-08-08 #1: Text name labels on PvP-SUMMON panels only.
+        // (PvP-1v1 keeps portrait crop — text would overlap the portrait art.)
         // Placement spec:
         //   - Horizontally centered within EACH panel's own width (panel-center, not canvas-center)
         //   - Vertically centered in the top strip (between panel top border and scroll-divider line)
@@ -509,7 +510,7 @@ func GenerateCombatImage(c *gin.Context) {
         //   Top border (ornate):  Y=469 to ~489 (panel Y=20)
         //   Scroll divider line:  Y=549 (panel Y=80)
         //   Top strip center:     Y=(489+549)/2 = 519
-        if req.CombatType == "PVP" && len(req.Players) >= 2 {
+        if isPvPSummonDuel {
                 // Panel centers (using full panel bounds, not visible bounds)
                 panelCenters := []float64{204.5, 797.5}
                 // Top strip vertical center (between ornate top border and scroll divider)
