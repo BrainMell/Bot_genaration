@@ -69,4 +69,5 @@ type CombatRequest struct {
         Rank       string   `json:"rank"`
         Background string   `json:"background"`
         Action     *Action  `json:"action,omitempty"` // optional — drives the animation
+        Floor      int      `json:"floor,omitempty"`  // 💡 Abyss floor number — when >0, banner shows "FLOOR N" instead of rank
 }

@@ -887,18 +887,23 @@ func GenerateCombatImage(c *gin.Context) {
         }
 
         // 7. Banner Text (Overlaid ON the banner) - FIXED
-        if req.Rank != "" || len(req.Players) > 0 {
-                text := req.Rank
-                if text == "" && len(req.Players) > 0 {
-                        text = req.Players[0].AdventurerRank
-                }
-                if text == "" {
-                        text = "F"
-                }
-                text = text + " RANK"
+        if req.Rank != "" || len(req.Players) > 0 || req.Floor > 0 {
+                var text string
 
-                if req.CombatType == "PVP" {
+                // 💡 Abyss floor: show "FLOOR N" when Floor > 0
+                if req.Floor > 0 {
+                        text = fmt.Sprintf("FLOOR %d", req.Floor)
+                } else if req.CombatType == "PVP" {
                         text = "PVP MATCH"
+                } else {
+                        text = req.Rank
+                        if text == "" && len(req.Players) > 0 {
+                                text = req.Players[0].AdventurerRank
+                        }
+                        if text == "" {
+                                text = "F"
+                        }
+                        text = text + " RANK"
                 }
 
                 fontPath := filepath.Join(assetsPath, "rpgasset", "ui", "Inter-Bold.ttf")
