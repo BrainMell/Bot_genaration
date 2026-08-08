@@ -416,11 +416,13 @@ func GenerateCombatImage(c *gin.Context) {
                 //   Gap to panel: 695-571 = 124px ✅ (>100px)
                 // Gap between summons: 695-325 = 370px ✅
                 //
-                // 💡 FIX 2026-08-08: Feet Y raised from MAIN_FEET_Y (505) to 465.
+                // 💡 FIX 2026-08-08: Feet Y raised from MAIN_FEET_Y (505) to 450.
                 // Panel top edge is at Y=469 (normY(113)). At Y=505, sprite feet
                 // extended 36px INTO the panel zone, causing clipping of legs/shield.
-                // At Y=465, feet sit 4px ABOVE the panel top — clean separation.
-                const pvpSummonFeetY = 465
+                // Shadow extends 16px below feet (radius_y=18, center at feetY-2).
+                // At Y=465, shadow bottom=481, overlapped panel top (469) by 12px.
+                // At Y=450, shadow bottom=466, 3px clear of panel top. ✅
+                const pvpSummonFeetY = 450
                 pvpSummonPositions := []struct{ x, y int }{
                         {220, pvpSummonFeetY},
                         {800, pvpSummonFeetY},
@@ -763,8 +765,11 @@ func GenerateCombatImage(c *gin.Context) {
                                 // Player 1 (left): X=220 — same as PvP-summon left position.
                                 //   Was X=500 (almost at canvas center 512, looked like "in the middle").
                                 // Player 2 (right): X=800 — same as PvP-summon right position.
-                                // Feet Y: 465 — same as PvP-summon (clears panel top at 469).
-                                const pvp1v1FeetY = 465
+                                // Feet Y: 450 — raised from 465 to clear shadow from panel.
+                                //   Shadow extends 16px below feet (radius_y=18, center at feetY-2).
+                                //   At Y=465, shadow bottom=481, overlapped panel top (469) by 12px.
+                                //   At Y=450, shadow bottom=466, 3px clear of panel top. ✅
+                                const pvp1v1FeetY = 450
                                 var p1Flip bool
                                 if p.Mode == "summon" && p.Species != "" {
                                         p1SpriteFile := filepath.Base(GetSummonSpritePath(p.Species, assetsPath))
