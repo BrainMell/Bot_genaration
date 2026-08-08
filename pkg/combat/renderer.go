@@ -448,9 +448,10 @@ func GenerateCombatImage(c *gin.Context) {
                                 sprite = imaging.Resize(sprite, 0, pvpSummonSpriteH, imaging.NearestNeighbor)
                         }
 
-                        // Facing: left side faces RIGHT, right side faces LEFT
+                        // Facing: INVERTED — left side faces LEFT, right side faces RIGHT
+                        // (user reported sprites facing away; inverting flip to face toward each other)
                         spriteFile := filepath.Base(spritePath)
-                        if flipForSide(spriteFile, i == 0) {
+                        if !flipForSide(spriteFile, i == 0) {
                                 sprite = imaging.FlipH(sprite)
                         }
 
@@ -774,20 +775,20 @@ func GenerateCombatImage(c *gin.Context) {
                                 var p1Flip bool
                                 if p.Mode == "summon" && p.Species != "" {
                                         p1SpriteFile := filepath.Base(GetSummonSpritePath(p.Species, assetsPath))
-                                        p1Flip = flipForSide(p1SpriteFile, true)
+                                        p1Flip = !flipForSide(p1SpriteFile, true)
                                 } else {
                                         p1SpriteFile := GetCharacterSpriteFile(p.Class, p.SpriteIndex, assetsPath)
-                                        p1Flip = flipForSide(filepath.Base(p1SpriteFile), true)
+                                        p1Flip = !flipForSide(filepath.Base(p1SpriteFile), true)
                                 }
                                 drawPvPFighter(p, 220, pvp1v1FeetY, p1Flip, isAttacker("player", 0))
                                 if len(req.Players) > 1 {
                                         var p2Flip bool
                                         if req.Players[1].Mode == "summon" && req.Players[1].Species != "" {
                                                 p2SpriteFile := filepath.Base(GetSummonSpritePath(req.Players[1].Species, assetsPath))
-                                                p2Flip = flipForSide(p2SpriteFile, false)
+                                                p2Flip = !flipForSide(p2SpriteFile, false)
                                         } else {
                                                 p2SpriteFile := GetCharacterSpriteFile(req.Players[1].Class, req.Players[1].SpriteIndex, assetsPath)
-                                                p2Flip = flipForSide(filepath.Base(p2SpriteFile), false)
+                                                p2Flip = !flipForSide(filepath.Base(p2SpriteFile), false)
                                         }
                                         drawPvPFighter(req.Players[1], 800, pvp1v1FeetY, p2Flip, isAttacker("player", 1))
                                 }
