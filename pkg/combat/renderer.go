@@ -516,8 +516,8 @@ func GenerateCombatImage(c *gin.Context) {
         }
         drawImage(uiPath("banner.png"), -582, -410, 800, 160)
 
-        // 💡 FIX 2026-08-08 #1: Text name labels on PvP-SUMMON panels only.
-        // (PvP-1v1 keeps portrait crop — text would overlap the portrait art.)
+        // 💡 FIX 2026-08-08: Text name labels on ALL PvP panels (1v1 + summon).
+        // Portraits removed for all PvP — text label replaces them.
         // Placement spec:
         //   - Horizontally centered within EACH panel's own width (panel-center, not canvas-center)
         //   - Vertically centered in the top strip (between panel top border and scroll-divider line)
@@ -529,7 +529,7 @@ func GenerateCombatImage(c *gin.Context) {
         //   Top border (ornate):  Y=469 to ~489 (panel Y=20)
         //   Scroll divider line:  Y=549 (panel Y=80)
         //   Top strip center:     Y=(489+549)/2 = 519
-        if isPvPSummonDuel {
+        if req.CombatType == "PVP" && len(req.Players) >= 2 {
                 // Panel centers (using full panel bounds, not visible bounds)
                 panelCenters := []float64{204.5, 775.5}
                 // Top strip vertical center (between ornate top border and scroll divider)
@@ -629,8 +629,8 @@ func GenerateCombatImage(c *gin.Context) {
                         s1W := 314
                         pSprite = imaging.Resize(pSprite, s1W, 0, imaging.NearestNeighbor)
 
-                        // 💡 FIX 2026-08-08: Portrait crop skipped for PvP-summon (text label replaces it)
-                        if !isPvPSummonDuel {
+                        // 💡 FIX 2026-08-08: Portrait crop skipped for ALL PvP (text label replaces it)
+                        if req.CombatType != "PVP" {
                                 // Crop TOP 30% - CRITICAL FIX
                                 bounds := pSprite.Bounds()
                                 cropH := int(float64(bounds.Dy()) * 0.3)
@@ -759,11 +759,12 @@ func GenerateCombatImage(c *gin.Context) {
                                         }
                                 }
 
-                                // 💡 FIX 2026-08-08: PvP positions unified with PvE.
-                                // Player 1 (left): X=500 — same as PvE playerCenterX.
-                                //   Sprite range: 439-561. Left panel ends at 431. Gap=8px. ✅
-                                // Player 2 (right): X=720 — Options_menu skipped in PvP.
-                                //   Sprite range: 659-781. No right panel to overlap. ✅
+                                // 💡 FIX 2026-08-08: PvP-1v1 positions match PvP-summon (symmetric, away from center).
+                                // Player 1 (left): X=220 — same as PvP-summon left position.
+                                //   Was X=500 (almost at canvas center 512, looked like "in the middle").
+                                // Player 2 (right): X=800 — same as PvP-summon right position.
+                                // Feet Y: 465 — same as PvP-summon (clears panel top at 469).
+                                const pvp1v1FeetY = 465
                                 var p1Flip bool
                                 if p.Mode == "summon" && p.Species != "" {
                                         p1SpriteFile := filepath.Base(GetSummonSpritePath(p.Species, assetsPath))
@@ -772,7 +773,7 @@ func GenerateCombatImage(c *gin.Context) {
                                         p1SpriteFile := GetCharacterSpriteFile(p.Class, p.SpriteIndex, assetsPath)
                                         p1Flip = flipForSide(filepath.Base(p1SpriteFile), true)
                                 }
-                                drawPvPFighter(p, 500, MAIN_FEET_Y, p1Flip, isAttacker("player", 0))
+                                drawPvPFighter(p, 220, pvp1v1FeetY, p1Flip, isAttacker("player", 0))
                                 if len(req.Players) > 1 {
                                         var p2Flip bool
                                         if req.Players[1].Mode == "summon" && req.Players[1].Species != "" {
@@ -782,7 +783,7 @@ func GenerateCombatImage(c *gin.Context) {
                                                 p2SpriteFile := GetCharacterSpriteFile(req.Players[1].Class, req.Players[1].SpriteIndex, assetsPath)
                                                 p2Flip = flipForSide(filepath.Base(p2SpriteFile), false)
                                         }
-                                        drawPvPFighter(req.Players[1], 720, MAIN_FEET_Y, p2Flip, isAttacker("player", 1))
+                                        drawPvPFighter(req.Players[1], 800, pvp1v1FeetY, p2Flip, isAttacker("player", 1))
                                 }
                         } else if !isPvPSummonDuel {
                                 // PVE: draw ALL players in formation on the battlefield.
