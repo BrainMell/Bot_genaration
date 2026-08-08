@@ -404,8 +404,10 @@ func GenerateCombatImage(c *gin.Context) {
         // PvP-summon sprites drawn HERE (before UI panels) so panels occlude
         // any upper-body overlap (z-order fix #3).
         if isPvPSummonDuel {
-                // #2: Larger sprite size — target 210px (was 103px from 1v1 constant).
-                const pvpSummonSpriteW = 210
+                // #2: Scale by HEIGHT (not width) so visually different-shaped sprites
+                // (square plaguefang vs wide giant) end up perceptually similar in size.
+                // Target height: 180px post-crop. Width varies by aspect ratio.
+                const pvpSummonSpriteH = 180
 
                 // #4: Repositioned outward, symmetric, 100px+ clear of panel edges.
                 // Left panel inner edge: X=431. Left summon at X=220 → range ~115-325.
@@ -428,7 +430,13 @@ func GenerateCombatImage(c *gin.Context) {
                         if player.CurrentHP <= 0 {
                                 sprite = utils.TintImage(sprite, color.RGBA{80, 0, 80, 180})
                         }
-                        sprite = imaging.Resize(sprite, pvpSummonSpriteW, 0, imaging.NearestNeighbor)
+
+                        // #2: Resize by HEIGHT (0 as width = preserve aspect ratio)
+                        // imaging.Resize(img, 0, height, ...) resizes to target height.
+                        rawH := sprite.Bounds().Dy()
+                        if rawH > 0 {
+                                sprite = imaging.Resize(sprite, 0, pvpSummonSpriteH, imaging.NearestNeighbor)
+                        }
                         sprite = cropToVisibleBounds(sprite)
 
                         // Facing: left side faces RIGHT, right side faces LEFT
@@ -475,22 +483,26 @@ func GenerateCombatImage(c *gin.Context) {
         drawImage(uiPath("heart.png"), -678, 209, 38, 47)
         drawImage(uiPath("mana.png"), -673, 256, 29, 44)
         if req.CombatType == "PVP" && len(req.Players) > 1 {
-                // 💡 FIX 2026-08-08 #1: Right-side player 2 state panel (was missing).
+                // 💡 FIX 2026-08-08 #3: Right panel mirrored with same margin as left.
+                // Left panel: X=-22 (22px off-canvas left), width 453 → right edge at 431.
+                // Right panel: right edge at canvas_w - 22 = 1002 → X = 1002 - 453 = 549.
+                // normX(-145) = -145 + 694 = 549. Right edge = 549 + 453 = 1002. ✅
                 panelImg, err := utils.LoadImage(uiPath("player_state.png"))
                 if err == nil {
                         panelImg = imaging.Resize(panelImg, 453, 244, imaging.NearestNeighbor)
                         panelImg = imaging.FlipH(panelImg)
-                        dc.DrawImage(panelImg, normX(-123), normY(113))
+                        dc.DrawImage(panelImg, normX(-145), normY(113))
                 }
+                // Heart icon — mirrored position (right side of right panel)
                 heartImg, err := utils.LoadImage(uiPath("heart.png"))
                 if err == nil {
                         heartImg = imaging.Resize(heartImg, 38, 47, imaging.NearestNeighbor)
-                        dc.DrawImage(heartImg, normX(-89), normY(209))
+                        dc.DrawImage(heartImg, normX(-111), normY(209))
                 }
                 manaImg, err := utils.LoadImage(uiPath("mana.png"))
                 if err == nil {
                         manaImg = imaging.Resize(manaImg, 29, 44, imaging.NearestNeighbor)
-                        dc.DrawImage(manaImg, normX(-84), normY(256))
+                        dc.DrawImage(manaImg, normX(-106), normY(256))
                 }
         } else if req.CombatType != "PVP" {
                 drawImage(uiPath("Options_menu.png"), -97, 99, 443, 258)
@@ -506,13 +518,13 @@ func GenerateCombatImage(c *gin.Context) {
         //
         // Panel geometry (canvas coordinates):
         //   Left panel:  X=-22 to 431, center X = 204.5
-        //   Right panel: X=571 to 1024, center X = 797.5
+        //   Right panel: X=549 to 1002, center X = 775.5
         //   Top border (ornate):  Y=469 to ~489 (panel Y=20)
         //   Scroll divider line:  Y=549 (panel Y=80)
         //   Top strip center:     Y=(489+549)/2 = 519
         if isPvPSummonDuel {
                 // Panel centers (using full panel bounds, not visible bounds)
-                panelCenters := []float64{204.5, 797.5}
+                panelCenters := []float64{204.5, 775.5}
                 // Top strip vertical center (between ornate top border and scroll divider)
                 const labelY = 519.0
                 // Panel inner width (between ornate side borders, ~20px each side)
@@ -522,17 +534,21 @@ func GenerateCombatImage(c *gin.Context) {
 
                 boldFontPath := filepath.Join(assetsPath, "rpgasset", "ui", "Inter-Bold.ttf")
                 for i, player := range req.Players {
-                        // Draw HP/EN bars for player 2 in PvP (player 1 bars already drawn above)
+                        // Draw HP/EN bars for player 2 in PvP-summon (player 1 bars drawn in section 4)
                         if i == 1 {
-                                p2HpCoords := []int{326, 236, 145}
-                                p2EnCoords := []int{322, 232, 141}
+                                // P2 bars: reversed segment order + flipped images for mirrored right panel.
+                                // Segment 3 (last 1/3) at leftmost position, segment 1 (first 1/3) at rightmost.
+                                // This makes the bar fill right-to-left in canvas = left-to-right in panel-local.
+                                p2HpCoords := []int{73, 164, 254}  // reversed: seg3, seg2, seg1
+                                p2EnCoords := []int{69, 160, 250}
                                 p2HpSeg := float64(player.MaxHP) / 3.0
                                 p2EnSeg := float64(player.MaxEnergy) / 3.0
                                 for j := 0; j < 3; j++ {
-                                        hCur := math.Max(0, math.Min(p2HpSeg, float64(player.CurrentHP)-(float64(j)*p2HpSeg)))
-                                        drawBar(dc, uiPath, normX(p2HpCoords[j]), normY(209), hCur, p2HpSeg, "hp", 121, 47)
-                                        eCur := math.Max(0, math.Min(p2EnSeg, float64(player.Energy)-(float64(j)*p2EnSeg)))
-                                        drawBar(dc, uiPath, normX(p2EnCoords[j]), normY(256), eCur, p2EnSeg, "mana", 119, 42)
+                                        segIdx := 2 - j  // reverse: j=0→segIdx=2, j=1→segIdx=1, j=2→segIdx=0
+                                        hCur := math.Max(0, math.Min(p2HpSeg, float64(player.CurrentHP)-(float64(segIdx)*p2HpSeg)))
+                                        drawBarFlipped(dc, uiPath, normX(p2HpCoords[j]), normY(209), hCur, p2HpSeg, "hp", 121, 47)
+                                        eCur := math.Max(0, math.Min(p2EnSeg, float64(player.Energy)-(float64(segIdx)*p2EnSeg)))
+                                        drawBarFlipped(dc, uiPath, normX(p2EnCoords[j]), normY(256), eCur, p2EnSeg, "mana", 119, 42)
                                 }
                         }
 
@@ -618,17 +634,19 @@ func GenerateCombatImage(c *gin.Context) {
                                 if req.CombatType == "PVP" && len(req.Players) > 1 {
                                         p2 := req.Players[1]
 
-                                        p2HpCoords := []int{326, 236, 145}
-                                        p2EnCoords := []int{322, 232, 141}
+                                        // P2 bars: reversed segment order + flipped images for mirrored right panel
+                                        p2HpCoords := []int{73, 164, 254}
+                                        p2EnCoords := []int{69, 160, 250}
                                         p2HpSeg := float64(p2.MaxHP) / 3.0
                                         p2EnSeg := float64(p2.MaxEnergy) / 3.0
 
                                         for i := 0; i < 3; i++ {
-                                                hCur := math.Max(0, math.Min(p2HpSeg, float64(p2.CurrentHP)-(float64(i)*p2HpSeg)))
-                                                drawBar(dc, uiPath, normX(p2HpCoords[i]), normY(209), hCur, p2HpSeg, "hp", 121, 47)
+                                                segIdx := 2 - i
+                                                hCur := math.Max(0, math.Min(p2HpSeg, float64(p2.CurrentHP)-(float64(segIdx)*p2HpSeg)))
+                                                drawBarFlipped(dc, uiPath, normX(p2HpCoords[i]), normY(209), hCur, p2HpSeg, "hp", 121, 47)
 
-                                                eCur := math.Max(0, math.Min(p2EnSeg, float64(p2.Energy)-(float64(i)*p2EnSeg)))
-                                                drawBar(dc, uiPath, normX(p2EnCoords[i]), normY(256), eCur, p2EnSeg, "mana", 119, 42)
+                                                eCur := math.Max(0, math.Min(p2EnSeg, float64(p2.Energy)-(float64(segIdx)*p2EnSeg)))
+                                                drawBarFlipped(dc, uiPath, normX(p2EnCoords[i]), normY(256), eCur, p2EnSeg, "mana", 119, 42)
                                         }
 
                                         // Player 2 portrait (cropped top 30%, flipped)
@@ -648,7 +666,7 @@ func GenerateCombatImage(c *gin.Context) {
                                                 p2CropH := int(float64(p2Bounds.Dy()) * 0.3)
                                                 p2Cropped := imaging.Crop(p2Sprite, image.Rect(0, 0, p2Bounds.Dx(), p2CropH))
                                                 p2Cropped = imaging.FlipH(p2Cropped)
-                                                dc.DrawImage(p2Cropped, normX(-18), normY(220)-p2CropH+40)
+                                                dc.DrawImage(p2Cropped, normX(-40), normY(220)-p2CropH+40)
                                         }
                                 }
                         }
@@ -1054,6 +1072,25 @@ func drawBar(dc *gg.Context, uiPath func(string) string, x, y int, current, max 
         img, err := utils.LoadImage(uiPath(filename))
         if err == nil {
                 img = imaging.Resize(img, w, h, imaging.NearestNeighbor)
+                dc.DrawImage(img, x, y)
+        }
+}
+
+// drawBarFlipped draws the HP/EN bar with the image flipped horizontally.
+// Used for the right (mirrored) panel so the bar fills right-to-left in canvas
+// coordinates = left-to-right in panel-local coordinates.
+func drawBarFlipped(dc *gg.Context, uiPath func(string) string, x, y int, current, max float64, typePrefix string, w, h int) {
+        if max <= 0 {
+                max = 1
+        }
+        percent := current / max
+        spriteNum := int(math.Min(5, math.Max(1, math.Round(percent*4)+1)))
+
+        filename := fmt.Sprintf("%s%d.png", typePrefix, spriteNum)
+        img, err := utils.LoadImage(uiPath(filename))
+        if err == nil {
+                img = imaging.Resize(img, w, h, imaging.NearestNeighbor)
+                img = imaging.FlipH(img)
                 dc.DrawImage(img, x, y)
         }
 }
