@@ -5,6 +5,7 @@ import (
         "image"
         "image/color"
         "image/draw"
+        "log"
         "math"
         "os"
         "path/filepath"
@@ -72,6 +73,17 @@ func GenerateCombatImage(c *gin.Context) {
         if err := c.ShouldBindJSON(&req); err != nil {
                 c.JSON(400, gin.H{"error": err.Error()})
                 return
+        }
+
+        // Debug log for req.Action. If nil, turn indicator falls back to player[0].
+        if req.Action != nil {
+                log.Printf("[combat-render] Action present: attackerSide=%s attackerIndex=%d targetSide=%s targetIndex=%d combatType=%s",
+                        req.Action.AttackerSide, req.Action.AttackerIndex,
+                        req.Action.TargetSide, req.Action.TargetIndex,
+                        req.CombatType)
+        } else {
+                log.Printf("[combat-render] Action is nil — turn indicator falls back to player[0]. combatType=%s players=%d enemies=%d summons=%d",
+                        req.CombatType, len(req.Players), len(req.Enemies), len(req.Summons))
         }
 
         // Create Canvas
@@ -144,22 +156,16 @@ func GenerateCombatImage(c *gin.Context) {
                 dc.Fill()
         }
         // isAttacker checks if the entity at (side, index) is the active attacker.
+        // When req.Action is nil (static PvE renders), falls back to highlighting
+        // player[0] so the turn indicator always renders.
         isAttacker := func(side string, index int) bool {
                 if req.Action == nil {
-                        return false
+                        return side == "player" && index == 0
                 }
                 return req.Action.AttackerSide == side && req.Action.AttackerIndex == index
         }
 
-        // 2. Mobs / Enemies
-        // 💡 FIX 2026-08-07: Feet-anchor + ground zone (Spec 1A).
-        // Enemies are on the RIGHT side, feet in ground zone (HORIZON_Y to GROUND_BOTTOM_Y).
-        // Main enemy (index 0): feet at MAIN_FEET_Y (lower = closer to camera).
-        // Background enemies (index 1+): feet at BACK_FEET_Y (higher = further away, depth cue).
-        enemySpriteSize := 190.0
-        enemyStartX := 800.0 // center X for main enemy
-        spX := 120.0         // horizontal formation spacing
-
+        // 2. Mobs / Enemies — slot table (EnemySlots) + crop-then-resize-by-height.
         // Determine avg level for sprite selection
         avgLevel := 1
         if len(req.Players) > 0 {
@@ -174,7 +180,8 @@ func GenerateCombatImage(c *gin.Context) {
                 img       image.Image
                 x, y      float64
                 hpPercent float64
-                origIndex int // 💡 carries the original enemy index through the Y-sort
+                origIndex int    // carries the original enemy index through the Y-sort
+                name      string // for nameplate pill
         }
         var mobQueue []RenderItem
 
@@ -189,16 +196,15 @@ func GenerateCombatImage(c *gin.Context) {
                         continue
                 }
 
-                // Resize
-                eW := enemySpriteSize
-                if enemy.IsBoss {
-                        eW = enemySpriteSize * 1.5
-                }
-                eSprite = imaging.Resize(eSprite, int(eW), 0, imaging.NearestNeighbor)
-                // 💡 FIX 2026-08-07 (#2): Crop transparent padding so feet sit on ground
+                // Crop FIRST, then resize by fixed HEIGHT. Width floats by aspect ratio.
                 eSprite = cropToVisibleBounds(eSprite)
+                targetH := pveEnemySpriteH // 170
+                if enemy.IsBoss {
+                        targetH = pveBossSpriteH // 210
+                }
+                eSprite = imaging.Resize(eSprite, 0, targetH, imaging.NearestNeighbor)
 
-                // 💡 FIX 2026-08-07: Side-based facing — enemies on RIGHT side face LEFT (Spec 1C)
+                // Side-based facing — enemies on RIGHT side face LEFT
                 if flipForSide(filepath.Base(spritePath), false) {
                         eSprite = imaging.FlipH(eSprite)
                 }
@@ -208,29 +214,10 @@ func GenerateCombatImage(c *gin.Context) {
                         eSprite = utils.TintImage(eSprite, color.RGBA{80, 0, 80, 180})
                 }
 
-                // 💡 FIX 2026-08-07: Feet-anchor positioning in ground zone.
-                // feetX = horizontal center, feetY = ground line for this entity.
-                // Main enemy (sub 0): feet at MAIN_FEET_Y. Others: BACK_FEET_Y (depth).
-                //
-                // 💡 FIX 2026-08-08: Formation overlap bug — sub=1 and sub=2 were
-                // both at feetX-spX (same X), causing 2 of 3 enemies to overlap.
-                // Now uses a 2x2 grid: sub=0 front-center, sub=1 back-left,
-                // sub=2 back-right, sub=3 far-back-center.
-                feetX := enemyStartX
-                feetY := float64(MAIN_FEET_Y)
-                sub := i % 4
-                switch sub {
-                case 1:
-                        feetX -= spX // back-left
-                case 2:
-                        feetX += spX // back-right (was -= spX, overlapping sub=1)
-                case 3:
-                        feetX -= spX * 2 // far-back-left
-                }
-                if sub > 0 {
-                        feetY = float64(BACK_FEET_Y) // background enemies higher (depth)
-                }
-                feetX += float64(i/4) * -250.0
+                // Position from EnemySlots table — no inline math.
+                slot := slotFor(EnemySlots, i)
+                feetX := slot.X
+                feetY := slot.Y
 
                 // Convert feet position to draw position (top-left anchor for DrawImage)
                 spriteW := eSprite.Bounds().Dx()
@@ -242,7 +229,7 @@ func GenerateCombatImage(c *gin.Context) {
                 if enemy.MaxHP > 0 {
                         hpPerc = float64(enemy.CurrentHP) / float64(enemy.MaxHP)
                 }
-                mobQueue = append(mobQueue, RenderItem{eSprite, ex, ey, hpPerc, i})
+                mobQueue = append(mobQueue, RenderItem{eSprite, ex, ey, hpPerc, i, enemy.Name})
         }
         // Sort by Y (Painter's Algorithm)
         sort.Slice(mobQueue, func(i, j int) bool {
@@ -254,7 +241,6 @@ func GenerateCombatImage(c *gin.Context) {
                 // Shadow (drawn FIRST, under everything) — at feet position
                 utils.DrawShadow(dc, mob.x+float64(mob.img.Bounds().Dx())/2, mob.y+float64(mob.img.Bounds().Dy())-2, float64(mob.img.Bounds().Dx())*0.6, 0.85)
                 // 💡 TURN INDICATOR: draw golden ellipse ON TOP of shadow, UNDER sprite.
-                // Must be after shadow so the golden circle is visible (shadow would cover it otherwise).
                 if isAttacker("enemy", mob.origIndex) {
                         cx := mob.x + float64(mob.img.Bounds().Dx())/2
                         cy := mob.y + float64(mob.img.Bounds().Dy()) - 5
@@ -264,39 +250,32 @@ func GenerateCombatImage(c *gin.Context) {
                 dc.DrawImage(mob.img, int(mob.x), int(mob.y))
 
                 // ENEMY HP BAR - Stretched hp5.png
+                hpBarTopY := mob.y - 15
                 if mob.hpPercent > 0 {
                         uiPath := func(f string) string { return filepath.Join(assetsPath, "rpgasset", "ui", f) }
                         hpBarImg, err := utils.LoadImage(uiPath("hp5.png"))
                         if err == nil {
                                 barW := 100.0
                                 barH := 12.0
-                                // Stretch hp5.png to current HP width
                                 currentBarW := int(barW * mob.hpPercent)
                                 if currentBarW < 1 {
                                         currentBarW = 1
                                 }
                                 hpBarImg = imaging.Resize(hpBarImg, currentBarW, int(barH), imaging.NearestNeighbor)
-
-                                // Position above head
                                 bx := mob.x + (float64(mob.img.Bounds().Dx())-barW)/2
                                 by := mob.y - 15
+                                hpBarTopY = by
                                 dc.DrawImage(hpBarImg, int(bx), int(by))
                         }
                 }
+
+                // Nameplate pill above HP bar
+                cx := mob.x + float64(mob.img.Bounds().Dx())/2
+                drawNameplatePill(dc, mob.name, cx, hpBarTopY-2, assetsPath)
         }
 
-        // 💡 Summoner System (Phase 7): Draw summoned allies.
-        // 💡 FIX 2026-08-07: Summon placement per Spec 1B + 1D.
-        // - Positioned relative to player (X offset, feet Y slightly lower = in front)
-        // - Scaled to ~85% of player sprite size (not fixed enemy-relative size)
-        // - Drawn BEFORE players (z-order: behind owner)
-        // - Facing: inherits owner's side (left side → face RIGHT)
-        // 💡 FIX 2026-08-07 (#4): playerCenterX=500 — sprite X range 439→561
-        // is FULLY outside the player_state.png panel (X:-22→431).
-        // Zero overlap, not masked by z-order. Gap to enemy at X=800 is 300px.
-        playerCenterX := 500.0 // player formation center X (past UI panel, left of center)
-        playerSpriteW := 122   // player PvE sprite width
-        summonSpriteW := int(float64(playerSpriteW) * 0.85) // 85% of player size
+        // 💡 Summoner System: Draw summoned allies.
+        // Slot table (SummonSlots) + crop-then-resize-by-height (75px).
 
         for i, summon := range req.Summons {
                 if summon.CurrentHP <= 0 && !summon.JustDied {
@@ -309,14 +288,11 @@ func GenerateCombatImage(c *gin.Context) {
                         continue
                 }
 
-                // Resize — 85% of player sprite size (Spec 1B)
-                sSprite = imaging.Resize(sSprite, summonSpriteW, 0, imaging.NearestNeighbor)
-                // 💡 FIX 2026-08-07 (#2): Crop transparent padding so feet sit on ground
+                // Crop FIRST, then resize by fixed HEIGHT (75px).
                 sSprite = cropToVisibleBounds(sSprite)
+                sSprite = imaging.Resize(sSprite, 0, pveSummonSpriteH, imaging.NearestNeighbor)
 
-                // 💡 FIX 2026-08-07 (#5): Summon facing via flipForSide.
-                // Summon sprites now have facing directions in SummonSpriteFacing map.
-                // flipForSide checks the map and flips only if needed.
+                // Summon facing via flipForSide.
                 if strings.Contains(summon.Species, "ship_") {
                         sSprite = imaging.Rotate90(sSprite)
                 } else {
@@ -331,29 +307,10 @@ func GenerateCombatImage(c *gin.Context) {
                         sSprite = utils.TintImage(sSprite, color.RGBA{80, 0, 80, 180})
                 }
 
-                // 💡 FIX 2026-08-08 (#3): Summon staggered behind player, not stacked on top.
-                // BEFORE: summonFeetX = playerCenterX - 80 (only 80px offset). With sprite
-                // widths ~103 (summon) + 122 (player), the half-widths sum to ~112px.
-                // 80px < 112px → sprites overlapped horizontally.
-                //
-                // AFTER: 150px offset (summonFeetX = 500 - 150 = 350). Sprite ranges:
-                //   Player: 439-561 (width 122, center 500)
-                //   Summon: 299-401 (width 103, center 350)
-                //   Gap between summon right edge (401) and player left edge (439) = 38px. ✅
-                // Combined with BACK_FEET_Y=410 (vs player at 505), the summon is clearly
-                // staggered behind and to the left — depth + horizontal separation.
-                summonFeetX := playerCenterX - 150
-                summonFeetY := float64(BACK_FEET_Y) // higher = further back (depth)
-                // Formation offset for multiple summons
-                sub := i % 4
-                if sub == 1 || sub == 2 {
-                        summonFeetX -= float64(spX) * 0.8
-                } else if sub == 3 {
-                        summonFeetX -= float64(spX) * 1.6
-                }
-                if sub > 0 {
-                        summonFeetY = float64(BACK_FEET_Y) - 15 // background summons even higher
-                }
+                // Position from SummonSlots table — no inline math.
+                slot := slotFor(SummonSlots, i)
+                summonFeetX := slot.X
+                summonFeetY := slot.Y
 
                 // Convert feet to draw position
                 sSpriteW := sSprite.Bounds().Dx()
@@ -373,6 +330,7 @@ func GenerateCombatImage(c *gin.Context) {
                 dc.DrawImage(sSprite, int(sx), int(sy))
 
                 // HP bar
+                hpBarTopY := sy - 12
                 if summon.MaxHP > 0 && summon.CurrentHP > 0 {
                         uiPath2 := func(f string) string { return filepath.Join(assetsPath, "rpgasset", "ui", f) }
                         hpBarImg, err := utils.LoadImage(uiPath2("hp5.png"))
@@ -387,9 +345,17 @@ func GenerateCombatImage(c *gin.Context) {
                                 hpBarImg = imaging.Resize(hpBarImg, currentBarW, int(barH), imaging.NearestNeighbor)
                                 bx := summonFeetX - barW/2
                                 by := sy - 12
+                                hpBarTopY = by
                                 dc.DrawImage(hpBarImg, int(bx), int(by))
                         }
                 }
+
+                // Nameplate pill above HP bar
+                summonName := summon.Name
+                if summonName == "" {
+                        summonName = summon.Species
+                }
+                drawNameplatePill(dc, summonName, summonFeetX, hpBarTopY-2, assetsPath)
         }
 
         // 💡 FIX 2026-08-08: Dedicated PvP-summon render path.
@@ -717,17 +683,16 @@ func GenerateCombatImage(c *gin.Context) {
                                         if player.CurrentHP <= 0 {
                                                 sprite = utils.TintImage(sprite, color.RGBA{80, 0, 80, 180})
                                         }
-                                        // 💡 FIX 2026-08-08: Match PvE sprite sizes.
-                                        // Humans: 122px (same as PvE playerSpriteW).
-                                        // Summons: 103px (85% of 122, same as PvE summonSpriteW per Spec 1B).
-                                        var spriteW int
-                                        if player.Mode == "summon" && player.Species != "" {
-                                                spriteW = int(float64(playerSpriteW) * 0.85) // 103 — matches PvE summon
-                                        } else {
-                                                spriteW = playerSpriteW // 122 — matches PvE player
-                                        }
-                                        sprite = imaging.Resize(sprite, spriteW, 0, imaging.NearestNeighbor)
+                                        // Crop FIRST, then resize by fixed HEIGHT.
+                                        // Humans → 150px, summon-mode players → 130px.
                                         sprite = cropToVisibleBounds(sprite)
+                                        var targetH int
+                                        if player.Mode == "summon" && player.Species != "" {
+                                                targetH = pvpSummonSpriteH // 130
+                                        } else {
+                                                targetH = pvpHumanSpriteH // 150
+                                        }
+                                        sprite = imaging.Resize(sprite, 0, targetH, imaging.NearestNeighbor)
                                         if flip {
                                                 sprite = imaging.FlipH(sprite)
                                         }
@@ -793,92 +758,134 @@ func GenerateCombatImage(c *gin.Context) {
                                 }
                         } else if !isPvPSummonDuel {
                                 // PVE: draw ALL players in formation on the battlefield.
-                                // 💡 FIX 2026-08-07: Feet-anchor + ground zone (Spec 1A/1C).
-                                // Players on LEFT side, feet in ground zone, face RIGHT.
-                                s2Size := 122
-                                var smallSprite image.Image = imaging.Resize(pSprite, s2Size, 0, imaging.NearestNeighbor)
-                                // 💡 FIX 2026-08-07 (#2): Crop transparent padding so feet sit on ground
-                                smallSprite = cropToVisibleBounds(smallSprite)
-                                pSpriteFile := GetCharacterSpriteFile(p.Class, p.SpriteIndex, assetsPath)
-                                var flippedSprite image.Image
-                                if flipForSide(pSpriteFile, true) {
-                                        flippedSprite = imaging.FlipH(smallSprite)
-                                } else {
-                                        flippedSprite = smallSprite
+                                // Uses playerQueue + Y-sort (same pattern as enemies) so
+                                // front-row players draw ON TOP of back-row players.
+                                type PlayerRenderItem struct {
+                                        img       image.Image
+                                        x, y      float64
+                                        feetX     float64
+                                        feetY     float64
+                                        spriteW   float64
+                                        origIndex int
+                                        name      string
+                                        maxHP     int
+                                        curHP     int
                                 }
+                                var playerQueue []PlayerRenderItem
 
-                                // Player[0] — feet at (playerCenterX, MAIN_FEET_Y)
-                                p0FeetX := int(playerCenterX)
-                                p0FeetY := MAIN_FEET_Y
-                                p0SpriteH := flippedSprite.Bounds().Dy()
-                                s2X := p0FeetX - s2Size/2
-                                s2Y := p0FeetY - p0SpriteH
-
-                                // Shadow at feet
-                                utils.DrawShadow(dc, float64(p0FeetX), float64(p0FeetY)-2, 170, 0.85)
-
-                                if isAttacker("player", 0) {
-                                        drawTurnIndicator(float64(p0FeetX), float64(p0FeetY)-5, float64(s2Size))
-                                }
-
-                                dc.DrawImage(flippedSprite, s2X, s2Y)
-
-                                // HP bar for player[0]
-                                if p.MaxHP > 0 && p.CurrentHP > 0 {
-                                        hpBarImg, err := utils.LoadImage(uiPath("hp5.png"))
-                                        if err == nil {
-                                                hpPerc := float64(p.CurrentHP) / float64(p.MaxHP)
-                                                barW := int(80.0 * hpPerc)
-                                                if barW < 1 { barW = 1 }
-                                                hpBarImg = imaging.Resize(hpBarImg, barW, 10, imaging.NearestNeighbor)
-                                                dc.DrawImage(hpBarImg, p0FeetX-40, s2Y-12)
+                                for pi, cp := range req.Players {
+                                        if cp.CurrentHP <= 0 && pi > 0 {
+                                                continue
                                         }
-                                }
-
-                                // Additional players (1+) in formation
-                                for pi := 1; pi < len(req.Players); pi++ {
-                                        ap := req.Players[pi]
-                                        if ap.CurrentHP <= 0 { continue }
-                                        apPath := GetCharacterSpritePath(ap.Class, ap.SpriteIndex, assetsPath)
-                                        apSprite, err := utils.LoadImage(apPath)
-                                        if err != nil { continue }
-                                        var apResized image.Image = imaging.Resize(apSprite, s2Size, 0, imaging.NearestNeighbor)
-                                        // 💡 FIX 2026-08-07 (#2): Crop transparent padding so feet sit on ground
-                                        apResized = cropToVisibleBounds(apResized)
-                                        apSpriteFile := GetCharacterSpriteFile(ap.Class, ap.SpriteIndex, assetsPath)
-                                        var apFlipped image.Image
-                                        if flipForSide(apSpriteFile, true) {
-                                                apFlipped = imaging.FlipH(apResized)
+                                        var cpPath string
+                                        if cp.Mode == "summon" && cp.Species != "" {
+                                                cpPath = GetSummonSpritePath(cp.Species, assetsPath)
                                         } else {
-                                                apFlipped = apResized
+                                                cpPath = GetCharacterSpritePath(cp.Class, cp.SpriteIndex, assetsPath)
+                                        }
+                                        cpSprite, err := utils.LoadImage(cpPath)
+                                        if err != nil {
+                                                continue
+                                        }
+                                        if cp.CurrentHP <= 0 {
+                                                cpSprite = utils.TintImage(cpSprite, color.RGBA{80, 0, 80, 180})
+                                        }
+                                        // crop-first-then-resize-by-height
+                                        cpSprite = cropToVisibleBounds(cpSprite)
+                                        cpSprite = imaging.Resize(cpSprite, 0, pvePlayerSpriteH, imaging.NearestNeighbor)
+
+                                        // facing: left side faces RIGHT
+                                        var cpSpriteFile string
+                                        if cp.Mode == "summon" && cp.Species != "" {
+                                                cpSpriteFile = filepath.Base(GetSummonSpritePath(cp.Species, assetsPath))
+                                        } else {
+                                                cpSpriteFile = GetCharacterSpriteFile(cp.Class, cp.SpriteIndex, assetsPath)
+                                        }
+                                        if flipForSide(cpSpriteFile, true) {
+                                                cpSprite = imaging.FlipH(cpSprite)
                                         }
 
-                                        // Formation: feet-anchor, background players higher (depth)
-                                        apFeetX := int(playerCenterX)
-                                        apFeetY := BACK_FEET_Y
-                                        sub := pi % 4
-                                        if sub == 1 || sub == 2 { apFeetX -= 120 } else if sub == 3 { apFeetX -= 240 }
-                                        apFeetX += int(float64(pi/4) * -250.0)
-                                        apSpriteH := apFlipped.Bounds().Dy()
-                                        apX := apFeetX - s2Size/2
-                                        apY := apFeetY - apSpriteH
+                                        cpSlot := slotFor(PlayerSlots, pi)
+                                        cpFeetX := cpSlot.X
+                                        cpFeetY := cpSlot.Y
+                                        cpSpriteW := cpSprite.Bounds().Dx()
+                                        cpSpriteH := cpSprite.Bounds().Dy()
+                                        cpX := cpFeetX - float64(cpSpriteW)/2
+                                        cpY := cpFeetY - float64(cpSpriteH)
 
-                                        utils.DrawShadow(dc, float64(apFeetX), float64(apFeetY)-2, 170, 0.85)
-
-                                        if isAttacker("player", pi) {
-                                                drawTurnIndicator(float64(apFeetX), float64(apFeetY)-5, float64(s2Size))
+                                        cpName := cp.Name
+                                        if cpName == "" {
+                                                cpName = cp.Species
                                         }
 
-                                        dc.DrawImage(apFlipped, apX, apY)
+                                        playerQueue = append(playerQueue, PlayerRenderItem{
+                                                img: cpSprite, x: cpX, y: cpY,
+                                                feetX: cpFeetX, feetY: cpFeetY,
+                                                spriteW: float64(cpSpriteW),
+                                                origIndex: pi, name: cpName,
+                                                maxHP: cp.MaxHP, curHP: cp.CurrentHP,
+                                        })
+                                }
 
-                                        if ap.MaxHP > 0 && ap.CurrentHP > 0 {
-                                                hpBarImg2, err := utils.LoadImage(uiPath("hp5.png"))
+                                // Sort by feet Y (back to front — lower Y = further back = drawn first).
+                                sort.Slice(playerQueue, func(i, j int) bool {
+                                        return playerQueue[i].feetY < playerQueue[j].feetY
+                                })
+
+                                // Draw all players in Y-sorted order.
+                                for _, pr := range playerQueue {
+                                        utils.DrawShadow(dc, pr.feetX, pr.feetY-2, pr.spriteW*0.6, 0.85)
+                                        if isAttacker("player", pr.origIndex) {
+                                                drawTurnIndicator(pr.feetX, pr.feetY-5, pr.spriteW)
+                                        }
+                                        dc.DrawImage(pr.img, int(pr.x), int(pr.y))
+
+                                        hpBarTopY := pr.y - 12
+                                        if pr.maxHP > 0 && pr.curHP > 0 {
+                                                hpBarImg, err := utils.LoadImage(uiPath("hp5.png"))
                                                 if err == nil {
-                                                        hpPerc2 := float64(ap.CurrentHP) / float64(ap.MaxHP)
-                                                        barW2 := int(80.0 * hpPerc2)
-                                                        if barW2 < 1 { barW2 = 1 }
-                                                        hpBarImg2 = imaging.Resize(hpBarImg2, barW2, 10, imaging.NearestNeighbor)
-                                                        dc.DrawImage(hpBarImg2, apFeetX-40, apY-12)
+                                                        hpPerc := float64(pr.curHP) / float64(pr.maxHP)
+                                                        barW := int(80.0 * hpPerc)
+                                                        if barW < 1 {
+                                                                barW = 1
+                                                        }
+                                                        hpBarImg = imaging.Resize(hpBarImg, barW, 10, imaging.NearestNeighbor)
+                                                        bx := pr.feetX - 40
+                                                        by := pr.y - 12
+                                                        hpBarTopY = by
+                                                        dc.DrawImage(hpBarImg, int(bx), int(by))
+                                                }
+                                        }
+                                        drawNameplatePill(dc, pr.name, pr.feetX, hpBarTopY-2, assetsPath)
+                                }
+
+                                // Main player (player[0]) name inside the left UI panel top strip.
+                                if len(req.Players) > 0 {
+                                        p0 := req.Players[0]
+                                        p0Name := p0.Name
+                                        if p0Name == "" {
+                                                p0Name = p0.Species
+                                        }
+                                        if p0Name != "" {
+                                                p0BoldFont := filepath.Join(assetsPath, "rpgasset", "ui", "Inter-Bold.ttf")
+                                                const p0PanelCenterX = 204.5
+                                                const p0LabelY = 519.0
+                                                const p0PanelInnerW = 453.0 - 40.0
+                                                const p0MaxTextW = p0PanelInnerW - 20.0
+                                                for fontSize := 28; fontSize >= 14; fontSize -= 2 {
+                                                        face, ferr := utils.LoadFont(p0BoldFont, float64(fontSize))
+                                                        if ferr != nil {
+                                                                continue
+                                                        }
+                                                        dc.SetFontFace(face)
+                                                        textW, _ := dc.MeasureString(p0Name)
+                                                        if textW <= p0MaxTextW || fontSize == 14 {
+                                                                dc.SetColor(color.RGBA{0, 0, 0, 200})
+                                                                dc.DrawStringAnchored(p0Name, p0PanelCenterX+2, p0LabelY+2, 0.5, 0.5)
+                                                                dc.SetColor(color.RGBA{255, 255, 255, 255})
+                                                                dc.DrawStringAnchored(p0Name, p0PanelCenterX, p0LabelY, 0.5, 0.5)
+                                                                break
+                                                        }
                                                 }
                                         }
                                 }
@@ -1113,6 +1120,64 @@ func drawBarFlipped(dc *gg.Context, uiPath func(string) string, x, y int, curren
                 img = imaging.Resize(img, w, h, imaging.NearestNeighbor)
                 img = imaging.FlipH(img)
                 dc.DrawImage(img, x, y)
+        }
+}
+
+// drawNameplatePill draws a small translucent name pill above a battlefield
+// entity's HP bar. Sits in a consistent slot relative to each entity's own HP
+// bar, so it never competes with the sprite for space and never reaches the
+// entity above it in the depth stack.
+func drawNameplatePill(dc *gg.Context, name string, centerX, bottomY float64, assetsPath string) {
+        if name == "" {
+                return
+        }
+        boldFontPath := filepath.Join(assetsPath, "rpgasset", "ui", "Inter-Bold.ttf")
+        const pillH = 16.0
+        const pillMaxW = 90.0
+        const pillMinW = 50.0
+        const padX = 6.0
+
+        var chosenSize float64
+        var textW float64
+        for fontSize := 12; fontSize >= 9; fontSize -= 1 {
+                face, err := utils.LoadFont(boldFontPath, float64(fontSize))
+                if err != nil {
+                        continue
+                }
+                dc.SetFontFace(face)
+                w, _ := dc.MeasureString(name)
+                if w <= pillMaxW-2*padX || fontSize == 9 {
+                        chosenSize = float64(fontSize)
+                        textW = w
+                        break
+                }
+        }
+        if chosenSize == 0 {
+                return
+        }
+
+        pillW := textW + 2*padX
+        if pillW < pillMinW {
+                pillW = pillMinW
+        }
+        pillX := centerX - pillW/2
+        pillY := bottomY - pillH
+
+        // Pill background (translucent dark)
+        dc.SetColor(color.RGBA{0, 0, 0, 165})
+        dc.DrawRoundedRectangle(pillX, pillY, pillW, pillH, 3)
+        dc.Fill()
+        // Pill border (thin white)
+        dc.SetColor(color.RGBA{255, 255, 255, 180})
+        dc.SetLineWidth(1)
+        dc.DrawRoundedRectangle(pillX, pillY, pillW, pillH, 3)
+        dc.Stroke()
+
+        // Name text (white, centered in pill)
+        if face, err := utils.LoadFont(boldFontPath, chosenSize); err == nil {
+                dc.SetFontFace(face)
+                dc.SetColor(color.RGBA{255, 255, 255, 255})
+                dc.DrawStringAnchored(name, centerX, pillY+pillH/2, 0.5, 0.5)
         }
 }
 

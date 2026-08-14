@@ -368,8 +368,13 @@ var BossNameSprites = map[string]string{
         "PERMAFROST TITAN":       "boss_4_S.png",
 }
 
+// GetCharacterSpritePath returns the sprite PNG path for a given class + index.
+// The class lookup is CASE-INSENSITIVE (uppercased before map access) so that
+// "fighter", "Fighter", and "FIGHTER" all resolve to the same sprite list.
+// If the class is not in the map at all, it falls back to FIGHTER.
 func GetCharacterSpritePath(class string, index int, assetsPath string) string {
-        list, ok := CharacterSprites[class]
+        upperClass := strings.ToUpper(strings.TrimSpace(class))
+        list, ok := CharacterSprites[upperClass]
         if !ok {
                 list = CharacterSprites["FIGHTER"]
         }
@@ -380,8 +385,10 @@ func GetCharacterSpritePath(class string, index int, assetsPath string) string {
 // GetCharacterSpriteFile returns just the sprite FILENAME (without path)
 // for a given class + spriteIndex. Used by the renderer to look up the
 // sprite's default facing direction via GetSpriteFacing().
+// Case-insensitive (see GetCharacterSpritePath above).
 func GetCharacterSpriteFile(class string, index int, assetsPath string) string {
-        list, ok := CharacterSprites[class]
+        upperClass := strings.ToUpper(strings.TrimSpace(class))
+        list, ok := CharacterSprites[upperClass]
         if !ok {
                 list = CharacterSprites["FIGHTER"]
         }
