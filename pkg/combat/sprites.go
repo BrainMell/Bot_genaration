@@ -238,33 +238,14 @@ var EnemySprites = map[string][]string{
 //   crab sheet.png, gnoll sheet.png, sahuagin sheet.png,
 //   skelleton sheet.png, slime waterB sheet.png
 var EnemyNameSprites = map[string]string{
-        // 💡 Single-frame sprites extracted from spritesheets (first frame)
-        "WOLF":              "wolf_single.png",
-        "BAT":               "bat_single.png",
-        "KOBOLD":            "kobold_single.png",
-        "TROLL":             "troll_single.png",
-        "WEREWOLF":          "werewolf_single.png",
-        "GOBLIN":            "goblin_single.png",
-        "CRAB":              "crab_single.png",
-        "GNOLL":             "gnoll_single.png",
-        "SAHUAGIN":          "sahuagin_single.png",
-        "SKELETON":          "skeleton_single.png",
-        "SLIME":             "slime_single.png",
-        // Enemy name variants → closest sprite match
-        "DRAKE_SCOUT":       "wolf_single.png",
-        "SHADOW_STALKER":    "wolf_single.png",
-        "SHADOW_STALKER_MUTANT": "wolf_single.png",
-        "FROST_GHOUL":       "bat_single.png",
-        "GLACIAL_BEAST":     "bat_single.png",
-        "MAGMA_BRUTE":       "troll_single.png",
-        "STONE_HULK":        "troll_single.png",
-        "CHIMERA_BEAST":     "werewolf_single.png",
-        "DROWNED_ONE":       "sahuagin_single.png",
-        "TIDE_LURKER":       "sahuagin_single.png",
-        "CRYSTAL_CORRUPTED": "kobold_single.png",
-        "DIAMOND_SENTINEL":  "kobold_single.png",
-        "STONE_NEMESIS":     "troll_single.png",
-        "MOUNTAIN_COLOSSUS": "troll_single.png",
+        // 💡 FIX 2026-08-15: Removed all _single.png entries — those files
+        // were either missing or were multi-frame spritesheets that rendered
+        // as grids of tiny creatures. Non-boss enemies now fall through to
+        // the level-based EnemySprites rotation which uses real, verified
+        // single-frame files (fire/water/earth/ice/mutated/hybrid buckets).
+        //
+        // Only keep mappings for bosses that have specific named sprites
+        // in BossNameSprites — those are handled separately in GetEnemySpritePath.
 }
 
 var BossSprites = map[string][]string{
@@ -368,13 +349,8 @@ var BossNameSprites = map[string]string{
         "PERMAFROST TITAN":       "boss_4_S.png",
 }
 
-// GetCharacterSpritePath returns the sprite PNG path for a given class + index.
-// The class lookup is CASE-INSENSITIVE (uppercased before map access) so that
-// "fighter", "Fighter", and "FIGHTER" all resolve to the same sprite list.
-// If the class is not in the map at all, it falls back to FIGHTER.
 func GetCharacterSpritePath(class string, index int, assetsPath string) string {
-        upperClass := strings.ToUpper(strings.TrimSpace(class))
-        list, ok := CharacterSprites[upperClass]
+        list, ok := CharacterSprites[class]
         if !ok {
                 list = CharacterSprites["FIGHTER"]
         }
@@ -385,10 +361,8 @@ func GetCharacterSpritePath(class string, index int, assetsPath string) string {
 // GetCharacterSpriteFile returns just the sprite FILENAME (without path)
 // for a given class + spriteIndex. Used by the renderer to look up the
 // sprite's default facing direction via GetSpriteFacing().
-// Case-insensitive (see GetCharacterSpritePath above).
 func GetCharacterSpriteFile(class string, index int, assetsPath string) string {
-        upperClass := strings.ToUpper(strings.TrimSpace(class))
-        list, ok := CharacterSprites[upperClass]
+        list, ok := CharacterSprites[class]
         if !ok {
                 list = CharacterSprites["FIGHTER"]
         }
