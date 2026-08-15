@@ -18,3 +18,19 @@ image-service-linux
 changes
 # runtime / build artifacts
 *.mp3
+# Secrets - never commit env files or the pm2 config (it inlines tokens)
+.env
+.env.*
+!.env.example
+ecosystem.config.js
+!ecosystem.config.example.js
+
+# Compiled service binaries (20MB each, rebuilt on deploy)
+bot-generation
+bot-generation-new
+bot-generation-test
+
+# Editor/scratch backups
+*.bak
+*.bak.*
+*.bak-*

@@ -655,10 +655,10 @@ func GenerateCardGif(c *gin.Context) {
                 if apiKey == "" {
                         apiKey = "551174662862282"
                 }
+                // No hardcoded fallback for the API secret - it must come from the
+                // environment. A literal here leaks the credential into the public
+                // repo and into every compiled binary.
                 apiSecret := os.Getenv("CLOUDINARY_API_SECRET")
-                if apiSecret == "" {
-                        apiSecret = "ez0LwjGnhNiBSE5esFpbBnwjRGg"
-                }
 
                 if cloudName != "" && apiKey != "" && apiSecret != "" {
                         fmt.Printf("[Cloudinary] Splicing %d images...\n", len(req.Images))
