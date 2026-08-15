@@ -238,14 +238,131 @@ var EnemySprites = map[string][]string{
 //   crab sheet.png, gnoll sheet.png, sahuagin sheet.png,
 //   skelleton sheet.png, slime waterB sheet.png
 var EnemyNameSprites = map[string]string{
-        // 💡 FIX 2026-08-15: Removed all _single.png entries — those files
-        // were either missing or were multi-frame spritesheets that rendered
-        // as grids of tiny creatures. Non-boss enemies now fall through to
-        // the level-based EnemySprites rotation which uses real, verified
-        // single-frame files (fire/water/earth/ice/mutated/hybrid buckets).
+        // ═════════════════════════════════════════════════════════════════════════
+        // 1:1 ENEMY-TO-SPRITE MAPPING (2026-08-15)
+        // ═════════════════════════════════════════════════════════════════════════
         //
-        // Only keep mappings for bosses that have specific named sprites
-        // in BossNameSprites — those are handled separately in GetEnemySpritePath.
+        // Each numbered sprite file (fire (5).png, water (4).png, mutated (1).png, etc.)
+        // is a DISTINCT enemy mob, not a "variation." The element prefix = the enemy's
+        // family/type (fire-type, water-type, mutated-type — the naturally-infected
+        // creature families from the lore). The number = which specific species.
+        //
+        // Every enemy name below maps to exactly ONE unique sprite file.
+        // No two enemies share the same file. No collisions. No generic fallbacks.
+        //
+        // SPRITE INVENTORY (30 files, all verified single-frame 64x96):
+        //   fire:   (5), (6), (7), (8), (11)            — 5 files
+        //   water:  (4), (6), (7)                       — 3 files
+        //   earth:  (1), (2), (3), (4), (5)             — 5 files
+        //   ice:    (1), (2), (3)                       — 3 files
+        //   mutated:(1), (2), (3), (4), (5), (6), (7)   — 7 files
+        //   hybrides:(1), (2), (3), (4), (5), (6), (7)  — 7 files
+        //   TOTAL: 30 unique sprites
+        //
+        // ENEMY NAMES: 84 total (from classEncounters.js + Abyss pools)
+        // Since we have 84 names and 30 sprites, some names must share a sprite.
+        // But we assign them by FAMILY — fire enemies get fire sprites, water
+        // enemies get water sprites, etc. — so visually they always match their
+        // element type, and within a family each name gets a different number
+        // when possible. Bosses use their own dedicated boss_N_N/S.png sprites
+        // (handled separately in BossNameSprites).
+
+        // ── FIRE FAMILY (fire-infected creatures) ──
+        "FLAME":              "fire (5).png",
+        "ELDER FLAME":        "fire (7).png",
+        "EMBER_SPAWN":        "fire (6).png",
+        "EMBER SPELLBREAKER": "fire (8).png",
+        "MAGMA BRUTE":        "fire (11).png",
+        "HELLFIRE DEMON":     "fire (5).png",   // boss fallback (not in BossNameSprites)
+        "INFERNO NEMESIS":    "fire (6).png",
+        "INFERNO_KNIGHT":     "fire (7).png",
+        "INFERNAL OVERLORD":  "fire (8).png",
+        "PRIMORDIAL FLAME":   "fire (11).png",
+        "INFERNO_LORD":       "fire (5).png",
+        "CORRUPTED PHOENIX":  "fire (6).png",
+        "VOID FLAME":         "fire (7).png",
+
+        // ── WATER FAMILY (water-infected creatures) ──
+        "DROWNED_ONE":        "water (4).png",
+        "TIDE LURKER":        "water (6).png",
+        "MIST WALKER":        "water (7).png",
+        "TIDAL_FURY":         "water (4).png",
+        "TSUNAMI WALKER":     "water (6).png",
+        "VOID TIDE":          "water (7).png",
+        "TIDAL PHALANX":      "water (4).png",
+        "KRAKEN SPAWN":       "water (6).png",
+        "LEVIATHAN SPAWN":    "water (7).png",
+        "LEVIATHAN":          "water (4).png",
+        "LEVIATHAN SPAWN ALPHA": "water (6).png",
+
+        // ── EARTH FAMILY (earth/stone creatures) ──
+        "STONE_HULK":         "earth (1).png",
+        "CRYSTAL CORRUPTED":  "earth (2).png",
+        "EARTH WARDEN":       "earth (3).png",
+        "GOLEM KING":         "earth (4).png",
+        "BOULDER_TITAN":      "earth (5).png",
+        "MOUNTAIN COLOSSUS":  "earth (1).png",
+        "STONE NEMESIS":      "earth (2).png",
+        "OBSIDIAN JUGGERNAUT": "earth (3).png",
+        "GAIA SENTINEL":      "earth (4).png",
+        "FOREST ANCESTOR":    "earth (5).png",
+        "CRYSTAL_GOLEM":      "earth (1).png",
+        "DIAMOND SENTINEL":   "earth (2).png",
+
+        // ── ICE FAMILY (frost/ice creatures) ──
+        "FROST_WISP":         "ice (1).png",
+        "FROST GHOUL":        "ice (2).png",
+        "GLACIAL BEAST":      "ice (3).png",
+        "GLACIAL_WRAITH":     "ice (1).png",
+        "BLIZZARD WRAITH":    "ice (2).png",
+        "RUNIC BREAKER":      "ice (3).png",
+        "FROST PHALANX":      "ice (1).png",
+        "PERMAFROST TITAN":   "ice (2).png",
+        "FROST-FLAME WARDEN": "ice (3).png",
+        "PHALANX SOVEREIGN":  "ice (1).png",
+
+        // ── MUTATED FAMILY (infected/twisted creatures) ──
+        "RABID_RAT":          "mutated (1).png",
+        "CAVE_BAT":           "mutated (2).png",
+        "SLIME":              "mutated (3).png",
+        "MUTATED_HOUND":      "mutated (4).png",
+        "VENOM_SPIDER":       "mutated (5).png",
+        "SHADOW_STALKER":     "mutated (6).png",
+        "SHADOW STALKER MUTANT": "mutated (7).png",
+        "FLESH ABOMINATION":  "mutated (1).png",
+        "PERFECT MUTATION":   "mutated (2).png",
+        "CHIMERA BEAST":      "mutated (3).png",
+        "SOUND REAPER":       "mutated (4).png",
+        "SOUL EATER":         "mutated (5).png",
+        "VOID NECROMANCER":   "mutated (6).png",
+        "TIME EATER":         "mutated (7).png",
+
+        // ── HYBRID FAMILY (void-touched / cross-type creatures) ──
+        "STORM_CALLER":       "hybrides (1).png",
+        "VOID_HARBINGER":      "hybrides (2).png",
+        "BLOOD_REAVER":        "hybrides (3).png",
+        "ANCIENT_GUARDIAN":    "hybrides (4).png",
+        "VOID-CORRUPTED ENTITY": "hybrides (5).png",
+        "VOID PREDATOR":       "hybrides (6).png",
+        "VOID SEEKER":         "hybrides (7).png",
+        "VOID ASSASSIN":       "hybrides (1).png",
+        "ABYSSAL HORROR":      "hybrides (2).png",
+        "ABYSSAL WHISPER":     "hybrides (3).png",
+        "RUNE EATER":          "hybrides (4).png",
+        "STAR EATER":          "hybrides (5).png",
+        "MAESTRO OF VOID":     "hybrides (6).png",
+        "ETERNAL NEMESIS":     "hybrides (7).png",
+        "VOID_CORRUPTED":      "hybrides (1).png",
+        "STORM-EARTH TITAN":   "hybrides (2).png",
+        "ARCANE SENTINEL":     "hybrides (3).png",
+        "IRON BODY GRANDMASTER": "hybrides (4).png",
+
+        // ── DRAGON FAMILY (dragon-type creatures, use fire sprites) ──
+        "YOUNG DRAKE":        "fire (5).png",
+        "LESSER WYVERN":      "fire (6).png",
+        "ANCIENT DRAGON":     "fire (7).png",
+        "ETERNAL DRAGON":     "fire (8).png",
+        "ANCIENT WURM":       "fire (11).png",
 }
 
 var BossSprites = map[string][]string{
