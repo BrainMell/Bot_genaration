@@ -185,12 +185,25 @@ func GenerateCombatImage(c *gin.Context) {
         }
         var mobQueue []RenderItem
 
+        // 💡 FIX 2026-09-11 (visual audit): resolve every enemy sprite up front,
+        // then spread same-family duplicates across the family pool so one
+        // encounter never shows identical twin sprites side by side.
+        // Dead-and-unseen enemies resolve to "" and are ignored by the dedupe.
+        resolvedEnemyFiles := make([]string, len(req.Enemies))
+        for i, enemy := range req.Enemies {
+                if enemy.CurrentHP <= 0 && !enemy.JustDied {
+                        continue
+                }
+                resolvedEnemyFiles[i] = filepath.Base(GetEnemySpritePath(enemy.Name, avgLevel, i, enemy.IsBoss, assetsPath))
+        }
+        resolvedEnemyFiles = DedupeEnemySprites(resolvedEnemyFiles)
+
         for i, enemy := range req.Enemies {
                 if enemy.CurrentHP <= 0 && !enemy.JustDied {
                         continue
                 }
 
-                spritePath := GetEnemySpritePath(enemy.Name, avgLevel, i, enemy.IsBoss, assetsPath)
+                spritePath := filepath.Join(assetsPath, "rpgasset", "enemies", resolvedEnemyFiles[i])
                 eSprite, err := utils.LoadImage(spritePath)
                 if err != nil {
                         continue
@@ -277,6 +290,9 @@ func GenerateCombatImage(c *gin.Context) {
         // 💡 Summoner System: Draw summoned allies.
         // Slot table (SummonSlots) + crop-then-resize-by-height (75px).
 
+        // FIX (2026-08-16): Skip in PvP -- regular PvP summons use ownerIndex
+        // for side-based positioning (added below), not the PvE left-side slots.
+        if req.CombatType != "PVP" {
         for i, summon := range req.Summons {
                 if summon.CurrentHP <= 0 && !summon.JustDied {
                         continue
@@ -357,6 +373,60 @@ func GenerateCombatImage(c *gin.Context) {
                 }
                 drawNameplatePill(dc, summonName, summonFeetX, hpBarTopY-2, assetsPath)
         }
+        } // end if combatType != "PVP"
+
+        // FIX (2026-08-16): Regular PvP summon rendering -- split by ownerIndex.
+        if req.CombatType == "PVP" && !(req.CombatType == "PVP" && len(req.Players) >= 2 && req.Players[0].Mode == "summon" && req.Players[0].Species != "" && req.Players[1].Mode == "summon" && req.Players[1].Species != "") && len(req.Summons) > 0 {
+                pvpSummonSlots := []struct{ x, y float64 }{
+                        {120, 410},
+                        {820, 410},
+                }
+                for i, summon := range req.Summons {
+                        if summon.CurrentHP <= 0 && !summon.JustDied { continue }
+                        spritePath := GetSummonSpritePath(summon.Species, assetsPath)
+                        sSprite, err := utils.LoadImage(spritePath)
+                        if err != nil { continue }
+                        sSprite = cropToVisibleBounds(sSprite)
+                        sSprite = imaging.Resize(sSprite, 0, pveSummonSpriteH, imaging.NearestNeighbor)
+                        ownerIdx := summon.OwnerIndex
+                        if ownerIdx < 0 || ownerIdx > 1 { ownerIdx = i % 2 }
+                        if strings.Contains(summon.Species, "ship_") {
+                                sSprite = imaging.Rotate90(sSprite)
+                        } else {
+                                summonSpriteFile := filepath.Base(spritePath)
+                                if flipForSide(summonSpriteFile, ownerIdx == 0) { sSprite = imaging.FlipH(sSprite) }
+                        }
+                        if summon.CurrentHP <= 0 { sSprite = utils.TintImage(sSprite, color.RGBA{80, 0, 80, 180}) }
+                        pos := pvpSummonSlots[ownerIdx]
+                        summonFeetX := pos.x
+                        summonFeetY := pos.y
+                        sSpriteW := sSprite.Bounds().Dx()
+                        sSpriteH := sSprite.Bounds().Dy()
+                        sx := summonFeetX - float64(sSpriteW)/2
+                        sy := summonFeetY - float64(sSpriteH)
+                        utils.DrawShadow(dc, summonFeetX, summonFeetY-2, float64(sSpriteW)*0.6, 0.85)
+                        if isAttacker("summon", i) { drawTurnIndicator(summonFeetX, summonFeetY-5, float64(sSpriteW)) }
+                        dc.DrawImage(sSprite, int(sx), int(sy))
+                        hpBarTopY := sy - 12
+                        if summon.MaxHP > 0 && summon.CurrentHP > 0 {
+                                uiPath2 := func(f string) string { return filepath.Join(assetsPath, "rpgasset", "ui", f) }
+                                hpBarImg, err := utils.LoadImage(uiPath2("hp5.png"))
+                                if err == nil {
+                                        barW := 70.0; barH := 10.0
+                                        hpPerc := float64(summon.CurrentHP) / float64(summon.MaxHP)
+                                        currentBarW := int(barW * hpPerc)
+                                        if currentBarW < 1 { currentBarW = 1 }
+                                        hpBarImg = imaging.Resize(hpBarImg, currentBarW, int(barH), imaging.NearestNeighbor)
+                                        bx := summonFeetX - barW/2; by := sy - 12; hpBarTopY = by
+                                        dc.DrawImage(hpBarImg, int(bx), int(by))
+                                }
+                        }
+                        summonName := summon.Name
+                        if summonName == "" { summonName = summon.Species }
+                        drawNameplatePill(dc, summonName, summonFeetX, hpBarTopY-2, assetsPath)
+                }
+        }
+
 
         // 💡 FIX 2026-08-08: Dedicated PvP-summon render path.
         // Decoupled from drawPvPFighter (shared with 1v1) so summon scale,
@@ -654,7 +724,7 @@ func GenerateCombatImage(c *gin.Context) {
                         //   - PvP-summon: sprites drawn in dedicated path above (skip here)
                         //   - PvP-1v1: drawPvPFighter (shared function)
                         //   - PvE: player formation on battlefield
-                        if req.CombatType == "PVP" && !isPvPSummonDuel {
+                        if req.CombatType == "PVP" && !(req.CombatType == "PVP" && len(req.Players) >= 2 && req.Players[0].Mode == "summon" && req.Players[0].Species != "" && req.Players[1].Mode == "summon" && req.Players[1].Species != "") {
                                 // 💡 FIX 2026-08-08: Unified PvP positioning with PvE.
                                 // BEFORE: PvP used X=300/690 with sprite width=160 — player 1 at X=300
                                 // overlapped the left UI panel (X=-22 to 431). PvP summon sprites were
@@ -756,7 +826,7 @@ func GenerateCombatImage(c *gin.Context) {
                                         }
                                         drawPvPFighter(req.Players[1], 800, pvp1v1FeetY, p2Flip, isAttacker("player", 1))
                                 }
-                        } else if !isPvPSummonDuel {
+                        } else if !(req.CombatType == "PVP" && len(req.Players) >= 2 && req.Players[0].Mode == "summon" && req.Players[0].Species != "" && req.Players[1].Mode == "summon" && req.Players[1].Species != "") {
                                 // PVE: draw ALL players in formation on the battlefield.
                                 // Uses playerQueue + Y-sort (same pattern as enemies) so
                                 // front-row players draw ON TOP of back-row players.

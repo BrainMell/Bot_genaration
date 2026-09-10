@@ -411,6 +411,9 @@ var BossNameSprites = map[string]string{
         // ═══ Mid-level bosses — use new boss sprites ═══
         "THE INFECTED COLOSSUS":  "boss_6_N.png",
         "INFECTED COLOSSUS":      "boss_6_N.png",
+        // 💡 FIX 2026-09-11: F-tier abyss boss had NO mapping — always fell to the
+        // generic level rotation (same blob as every other unmapped low boss).
+        "MUTATED OVERSEER":       "midlevelbosses (4).png",
         "CORRUPTED GUARDIAN":     "boss_7_N.png",
         "STONE HULK":             "boss_9_N.png",
         "CRYSTAL CORRUPTED":      "boss_10_N.png",
@@ -503,7 +506,11 @@ func GetEnemySpritePath(name string, level int, index int, isBoss bool, assetsPa
                 //    a specific sprite mapped in BossNameSprites, use it — no
                 //    level/index rotation, so the boss always renders identically.
                 if name != "" {
-                        upperName := strings.ToUpper(strings.TrimSpace(name))
+                        // 💡 FIX 2026-09-11: strip decorative prefixes. Abyss bosses are
+                        // sent as "⚡ STONE HULK" — the raw ToUpper key missed every
+                        // BossNameSprites entry and fell to generic rotation (pixel-
+                        // diff verified: ⚡-bosses rendered the fallback blob).
+                        upperName := sanitizeNameKey(name)
                         if specific, ok := BossNameSprites[upperName]; ok && specific != "" {
                                 filename = specific
                                 return filepath.Join(assetsPath, "rpgasset", "enemies", filename)
@@ -536,7 +543,7 @@ func GetEnemySpritePath(name string, level int, index int, isBoss bool, assetsPa
                 // Check EnemyNameSprites first — if this enemy name has a specific
                 // sprite mapped, use it. Falls back to level-based rotation if no match.
                 if name != "" {
-                        upperName := strings.ToUpper(strings.TrimSpace(name))
+                        upperName := sanitizeNameKey(name)
                         // Also try with underscores (Node side sends bossId with underscores)
                         underscoreName := strings.ReplaceAll(upperName, " ", "_")
                         if specific, ok := EnemyNameSprites[upperName]; ok && specific != "" {
@@ -712,14 +719,15 @@ func GetSummonSpritePath(species string, assetsPath string) string {
 // Used by the renderer to decide whether to flip a sprite so all players
 // face RIGHT (toward enemies) in PvE and face each other in PvP.
 func GetSpriteFacing(filename string) string {
-        if dir, ok := SpriteFacing[filename]; ok {
-                return dir
+        // FIX (2026-08-17): Case-insensitive lookup. SpriteFacing map uses
+        // "Fighter1.png" but files are "fighter1.png". Without this, all
+        // character sprites return CENTER and never get flipped.
+        lowerFile := strings.ToLower(filename)
+        for k, v := range SpriteFacing {
+                if strings.ToLower(k) == lowerFile { return v }
         }
-        // 💡 FIX 2026-08-07: Summon sprites aren't in SpriteFacing map.
-        // Check SummonSpriteFacing for known summon facing directions.
-        // These were determined by pixel analysis (left vs right content ratio).
-        if dir, ok := SummonSpriteFacing[filename]; ok {
-                return dir
+        for k, v := range SummonSpriteFacing {
+                if strings.ToLower(k) == lowerFile { return v }
         }
         return "CENTER"
 }
@@ -794,4 +802,91 @@ func ShouldFlipForPvE(filename string) bool {
 // faces LEFT (toward the left player).
 func ShouldFlipForPvPRight(filename string) bool {
         return flipForSide(filename, false)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 💡 VISUAL AUDIT FIXES 2026-09-11 (rendered-combination inspection round)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// sanitizeNameKey normalizes an entity display name into a sprite-lookup key.
+// The bot decorates display names — Abyss bosses arrive as "⚡ STONE HULK" —
+// so the raw ToUpper key missed every BossNameSprites/EnemyNameSprites entry
+// and fell through to the generic level-based rotation. Stripping everything
+// except letters/digits/space/hyphen/apostrophe/'&' makes the lookup immune
+// to any current or future decorative prefix/suffix.
+func sanitizeNameKey(name string) string {
+        upper := strings.ToUpper(strings.TrimSpace(name))
+        cleaned := strings.Map(func(r rune) rune {
+                switch {
+                case r >= 'A' && r <= 'Z',
+                        r >= '0' && r <= '9',
+                        r == ' ', r == '-', r == '\'', r == '&':
+                        return r
+                default:
+                        return -1
+                }
+        }, upper)
+        // 💡 Trim AFTER stripping: dropping a leading glyph (e.g. "⚡ ") leaves
+        // the separator space at the start — " THE INFECTED..." never matched.
+        return strings.TrimSpace(cleaned)
+}
+
+// spriteFamilies groups single-frame mob sprites by element family.
+// Used by DedupeEnemySprites so two enemies in the SAME encounter never
+// render the identical sprite (e.g. FLAME and YOUNG DRAKE both map to
+// "fire (5).png" — they used to appear as identical twins side by side).
+// Boss-dedicated files (boss_N_N/S, midlevelbosses, highlevelbosses,
+// calamaties) are intentionally NOT families — a named boss must always
+// keep its own sprite.
+var spriteFamilies = map[string][]string{
+        "fire":     {"fire (5).png", "fire (6).png", "fire (7).png", "fire (8).png", "fire (11).png"},
+        "water":    {"water (4).png", "water (6).png", "water (7).png"},
+        "earth":    {"earth (1).png", "earth (2).png", "earth (3).png", "earth (4).png", "earth (5).png"},
+        "ice":      {"ice (1).png", "ice (2).png", "ice (3).png"},
+        "mutated":  {"mutated (1).png", "mutated (2).png", "mutated (3).png", "mutated (4).png", "mutated (5).png", "mutated (6).png", "mutated (7).png"},
+        "hybrides": {"hybrides (1).png", "hybrides (2).png", "hybrides (3).png", "hybrides (4).png", "hybrides (5).png", "hybrides (6).png", "hybrides (7).png"},
+}
+
+// DedupeEnemySprites spreads visible enemies that resolved to the SAME mob
+// sprite across the other files of the same family. The first enemy keeps its
+// mapped file; each later duplicate moves to the first unused family file.
+// Empty entries (dead/skipped enemies) and non-family files pass through.
+// resolved is aligned 1:1 with the request's enemy slice.
+func DedupeEnemySprites(resolved []string) []string {
+        out := make([]string, len(resolved))
+        copy(out, resolved)
+        used := map[string]bool{}
+        for i, f := range out {
+                if f == "" {
+                        continue
+                }
+                if !used[f] {
+                        used[f] = true
+                        continue
+                }
+                lower := strings.ToLower(f)
+                dash := strings.Index(lower, " (")
+                if dash <= 0 {
+                        used[f] = true
+                        continue
+                }
+                family, ok := spriteFamilies[lower[:dash]]
+                if !ok {
+                        used[f] = true
+                        continue
+                }
+                swapped := false
+                for _, cand := range family {
+                        if !used[cand] {
+                                out[i] = cand
+                                used[cand] = true
+                                swapped = true
+                                break
+                        }
+                }
+                if !swapped {
+                        used[f] = true // family exhausted — keep the twin
+                }
+        }
+        return out
 }

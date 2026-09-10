@@ -73,15 +73,22 @@ var PlayerSlots = []Slot{
 //   Row 2 (Y=380): X2, X4    → slots 2, 3
 //   Row 3 (Y=345): X1, X3    → slots 4, 5
 //   Row 4 (Y=310): X2, X4    → slots 6, 7
+// 💡 FIX 2026-09-11 (visual audit): old columns X=10..100 pushed summons
+// OFF-CANVAS — X is the sprite CENTER, so slot 0 (X=10) clipped ~half of any
+// sprite, and slot 1 (X=70) sat directly under the main player (X=80) with
+// the summon painted over it. Pixel-verified: even the common 1-summon case
+// rendered half-missing. New columns keep every slot fully on-canvas (min
+// center X=50 fits ~90px-wide sprites), stagger summons between the player
+// columns, and read as companions beside/behind the party.
 var SummonSlots = []Slot{
-	{10, 415},  // slot 0 — front-left
-	{70, 415},  // slot 1 — front-right
-	{40, 380},  // slot 2 — mid-left (in gap)
-	{100, 380}, // slot 3 — mid-right (in gap)
-	{10, 345},  // slot 4 — back-left
-	{70, 345},  // slot 5 — back-right
-	{40, 310},  // slot 6 — deep-left
-	{100, 310}, // slot 7 — deep-right
+	{50, 418},  // slot 0 — front-left (companion beside the main player)
+	{125, 418}, // slot 1 — front-right of the summon cluster
+	{88, 383},  // slot 2 — mid-center (in the gap)
+	{160, 383}, // slot 3 — mid-right
+	{50, 348},  // slot 4 — back-left
+	{125, 348}, // slot 5 — back-right
+	{88, 313},  // slot 6 — deep-center
+	{160, 313}, // slot 7 — deep-right
 }
 
 // EnemySlots — 8 slots in a 4-column zigzag, all RIGHT of center (X ≥ 730).
