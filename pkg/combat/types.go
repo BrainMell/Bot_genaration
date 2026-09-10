@@ -24,6 +24,13 @@ type Enemy struct {
         IsBoss      bool   `json:"isBoss"`
         JustDied    bool   `json:"justDied"`
         SpriteIndex int    `json:"spriteIndex"`
+        // 💡 FIX 2026-09-11 (facing audit): per-enemy level. The Node client has
+        // always sent `level`, but this struct dropped it, so the sprite fallback
+        // buckets selected mobs by the PARTY's average level — a level-12 party
+        // fighting level-40 ice wolves got water-tier sprites for every mob
+        // (enemy sprite ↔ name mismatch). Renderers now use enemy.Level for the
+        // element/tier bucket, falling back to party avg for legacy payloads.
+        Level int `json:"level,omitempty"`
 }
 
 // Summon represents a summoned ally in the combat scene.

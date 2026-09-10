@@ -1,8 +1,10 @@
 package combat
 
 import (
+        "os"
         "path/filepath"
         "strings"
+        "sync"
 )
 
 var CharacterSprites = map[string][]string{
@@ -736,35 +738,67 @@ var SummonSprites = map[string]string{
 // 3. summons/ (SD sprites like Ifrit/Leviathan/Shiva)
 // 4. summons/retromon/ (Retromon monster sprites)
 // 5. enemies/ (fallback to enemy sprite via SummonSprites map)
+// summonDirIndex is a lazy, case-insensitive per-directory file index.
+// 💡 FIX 2026-09-11 (facing audit BUG #2): the summon lookup was case-sensitive
+// while Node sends species ids in arbitrary case ("Atrox" vs retromon/Atrox.png
+// resolved, but "atrox" missed and fell through to the generic slime fallback —
+// EVERY lowercase retromon rendered as the same giant teal slime in battle).
+// The Node side (summonSprites.js) has always been case-insensitive; the Go
+// renderer now matches that behavior.
+var summonDirIndex struct {
+        once sync.Once
+        dirs map[string]map[string]string // abs dir → lowercase filename → actual filename
+}
+
+func summonDirLookup(dir, lowerName string) (string, bool) {
+        summonDirIndex.once.Do(func() {
+                summonDirIndex.dirs = make(map[string]map[string]string)
+        })
+        idx, ok := summonDirIndex.dirs[dir]
+        if !ok {
+                idx = make(map[string]string)
+                if entries, err := os.ReadDir(dir); err == nil {
+                        for _, e := range entries {
+                                if e.IsDir() {
+                                        continue
+                                }
+                                idx[strings.ToLower(e.Name())] = e.Name()
+                        }
+                }
+                summonDirIndex.dirs[dir] = idx
+        }
+        actual, ok := idx[lowerName]
+        if !ok {
+                return "", false
+        }
+        return filepath.Join(dir, actual), true
+}
+
 func GetSummonSpritePath(species string, assetsPath string) string {
         species = strings.ToLower(strings.TrimSpace(species))
+        summonsRoot := filepath.Join(assetsPath, "rpgasset", "summons")
 
-        // 0. Check sparklinlabs (NEW: primary summon sprites — try .png first, then .gif)
-        sparkPathPng := filepath.Join(assetsPath, "rpgasset", "summons", "sparklinlabs", species+".png")
-        if fileExists(sparkPathPng) {
-                return sparkPathPng
+        // 0. sparklinlabs (primary summon sprites — .png first, then _idle.gif)
+        if p, ok := summonDirLookup(filepath.Join(summonsRoot, "sparklinlabs"), species+".png"); ok {
+                return p
         }
-        sparkPathGif := filepath.Join(assetsPath, "rpgasset", "summons", "sparklinlabs", species+"_idle.gif")
-        if fileExists(sparkPathGif) {
-                return sparkPathGif
-        }
-
-        // 1. Check digimon cache
-        digimonPath := filepath.Join(assetsPath, "rpgasset", "summons", "digimon", species+".png")
-        if fileExists(digimonPath) {
-                return digimonPath
+        if p, ok := summonDirLookup(filepath.Join(summonsRoot, "sparklinlabs"), species+"_idle.gif"); ok {
+                return p
         }
 
-        // 2. Check SD summons
-        sdPath := filepath.Join(assetsPath, "rpgasset", "summons", species+".png")
-        if fileExists(sdPath) {
-                return sdPath
+        // 1. digimon cache
+        if p, ok := summonDirLookup(filepath.Join(summonsRoot, "digimon"), species+".png"); ok {
+                return p
         }
 
-        // 3. Check retromon
-        retromonPath := filepath.Join(assetsPath, "rpgasset", "summons", "retromon", species+".png")
-        if fileExists(retromonPath) {
-                return retromonPath
+        // 2. SD summons
+        if p, ok := summonDirLookup(summonsRoot, species+".png"); ok {
+                return p
+        }
+
+        // 3. retromon
+        if p, ok := summonDirLookup(filepath.Join(summonsRoot, "retromon"), species+".png"); ok {
+                return p
         }
 
         // 4. Fallback to SummonSprites map (which may point to sparklinlabs or enemies)
@@ -772,10 +806,9 @@ func GetSummonSpritePath(species string, assetsPath string) string {
         if !ok || filename == "" {
                 filename = "slime.png"
         }
-        // Check if the mapped file is in sparklinlabs first
-        sparkFallback := filepath.Join(assetsPath, "rpgasset", "summons", "sparklinlabs", filename)
-        if fileExists(sparkFallback) {
-                return sparkFallback
+        // Check if the mapped file is in sparklinlabs first (case-insensitive)
+        if p, ok := summonDirLookup(filepath.Join(summonsRoot, "sparklinlabs"), strings.ToLower(filename)); ok {
+                return p
         }
         return filepath.Join(assetsPath, "rpgasset", "enemies", filename)
 }
@@ -828,6 +861,135 @@ var SummonSpriteFacing = map[string]string{
         "starnail_idle.gif":  "CENTER",
         "tidalmaw_idle.gif":  "CENTER",
         "yeti_idle.gif":      "RIGHT",
+
+        // ── 💡 FIX 2026-09-11 (facing audit round 3b): digimon summon entries ──
+        // Method: all 94 digimon species were rendered through the live service
+        // in the battle slot and visually inspected (E2E audit sheets). The
+        // digi-api art set is overwhelmingly LEFT-profile; symmetric round
+        // baby-blobs are CENTER (flip is a no-op on them). Entries keep every
+        // digimon facing its opponent in either battle slot.
+        "budmon.png":        "CENTER",
+        "culumon.png":        "CENTER",
+        "ketomon.png":        "CENTER",
+        "koromon.png":        "CENTER",
+        "madomon.png":        "CENTER",
+        "monimon.png":        "CENTER",
+        "pillomon.png":        "CENTER",
+        "punimon.png":        "CENTER",
+        "puroromon.png":        "CENTER",
+        "rurimon.png":        "CENTER",
+        "tunomon.png":        "CENTER",
+        "tyumon.png":        "CENTER",
+        "aegiochusmon.png":        "LEFT",
+        "aegiochusmon_dark_.png":        "LEFT",
+        "agumon.png":        "LEFT",
+        "airdramon.png":        "LEFT",
+        "andromon.png":        "LEFT",
+        "angemon.png":        "LEFT",
+        "angewomon.png":        "LEFT",
+        "ankylomon.png":        "LEFT",
+        "apollomon.png":        "LEFT",
+        "archnemon.png":        "LEFT",
+        "babydmon.png":        "LEFT",
+        "bagramon.png":        "LEFT",
+        "betamon.png":        "LEFT",
+        "bitmon.png":        "LEFT",
+        "blitzmon.png":        "LEFT",
+        "breakdramon.png":        "LEFT",
+        "centalmon.png":        "LEFT",
+        "chamelemon.png":        "LEFT",
+        "coelamon.png":        "LEFT",
+        "cyclomon.png":        "LEFT",
+        "dagomon.png":        "LEFT",
+        "devidramon.png":        "LEFT",
+        "devimon.png":        "LEFT",
+        "dondokomon.png":        "LEFT",
+        "dorugoramon.png":        "LEFT",
+        "dorulumon.png":        "LEFT",
+        "exermon.png":        "LEFT",
+        "eyesmon.png":        "LEFT",
+        "firamon.png":        "LEFT",
+        "fladramon.png":        "LEFT",
+        "frozomon.png":        "LEFT",
+        "funbeemon.png":        "LEFT",
+        "fusamon.png":        "LEFT",
+        "gaossmon.png":        "LEFT",
+        "garurumon.png":        "LEFT",
+        "geremon.png":        "LEFT",
+        "goburimon.png":        "LEFT",
+        "gogmamon.png":        "LEFT",
+        "golemon.png":        "LEFT",
+        "guardromon.png":        "LEFT",
+        "gururumon.png":        "LEFT",
+        "icemon.png":        "LEFT",
+        "jokermon.png":        "LEFT",
+        "kamemon.png":        "LEFT",
+        "kinkakumon.png":        "LEFT",
+        "kuzuhamon.png":        "LEFT",
+        "lunamon.png":        "LEFT",
+        "mametyramon.png":        "LEFT",
+        "manticoremon.png":        "LEFT",
+        "mechanorimon.png":        "LEFT",
+        "meramon.png":        "LEFT",
+        "minidekachimon.png":        "LEFT",
+        "mitamamon.png":        "LEFT",
+        "monitamon.png":        "LEFT",
+        "monochromon.png":        "LEFT",
+        "morphomon.png":        "LEFT",
+        "nanimon.png":        "LEFT",
+        "orgemon.png":        "LEFT",
+        "panbachimon.png":        "LEFT",
+        "parallelmon.png":        "LEFT",
+        "pinochimon.png":        "LEFT",
+        "pusurimon.png":        "LEFT",
+        "quartzmon.png":        "LEFT",
+        "raijinmon.png":        "LEFT",
+        "raptordramon.png":        "LEFT",
+        "revolmon.png":        "LEFT",
+        "shonitamon.png":        "LEFT",
+        "shortmon.png":        "LEFT",
+        "shoucutemon.png":        "LEFT",
+        "shoutmon.png":        "LEFT",
+        "sparrowmon.png":        "LEFT",
+        "stiffilmon.png":        "LEFT",
+        "sunarizamon.png":        "LEFT",
+        "tankmon.png":        "LEFT",
+        "thetismon.png":        "LEFT",
+        "toropiamon.png":        "LEFT",
+        "troopmon.png":        "LEFT",
+        "turuiemon.png":        "LEFT",
+        "tyranomon.png":        "LEFT",
+        "vajramon.png":        "LEFT",
+        "vulcanusmon.png":        "LEFT",
+        "weddinmon.png":        "LEFT",
+        // ── 💡 FIX 2026-09-11 (facing audit): retromon battle frames ──
+        // Retromon .png files were 768x384 8-frame strips; battle frames were
+        // extracted and visually classified from the frame sheet.
+        "Atrox.png":        "LEFT",
+        "Charmadillo.png":  "LEFT",
+        "Cindrill.png":     "LEFT",
+        "Cleaf.png":        "RIGHT",
+        "Draem.png":        "LEFT",
+        "Finiette.png":     "LEFT",
+        "Finsta.png":       "LEFT",
+        "Friolera.png":     "LEFT",
+        "Gulfin.png":       "LEFT",
+        "Ivieron.png":      "LEFT",
+        "Jacana.png":       "LEFT",
+        "Larvea.png":       "CENTER",
+        "Pluma.png":        "LEFT",
+        "Plumette.png":     "LEFT",
+        "Pouch.png":        "LEFT",
+        "Sparchu.png":      "LEFT",
+        // ── SD summons (Ifrit / Shiva / Leviathan families) ──
+        "shiva_full.png":    "LEFT",
+        "shiva_noice.png":   "LEFT",
+        "shiva_ice.png":     "CENTER", // ice-crystal effect sprite, no figure
+        "shiva_full 2.png":  "LEFT",
+        "leviathan.png":     "LEFT",
+        "leviathan_water.png": "LEFT",
+        "ifrit_fire.png":    "LEFT",
+        "ifrit_nofire.png":  "LEFT",
         // Ship sprites are rotated, not flipped — facing doesn't apply
         "ship_cruiser_idle.gif":  "CENTER",
         "ship_fighter_idle.gif":  "CENTER",
