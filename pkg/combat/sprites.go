@@ -1,55 +1,55 @@
 package combat
 
 import (
-        "path/filepath"
-        "strings"
+	"path/filepath"
+	"strings"
 )
 
 var CharacterSprites = map[string][]string{
-        "FIGHTER":      {"Fighter1.png", "fighter2.png", "fighter3.png"},
-        "SCOUT":        {"scout1.png", "scout2.png", "scout3.png", "sout4.png"},
-        "APPRENTICE":   {"apprentice1.png", "apprentice2.png", "apprentice3.png", "apprentice4.png"},
-        "ACOLYTE":      {"acolyte.png"},
-        "WARRIOR":      {"warrior1.png", "warrior2.png", "warrior3.png", "warrior4.png"},
-        "WARLORD":      {"Warlord1.png", "warlord2.png", "warlord3.png"},
-        "BERSERKER":    {"Berserker1.png", "Berserker2.png", "Berserker3.png"},
-        "DOOMSLAYER":   {"DoomSlayer1.png", "DoomSlayer2.png"},
-        "PALADIN":      {"Paladin (1).png", "Paladin (2).png", "Paladin (3).png", "Paladin (4).png", "Paladin (5).png", "Paladin (6).png", "Paladin (7).png", "Paladin (8).png"},
-        "TEMPLAR":      {"Templar (1).png", "Templar (2).png", "Templar (3).png", "Templar (4).png", "Templar (5).png", "Templar (6).png", "Templar (7).png", "Templar (8).png", "Templar (9).png"},
-        "ROGUE":        {"Rogue (1).png", "Rogue (2).png", "Rogue (3).png", "Rogue (4).png"},
-        "NIGHTBLADE":   {"Nightblade (1).png", "Nightblade (2).png", "Nightblade (3).png", "Nightblade (4).png", "Nightblade (5).png", "Nightblade (6).png"},
-        "MONK":         {"Monk.png"},
-        "ZENMASTER":    {"zenmaster.png"},
-        "NINJA":        {"ninja (1).png", "ninja (2).png", "ninja (3).png", "ninja (4).png", "ninja (5).png"},
-        "MAGE":         {"archmage (1).png", "archmage (2).png", "archmage (3).png", "archmage (4).png", "archmage (5).png"},
-        "ARCHMAGE":     {"archmage (6).png", "archmage (7).png", "archmage (8).png", "archmage (9).png", "archmage (10).png", "archmage (11).png", "archmage (12).png"},
-        "WARLOCK":      {"voidwalker (1).png", "voidwalker (2).png", "voidwalker (3).png", "voidwalker (4).png"},
-        "VOIDWALKER":   {"voidwalker (5).png", "voidwalker (6).png", "voidwalker (7).png", "voidwalker (8).png", "voidwalker (9).png"},
-        "ELEMENTALIST": {"elementalist (1).png", "elementalist (2).png", "elementalist (3).png", "elementalist (4).png"},
-        "CLERIC":       {"cleric (1).png", "cleric (2).png", "cleric (3).png", "cleric (4).png", "cleric (5).png", "cleric (6).png"},
-        "SAINT":        {"saint (1).png", "saint (2).png", "saint (3).png", "saint (4).png"},
-        "DRUID":        {"druid (1).png", "druid (2).png", "druid (3).png", "druid (4).png", "druid (5).png", "druid (6).png"},
-        "ARCHDRUID":    {"archdruid (1).png", "archdruid (2).png", "archdruid (3).png", "archdruid (4).png", "archdruid (5).png", "archdruid (6).png", "archdruid (7).png", "archdruid (8).png", "archdruid (9).png"},
-        "NECROMANCER":  {"necromancer.png"},
-        "LICH":         {"lich.png"},
-        "MERCHANT":     {"merchant.png"},
-        "TYCOON":       {"tycoon.png"},
-        "CHRONOMANCER": {"timelord (1).png", "timelord (2).png", "timelord (3).png", "timelord (4).png", "timelord (5).png"},
-        "TIMELORD":     {"timelord (1).png", "timelord (2).png", "timelord (3).png", "timelord (4).png", "timelord (5).png"},
-        "SAMURAI":      {"samuri (1).png", "samuri (2).png", "samuri (3).png", "samuri (4).png", "samuri (5).png", "samuri (6).png", "samuri (7).png", "samuri (8).png", "samuri (9).png", "samuri (10).png", "samuri (11).png"},
-        "GOD_HAND":     {"God_hand (1).png", "God_hand (2).png"},
-        "DRAGONSLAYER": {"warrior1.png", "warrior2.png", "warrior3.png", "warrior4.png"},
-        "REAPER":       {"necromancer.png"},
-        "BARD":         {"acolyte.png"},
-        "ARTIFICER":    {"apprentice1.png", "apprentice2.png", "apprentice3.png", "apprentice4.png"},
-        "AVATAR":       {"elementalist (1).png", "elementalist (2).png", "elementalist (3).png", "elementalist (4).png"},
-        // Ascended classes — mapped to closest thematic sprites
-        "DRAGON_GOD":     {"DoomSlayer1.png", "DoomSlayer2.png"},
-        "DRAGON_LORD":    {"Warlord1.png", "warlord2.png", "warlord3.png"},
-        "KAGE":           {"ninja (1).png", "ninja (2).png", "ninja (3).png", "ninja (4).png", "ninja (5).png"},
-        "SHOGUN":         {"samuri (1).png", "samuri (2).png", "samuri (3).png"},
-        "VIRTUOSO":       {"acolyte.png"},
-        "GRAND_INVENTOR": {"apprentice1.png", "apprentice2.png"},
+	"FIGHTER":      {"Fighter1.png", "fighter2.png", "fighter3.png"},
+	"SCOUT":        {"scout1.png", "scout2.png", "scout3.png", "sout4.png"},
+	"APPRENTICE":   {"apprentice1.png", "apprentice2.png", "apprentice3.png", "apprentice4.png"},
+	"ACOLYTE":      {"acolyte.png"},
+	"WARRIOR":      {"warrior1.png", "warrior2.png", "warrior3.png", "warrior4.png"},
+	"WARLORD":      {"Warlord1.png", "warlord2.png", "warlord3.png"},
+	"BERSERKER":    {"Berserker1.png", "Berserker2.png", "Berserker3.png"},
+	"DOOMSLAYER":   {"DoomSlayer1.png", "DoomSlayer2.png"},
+	"PALADIN":      {"Paladin (1).png", "Paladin (2).png", "Paladin (3).png", "Paladin (4).png", "Paladin (5).png", "Paladin (6).png", "Paladin (7).png", "Paladin (8).png"},
+	"TEMPLAR":      {"Templar (1).png", "Templar (2).png", "Templar (3).png", "Templar (4).png", "Templar (5).png", "Templar (6).png", "Templar (7).png", "Templar (8).png", "Templar (9).png"},
+	"ROGUE":        {"Rogue (1).png", "Rogue (2).png", "Rogue (3).png", "Rogue (4).png"},
+	"NIGHTBLADE":   {"Nightblade (1).png", "Nightblade (2).png", "Nightblade (3).png", "Nightblade (4).png", "Nightblade (5).png", "Nightblade (6).png"},
+	"MONK":         {"Monk.png"},
+	"ZENMASTER":    {"zenmaster.png"},
+	"NINJA":        {"ninja (1).png", "ninja (2).png", "ninja (3).png", "ninja (4).png", "ninja (5).png"},
+	"MAGE":         {"archmage (1).png", "archmage (2).png", "archmage (3).png", "archmage (4).png", "archmage (5).png"},
+	"ARCHMAGE":     {"archmage (6).png", "archmage (7).png", "archmage (8).png", "archmage (9).png", "archmage (10).png", "archmage (11).png", "archmage (12).png"},
+	"WARLOCK":      {"voidwalker (1).png", "voidwalker (2).png", "voidwalker (3).png", "voidwalker (4).png"},
+	"VOIDWALKER":   {"voidwalker (5).png", "voidwalker (6).png", "voidwalker (7).png", "voidwalker (8).png", "voidwalker (9).png"},
+	"ELEMENTALIST": {"elementalist (1).png", "elementalist (2).png", "elementalist (3).png", "elementalist (4).png"},
+	"CLERIC":       {"cleric (1).png", "cleric (2).png", "cleric (3).png", "cleric (4).png", "cleric (5).png", "cleric (6).png"},
+	"SAINT":        {"saint (1).png", "saint (2).png", "saint (3).png", "saint (4).png"},
+	"DRUID":        {"druid (1).png", "druid (2).png", "druid (3).png", "druid (4).png", "druid (5).png", "druid (6).png"},
+	"ARCHDRUID":    {"archdruid (1).png", "archdruid (2).png", "archdruid (3).png", "archdruid (4).png", "archdruid (5).png", "archdruid (6).png", "archdruid (7).png", "archdruid (8).png", "archdruid (9).png"},
+	"NECROMANCER":  {"necromancer.png"},
+	"LICH":         {"lich.png"},
+	"MERCHANT":     {"merchant.png"},
+	"TYCOON":       {"tycoon.png"},
+	"CHRONOMANCER": {"timelord (1).png", "timelord (2).png", "timelord (3).png", "timelord (4).png", "timelord (5).png"},
+	"TIMELORD":     {"timelord (1).png", "timelord (2).png", "timelord (3).png", "timelord (4).png", "timelord (5).png"},
+	"SAMURAI":      {"samuri (1).png", "samuri (2).png", "samuri (3).png", "samuri (4).png", "samuri (5).png", "samuri (6).png", "samuri (7).png", "samuri (8).png", "samuri (9).png", "samuri (10).png", "samuri (11).png"},
+	"GOD_HAND":     {"God_hand (1).png", "God_hand (2).png"},
+	"DRAGONSLAYER": {"warrior1.png", "warrior2.png", "warrior3.png", "warrior4.png"},
+	"REAPER":       {"necromancer.png"},
+	"BARD":         {"acolyte.png"},
+	"ARTIFICER":    {"apprentice1.png", "apprentice2.png", "apprentice3.png", "apprentice4.png"},
+	"AVATAR":       {"elementalist (1).png", "elementalist (2).png", "elementalist (3).png", "elementalist (4).png"},
+	// Ascended classes — mapped to closest thematic sprites
+	"DRAGON_GOD":     {"DoomSlayer1.png", "DoomSlayer2.png"},
+	"DRAGON_LORD":    {"Warlord1.png", "warlord2.png", "warlord3.png"},
+	"KAGE":           {"ninja (1).png", "ninja (2).png", "ninja (3).png", "ninja (4).png", "ninja (5).png"},
+	"SHOGUN":         {"samuri (1).png", "samuri (2).png", "samuri (3).png"},
+	"VIRTUOSO":       {"acolyte.png"},
+	"GRAND_INVENTOR": {"apprentice1.png", "apprentice2.png"},
 }
 
 // Auto-generated by scripts/generate_sprite_facing.py
@@ -57,166 +57,229 @@ var CharacterSprites = map[string][]string{
 // The renderer uses this to decide whether to flip a sprite so
 // ALL players face RIGHT (toward enemies) in PvE.
 var SpriteFacing = map[string]string{
-        // 💡 FIX 2026-08-05: Berserker1/2 actually face RIGHT (raw VLM + pixel
-        // check confirmed). Were mislabeled as CENTER, causing ShouldFlipForPvE
-        // to flip them → rendered facing LEFT (away from enemies). Berserker3
-        // is symmetric, so CENTER is harmless for it.
-        "Berserker1.png": "RIGHT",
-        "Berserker2.png": "RIGHT",
-        "Berserker3.png": "CENTER",
-        "DoomSlayer1.png": "CENTER",
-        "DoomSlayer2.png": "CENTER",
-        // 💡 FIX 2026-08-05: Fighter1.png actually faces RIGHT (VLM confirmed).
-        // Was mislabeled as CENTER, causing ShouldFlipForPvE to flip it →
-        // rendered facing LEFT in the PvP left battle slot (away from opponent).
-        "Fighter1.png": "RIGHT",
-        "God_hand (1).png": "RIGHT",
-        "God_hand (2).png": "RIGHT",
-        "Monk.png": "RIGHT",
-        "Nightblade (1).png": "LEFT",
-        "Nightblade (2).png": "LEFT",
-        "Nightblade (3).png": "CENTER",
-        "Nightblade (4).png": "CENTER",
-        "Nightblade (5).png": "LEFT",
-        "Nightblade (6).png": "LEFT",
-        "Paladin (1).png": "RIGHT",
-        "Paladin (2).png": "LEFT",
-        "Paladin (3).png": "LEFT",
-        "Paladin (4).png": "CENTER",
-        "Paladin (5).png": "CENTER",
-        "Paladin (6).png": "LEFT",
-        "Paladin (7).png": "LEFT",
-        "Paladin (8).png": "CENTER",
-        "Rogue (1).png": "RIGHT",
-        "Rogue (2).png": "LEFT",
-        "Rogue (3).png": "CENTER",
-        "Rogue (4).png": "CENTER",
-        "Templar (1).png": "LEFT",
-        "Templar (2).png": "LEFT",
-        "Templar (3).png": "CENTER",
-        "Templar (4).png": "CENTER",
-        "Templar (5).png": "CENTER",
-        "Templar (6).png": "LEFT",
-        "Templar (7).png": "LEFT",
-        "Templar (8).png": "LEFT",
-        "Templar (9).png": "LEFT",
-        "Warlord1.png": "LEFT",
-        "acolyte.png": "RIGHT",
-        "apprentice1 copy.png": "CENTER",
-        "apprentice1.png": "CENTER",
-        "apprentice2.png": "CENTER",
-        "apprentice3.png": "CENTER",
-        "apprentice4.png": "LEFT",
-        "archdruid (1).png": "CENTER",
-        "archdruid (2).png": "LEFT",
-        "archdruid (3).png": "CENTER",
-        "archdruid (4).png": "RIGHT",
-        "archdruid (5).png": "CENTER",
-        "archdruid (6).png": "LEFT",
-        "archdruid (7).png": "CENTER",
-        "archdruid (8).png": "LEFT",
-        "archdruid (9).png": "CENTER",
-        "archmage (1).png": "RIGHT",
-        "archmage (10).png": "CENTER",
-        "archmage (11).png": "CENTER",
-        "archmage (12).png": "LEFT",
-        "archmage (2).png": "LEFT",
-        "archmage (3).png": "CENTER",
-        "archmage (4).png": "LEFT",
-        "archmage (5).png": "RIGHT",
-        "archmage (6).png": "CENTER",
-        "archmage (7).png": "RIGHT",
-        "archmage (8).png": "RIGHT",
-        "archmage (9).png": "CENTER",
-        "cleric (1).png": "LEFT",
-        "cleric (2).png": "CENTER",
-        "cleric (3).png": "CENTER",
-        "cleric (4).png": "RIGHT",
-        "cleric (5).png": "CENTER",
-        "cleric (6).png": "LEFT",
-        "druid (1).png": "RIGHT",
-        "druid (10).png": "CENTER",
-        "druid (11).png": "LEFT",
-        "druid (12).png": "CENTER",
-        "druid (13).png": "LEFT",
-        "druid (2).png": "CENTER",
-        "druid (3).png": "CENTER",
-        "druid (4).png": "LEFT",
-        "druid (5).png": "CENTER",
-        "druid (6).png": "LEFT",
-        "druid (7).png": "CENTER",
-        "druid (8).png": "CENTER",
-        "druid (9).png": "LEFT",
-        "elementalist (1).png": "LEFT",
-        "elementalist (2).png": "RIGHT",
-        "elementalist (3).png": "LEFT",
-        "elementalist (4).png": "CENTER",
-        "fighter2.png": "RIGHT",
-        "fighter3.png": "LEFT",
-        "lich.png": "RIGHT",
-        "merchant.png": "RIGHT",
-        "necromancer.png": "LEFT",
-        "ninja (1).png": "CENTER",
-        "ninja (2).png": "CENTER",
-        "ninja (3).png": "CENTER",
-        "ninja (4).png": "CENTER",
-        "ninja (5).png": "CENTER",
-        "saint (1).png": "CENTER",
-        "saint (2).png": "LEFT",
-        "saint (3).png": "CENTER",
-        "saint (4).png": "LEFT",
-        "samuri (1).png": "CENTER",
-        "samuri (10).png": "LEFT",
-        "samuri (11).png": "LEFT",
-        "samuri (2).png": "LEFT",
-        "samuri (3).png": "CENTER",
-        "samuri (4).png": "LEFT",
-        "samuri (5).png": "CENTER",
-        "samuri (6).png": "CENTER",
-        "samuri (7).png": "LEFT",
-        "samuri (8).png": "LEFT",
-        "samuri (9).png": "RIGHT",
-        "scout1.png": "LEFT",
-        "scout2.png": "CENTER",
-        "scout3.png": "CENTER",
-        "sout4.png": "LEFT",
-        "timelord (1).png": "LEFT",
-        "timelord (2).png": "LEFT",
-        "timelord (3).png": "LEFT",
-        "timelord (4).png": "CENTER",
-        "timelord (5).png": "LEFT",
-        "tycoon.png": "RIGHT",
-        "voidwalker (1).png": "CENTER",
-        "voidwalker (2).png": "RIGHT",
-        "voidwalker (3).png": "RIGHT",
-        "voidwalker (4).png": "CENTER",
-        "voidwalker (5).png": "RIGHT",
-        "voidwalker (6).png": "CENTER",
-        "voidwalker (7).png": "RIGHT",
-        "voidwalker (8).png": "RIGHT",
-        "voidwalker (9).png": "LEFT",
-        "warlord2.png": "LEFT",
-        "warlord3.png": "RIGHT",
-        "warrior1.png": "LEFT",
-        "warrior2.png": "CENTER",
-        "warrior3.png": "CENTER",
-        "warrior4.png": "CENTER",
-        "zenmaster.png": "CENTER",
+	// 💡 FIX 2026-08-05: Berserker1/2 actually face RIGHT (raw VLM + pixel
+	// check confirmed). Were mislabeled as CENTER, causing ShouldFlipForPvE
+	// to flip them → rendered facing LEFT (away from enemies). Berserker3
+	// is symmetric, so CENTER is harmless for it.
+	"Berserker1.png":  "RIGHT",
+	"Berserker2.png":  "RIGHT",
+	"Berserker3.png":  "CENTER",
+	"DoomSlayer1.png": "LEFT",
+	"DoomSlayer2.png": "LEFT",
+	// 💡 FIX 2026-08-05: Fighter1.png actually faces RIGHT (VLM confirmed).
+	// Was mislabeled as CENTER, causing ShouldFlipForPvE to flip it →
+	// rendered facing LEFT in the PvP left battle slot (away from opponent).
+	"Fighter1.png":         "RIGHT",
+	"God_hand (1).png":     "LEFT",
+	"God_hand (2).png":     "LEFT",
+	"Monk.png":             "RIGHT",
+	"Nightblade (1).png":   "LEFT",
+	"Nightblade (2).png":   "LEFT",
+	"Nightblade (3).png":   "LEFT",
+	"Nightblade (4).png":   "CENTER",
+	"Nightblade (5).png":   "LEFT",
+	"Nightblade (6).png":   "LEFT",
+	"Paladin (1).png":      "RIGHT",
+	"Paladin (2).png":      "LEFT",
+	"Paladin (3).png":      "LEFT",
+	"Paladin (4).png":      "CENTER",
+	"Paladin (5).png":      "CENTER",
+	"Paladin (6).png":      "LEFT",
+	"Paladin (7).png":      "LEFT",
+	"Paladin (8).png":      "RIGHT",
+	"Rogue (1).png":        "RIGHT",
+	"Rogue (2).png":        "LEFT",
+	"Rogue (3).png":        "LEFT",
+	"Rogue (4).png":        "CENTER",
+	"Templar (1).png":      "LEFT",
+	"Templar (2).png":      "LEFT",
+	"Templar (3).png":      "CENTER",
+	"Templar (4).png":      "LEFT",
+	"Templar (5).png":      "LEFT",
+	"Templar (6).png":      "LEFT",
+	"Templar (7).png":      "LEFT",
+	"Templar (8).png":      "LEFT",
+	"Templar (9).png":      "LEFT",
+	"Warlord1.png":         "LEFT",
+	"acolyte.png":          "RIGHT",
+	"apprentice1 copy.png": "CENTER",
+	"apprentice1.png":      "CENTER",
+	"apprentice2.png":      "LEFT",
+	"apprentice3.png":      "LEFT",
+	"apprentice4.png":      "LEFT",
+	"archdruid (1).png":    "CENTER",
+	"archdruid (2).png":    "LEFT",
+	"archdruid (3).png":    "LEFT",
+	"archdruid (4).png":    "RIGHT",
+	"archdruid (5).png":    "LEFT",
+	"archdruid (6).png":    "LEFT",
+	"archdruid (7).png":    "RIGHT",
+	"archdruid (8).png":    "LEFT",
+	"archdruid (9).png":    "LEFT",
+	"archmage (1).png":     "RIGHT",
+	"archmage (10).png":    "LEFT",
+	"archmage (11).png":    "LEFT",
+	"archmage (12).png":    "LEFT",
+	"archmage (2).png":     "LEFT",
+	"archmage (3).png":     "CENTER",
+	"archmage (4).png":     "LEFT",
+	"archmage (5).png":     "RIGHT",
+	"archmage (6).png":     "CENTER",
+	"archmage (7).png":     "RIGHT",
+	"archmage (8).png":     "RIGHT",
+	"archmage (9).png":     "RIGHT",
+	"cleric (1).png":       "LEFT",
+	"cleric (2).png":       "CENTER",
+	"cleric (3).png":       "CENTER",
+	"cleric (4).png":       "RIGHT",
+	"cleric (5).png":       "RIGHT",
+	"cleric (6).png":       "LEFT",
+	"druid (1).png":        "RIGHT",
+	"druid (10).png":       "CENTER",
+	"druid (11).png":       "LEFT",
+	"druid (12).png":       "CENTER",
+	"druid (13).png":       "LEFT",
+	"druid (2).png":        "LEFT",
+	"druid (3).png":        "CENTER",
+	"druid (4).png":        "LEFT",
+	"druid (5).png":        "LEFT",
+	"druid (6).png":        "LEFT",
+	"druid (7).png":        "LEFT",
+	"druid (8).png":        "LEFT",
+	"druid (9).png":        "LEFT",
+	"elementalist (1).png": "LEFT",
+	"elementalist (2).png": "LEFT",
+	"elementalist (3).png": "CENTER",
+	"elementalist (4).png": "CENTER",
+	"fighter2.png":         "RIGHT",
+	"fighter3.png":         "RIGHT",
+	"lich.png":             "RIGHT",
+	"merchant.png":         "RIGHT",
+	"necromancer.png":      "LEFT",
+	"ninja (1).png":        "RIGHT",
+	"ninja (2).png":        "LEFT",
+	"ninja (3).png":        "LEFT",
+	"ninja (4).png":        "LEFT",
+	"ninja (5).png":        "LEFT",
+	"saint (1).png":        "LEFT",
+	"saint (2).png":        "LEFT",
+	"saint (3).png":        "RIGHT",
+	"saint (4).png":        "LEFT",
+	"samuri (1).png":       "LEFT",
+	"samuri (10).png":      "LEFT",
+	"samuri (11).png":      "LEFT",
+	"samuri (2).png":       "LEFT",
+	"samuri (3).png":       "CENTER",
+	"samuri (4).png":       "LEFT",
+	"samuri (5).png":       "CENTER",
+	"samuri (6).png":       "LEFT",
+	"samuri (7).png":       "LEFT",
+	"samuri (8).png":       "LEFT",
+	"samuri (9).png":       "LEFT",
+	"scout1.png":           "LEFT",
+	"scout2.png":           "CENTER",
+	"scout3.png":           "LEFT",
+	"sout4.png":            "LEFT",
+	"timelord (1).png":     "LEFT",
+	"timelord (2).png":     "LEFT",
+	"timelord (3).png":     "LEFT",
+	"timelord (4).png":     "LEFT",
+	"timelord (5).png":     "LEFT",
+	"tycoon.png":           "RIGHT",
+	"voidwalker (1).png":   "CENTER",
+	"voidwalker (2).png":   "RIGHT",
+	"voidwalker (3).png":   "RIGHT",
+	"voidwalker (4).png":   "CENTER",
+	"voidwalker (5).png":   "RIGHT",
+	"voidwalker (6).png":   "CENTER",
+	"voidwalker (7).png":   "RIGHT",
+	"voidwalker (8).png":   "RIGHT",
+	"voidwalker (9).png":   "LEFT",
+	"warlord2.png":         "LEFT",
+	"warlord3.png":         "RIGHT",
+	"warrior1.png":         "LEFT",
+	"warrior2.png":         "CENTER",
+	"warrior3.png":         "LEFT",
+	"warrior4.png":         "CENTER",
+	"zenmaster.png":        "CENTER",
+	// 💡 FIX 2026-09-11 (visual audit round 2): 93 probe-verified facing entries.
+	// Method: rendered every sprite through the live service in the left slot,
+	// compared RAW art vs RENDER to verify flip machinery, then classified
+	// native facing per file (spiders/reapers LEFT, mechs/eyeballs CENTER,
+	// summon pngs can differ from their gif twins — boar proven).
+
+	// characters
+	"bard (1).png": "LEFT",
+
+	// summon pngs
+	"bat.png":          "LEFT",
+	"boar.png":         "RIGHT",
+	"boglurk.png":      "LEFT",
+	"chest.png":        "CENTER",
+	"dino.png":         "RIGHT",
+	"dragon.png":       "RIGHT",
+	"emberwick.png":    "CENTER",
+	"fireguard.png":    "CENTER",
+	"frostpeep.png":    "CENTER",
+	"ghost.png":        "CENTER",
+	"giant.png":        "LEFT",
+	"lumenmoth.png":    "CENTER",
+	"mimic.png":        "CENTER",
+	"mushroom.png":     "CENTER",
+	"octopus.png":      "CENTER",
+	"plaguefang.png":   "CENTER",
+	"reptile.png":      "LEFT",
+	"ship_cruiser.png": "CENTER",
+	"ship_fighter.png": "CENTER",
+	"ship_squid.png":   "CENTER",
+	"skitterswarm.png": "CENTER",
+	"slime.png":        "CENTER",
+	"snake.png":        "RIGHT",
+	"starnail.png":     "CENTER",
+	"tidalmaw.png":     "LEFT",
+	"yeti.png":         "LEFT",
+
+	// enemies
+	"boss_0_N.png":     "LEFT",
+	"boss_0_S.png":     "LEFT",
+	"boss_10_N.png":    "CENTER",
+	"boss_10_S.png":    "CENTER",
+	"boss_11_N.png":    "LEFT",
+	"boss_11_S.png":    "LEFT",
+	"boss_12_N.png":    "LEFT",
+	"boss_12_S.png":    "LEFT",
+	"boss_13_N.png":    "LEFT",
+	"boss_13_S.png":    "LEFT",
+	"boss_1_N.png":     "LEFT",
+	"boss_1_S.png":     "LEFT",
+	"boss_2_N.png":     "LEFT",
+	"boss_2_S.png":     "LEFT",
+	"boss_3_N.png":     "LEFT",
+	"boss_3_S.png":     "LEFT",
+	"boss_4_N.png":     "LEFT",
+	"boss_4_S.png":     "LEFT",
+	"boss_5_N.png":     "CENTER",
+	"boss_5_S.png":     "CENTER",
+	"boss_6_N.png":     "CENTER",
+	"boss_6_S.png":     "CENTER",
+	"boss_7_N.png":     "CENTER",
+	"boss_7_S.png":     "CENTER",
+	"boss_9_N.png":     "CENTER",
+	"boss_9_S.png":     "CENTER",
+	"hybrides (1).png": "LEFT",
 }
 
-
-
 var EnemySprites = map[string][]string{
-        "FIRE_LOW":    {"fire (5).png", "fire (6).png"},
-        "WATER_LOW":   {"water (4).png", "water (6).png"},
-        "EARTH_MID":   {"earth (1).png", "earth (2).png", "earth (3).png"},
-        "ICE_MID":     {"ice (1).png", "ice (2).png", "ice (3).png"},
-        "FIRE_HIGH":   {"fire (7).png", "fire (8).png"},
-        "WATER_HIGH":  {"water (7).png"},
-        "EARTH_HIGH":  {"earth (4).png", "earth (5).png"},
-        "MUTATED":     {"mutated (1).png", "mutated (2).png", "mutated (3).png", "mutated (4).png", "mutated (5).png", "mutated (6).png", "mutated (7).png"},
-        "HYBRID":      {"hybrides (1).png", "hybrides (2).png", "hybrides (3).png", "hybrides (4).png", "hybrides (5).png", "hybrides (6).png", "hybrides (7).png"},
-        "FIRE_ELITE":  {"fire (11).png"},
+	"FIRE_LOW":   {"fire (5).png", "fire (6).png"},
+	"WATER_LOW":  {"water (4).png", "water (6).png"},
+	"EARTH_MID":  {"earth (1).png", "earth (2).png", "earth (3).png"},
+	"ICE_MID":    {"ice (1).png", "ice (2).png", "ice (3).png"},
+	"FIRE_HIGH":  {"fire (7).png", "fire (8).png"},
+	"WATER_HIGH": {"water (7).png"},
+	"EARTH_HIGH": {"earth (4).png", "earth (5).png"},
+	"MUTATED":    {"mutated (1).png", "mutated (2).png", "mutated (3).png", "mutated (4).png", "mutated (5).png", "mutated (6).png", "mutated (7).png"},
+	"HYBRID":     {"hybrides (1).png", "hybrides (2).png", "hybrides (3).png", "hybrides (4).png", "hybrides (5).png", "hybrides (6).png", "hybrides (7).png"},
+	"FIRE_ELITE": {"fire (11).png"},
 }
 
 // 💡 FIX 2026-08-07 (P4.4): Name-based enemy sprite lookup.
@@ -232,143 +295,144 @@ var EnemySprites = map[string][]string{
 // future, they just need to be added to this map.
 //
 // Files that need frame extraction before they can be mapped:
-//   wolf_0001_brown.png (2925x1300), Bat_0000_dark.png (1350x900),
-//   kobold_0000_red.png (2700x1080), troll_0000_green.png (3915x1436),
-//   Werewolf_0004_brown.png (3600x1385), goblin sheet.png (2700x900),
-//   crab sheet.png, gnoll sheet.png, sahuagin sheet.png,
-//   skelleton sheet.png, slime waterB sheet.png
+//
+//	wolf_0001_brown.png (2925x1300), Bat_0000_dark.png (1350x900),
+//	kobold_0000_red.png (2700x1080), troll_0000_green.png (3915x1436),
+//	Werewolf_0004_brown.png (3600x1385), goblin sheet.png (2700x900),
+//	crab sheet.png, gnoll sheet.png, sahuagin sheet.png,
+//	skelleton sheet.png, slime waterB sheet.png
 var EnemyNameSprites = map[string]string{
-        // ═════════════════════════════════════════════════════════════════════════
-        // 1:1 ENEMY-TO-SPRITE MAPPING (2026-08-15)
-        // ═════════════════════════════════════════════════════════════════════════
-        //
-        // Each numbered sprite file (fire (5).png, water (4).png, mutated (1).png, etc.)
-        // is a DISTINCT enemy mob, not a "variation." The element prefix = the enemy's
-        // family/type (fire-type, water-type, mutated-type — the naturally-infected
-        // creature families from the lore). The number = which specific species.
-        //
-        // Every enemy name below maps to exactly ONE unique sprite file.
-        // No two enemies share the same file. No collisions. No generic fallbacks.
-        //
-        // SPRITE INVENTORY (30 files, all verified single-frame 64x96):
-        //   fire:   (5), (6), (7), (8), (11)            — 5 files
-        //   water:  (4), (6), (7)                       — 3 files
-        //   earth:  (1), (2), (3), (4), (5)             — 5 files
-        //   ice:    (1), (2), (3)                       — 3 files
-        //   mutated:(1), (2), (3), (4), (5), (6), (7)   — 7 files
-        //   hybrides:(1), (2), (3), (4), (5), (6), (7)  — 7 files
-        //   TOTAL: 30 unique sprites
-        //
-        // ENEMY NAMES: 84 total (from classEncounters.js + Abyss pools)
-        // Since we have 84 names and 30 sprites, some names must share a sprite.
-        // But we assign them by FAMILY — fire enemies get fire sprites, water
-        // enemies get water sprites, etc. — so visually they always match their
-        // element type, and within a family each name gets a different number
-        // when possible. Bosses use their own dedicated boss_N_N/S.png sprites
-        // (handled separately in BossNameSprites).
+	// ═════════════════════════════════════════════════════════════════════════
+	// 1:1 ENEMY-TO-SPRITE MAPPING (2026-08-15)
+	// ═════════════════════════════════════════════════════════════════════════
+	//
+	// Each numbered sprite file (fire (5).png, water (4).png, mutated (1).png, etc.)
+	// is a DISTINCT enemy mob, not a "variation." The element prefix = the enemy's
+	// family/type (fire-type, water-type, mutated-type — the naturally-infected
+	// creature families from the lore). The number = which specific species.
+	//
+	// Every enemy name below maps to exactly ONE unique sprite file.
+	// No two enemies share the same file. No collisions. No generic fallbacks.
+	//
+	// SPRITE INVENTORY (30 files, all verified single-frame 64x96):
+	//   fire:   (5), (6), (7), (8), (11)            — 5 files
+	//   water:  (4), (6), (7)                       — 3 files
+	//   earth:  (1), (2), (3), (4), (5)             — 5 files
+	//   ice:    (1), (2), (3)                       — 3 files
+	//   mutated:(1), (2), (3), (4), (5), (6), (7)   — 7 files
+	//   hybrides:(1), (2), (3), (4), (5), (6), (7)  — 7 files
+	//   TOTAL: 30 unique sprites
+	//
+	// ENEMY NAMES: 84 total (from classEncounters.js + Abyss pools)
+	// Since we have 84 names and 30 sprites, some names must share a sprite.
+	// But we assign them by FAMILY — fire enemies get fire sprites, water
+	// enemies get water sprites, etc. — so visually they always match their
+	// element type, and within a family each name gets a different number
+	// when possible. Bosses use their own dedicated boss_N_N/S.png sprites
+	// (handled separately in BossNameSprites).
 
-        // ── FIRE FAMILY (fire-infected creatures) ──
-        "FLAME":              "fire (5).png",
-        "ELDER FLAME":        "fire (7).png",
-        "EMBER_SPAWN":        "fire (6).png",
-        "EMBER SPELLBREAKER": "fire (8).png",
-        "MAGMA BRUTE":        "fire (11).png",
-        "HELLFIRE DEMON":     "fire (5).png",   // boss fallback (not in BossNameSprites)
-        "INFERNO NEMESIS":    "fire (6).png",
-        "INFERNO_KNIGHT":     "fire (7).png",
-        "INFERNAL OVERLORD":  "fire (8).png",
-        "PRIMORDIAL FLAME":   "fire (11).png",
-        "INFERNO_LORD":       "fire (5).png",
-        "CORRUPTED PHOENIX":  "fire (6).png",
-        "VOID FLAME":         "fire (7).png",
+	// ── FIRE FAMILY (fire-infected creatures) ──
+	"FLAME":              "fire (5).png",
+	"ELDER FLAME":        "fire (7).png",
+	"EMBER_SPAWN":        "fire (6).png",
+	"EMBER SPELLBREAKER": "fire (8).png",
+	"MAGMA BRUTE":        "fire (11).png",
+	"HELLFIRE DEMON":     "fire (5).png", // boss fallback (not in BossNameSprites)
+	"INFERNO NEMESIS":    "fire (6).png",
+	"INFERNO_KNIGHT":     "fire (7).png",
+	"INFERNAL OVERLORD":  "fire (8).png",
+	"PRIMORDIAL FLAME":   "fire (11).png",
+	"INFERNO_LORD":       "fire (5).png",
+	"CORRUPTED PHOENIX":  "fire (6).png",
+	"VOID FLAME":         "fire (7).png",
 
-        // ── WATER FAMILY (water-infected creatures) ──
-        "DROWNED_ONE":        "water (4).png",
-        "TIDE LURKER":        "water (6).png",
-        "MIST WALKER":        "water (7).png",
-        "TIDAL_FURY":         "water (4).png",
-        "TSUNAMI WALKER":     "water (6).png",
-        "VOID TIDE":          "water (7).png",
-        "TIDAL PHALANX":      "water (4).png",
-        "KRAKEN SPAWN":       "water (6).png",
-        "LEVIATHAN SPAWN":    "water (7).png",
-        "LEVIATHAN":          "water (4).png",
-        "LEVIATHAN SPAWN ALPHA": "water (6).png",
+	// ── WATER FAMILY (water-infected creatures) ──
+	"DROWNED_ONE":           "water (4).png",
+	"TIDE LURKER":           "water (6).png",
+	"MIST WALKER":           "water (7).png",
+	"TIDAL_FURY":            "water (4).png",
+	"TSUNAMI WALKER":        "water (6).png",
+	"VOID TIDE":             "water (7).png",
+	"TIDAL PHALANX":         "water (4).png",
+	"KRAKEN SPAWN":          "water (6).png",
+	"LEVIATHAN SPAWN":       "water (7).png",
+	"LEVIATHAN":             "water (4).png",
+	"LEVIATHAN SPAWN ALPHA": "water (6).png",
 
-        // ── EARTH FAMILY (earth/stone creatures) ──
-        "STONE_HULK":         "earth (1).png",
-        "CRYSTAL CORRUPTED":  "earth (2).png",
-        "EARTH WARDEN":       "earth (3).png",
-        "GOLEM KING":         "earth (4).png",
-        "BOULDER_TITAN":      "earth (5).png",
-        "MOUNTAIN COLOSSUS":  "earth (1).png",
-        "STONE NEMESIS":      "earth (2).png",
-        "OBSIDIAN JUGGERNAUT": "earth (3).png",
-        "GAIA SENTINEL":      "earth (4).png",
-        "FOREST ANCESTOR":    "earth (5).png",
-        "CRYSTAL_GOLEM":      "earth (1).png",
-        "DIAMOND SENTINEL":   "earth (2).png",
+	// ── EARTH FAMILY (earth/stone creatures) ──
+	"STONE_HULK":          "earth (1).png",
+	"CRYSTAL CORRUPTED":   "earth (2).png",
+	"EARTH WARDEN":        "earth (3).png",
+	"GOLEM KING":          "earth (4).png",
+	"BOULDER_TITAN":       "earth (5).png",
+	"MOUNTAIN COLOSSUS":   "earth (1).png",
+	"STONE NEMESIS":       "earth (2).png",
+	"OBSIDIAN JUGGERNAUT": "earth (3).png",
+	"GAIA SENTINEL":       "earth (4).png",
+	"FOREST ANCESTOR":     "earth (5).png",
+	"CRYSTAL_GOLEM":       "earth (1).png",
+	"DIAMOND SENTINEL":    "earth (2).png",
 
-        // ── ICE FAMILY (frost/ice creatures) ──
-        "FROST_WISP":         "ice (1).png",
-        "FROST GHOUL":        "ice (2).png",
-        "GLACIAL BEAST":      "ice (3).png",
-        "GLACIAL_WRAITH":     "ice (1).png",
-        "BLIZZARD WRAITH":    "ice (2).png",
-        "RUNIC BREAKER":      "ice (3).png",
-        "FROST PHALANX":      "ice (1).png",
-        "PERMAFROST TITAN":   "ice (2).png",
-        "FROST-FLAME WARDEN": "ice (3).png",
-        "PHALANX SOVEREIGN":  "ice (1).png",
+	// ── ICE FAMILY (frost/ice creatures) ──
+	"FROST_WISP":         "ice (1).png",
+	"FROST GHOUL":        "ice (2).png",
+	"GLACIAL BEAST":      "ice (3).png",
+	"GLACIAL_WRAITH":     "ice (1).png",
+	"BLIZZARD WRAITH":    "ice (2).png",
+	"RUNIC BREAKER":      "ice (3).png",
+	"FROST PHALANX":      "ice (1).png",
+	"PERMAFROST TITAN":   "ice (2).png",
+	"FROST-FLAME WARDEN": "ice (3).png",
+	"PHALANX SOVEREIGN":  "ice (1).png",
 
-        // ── MUTATED FAMILY (infected/twisted creatures) ──
-        "RABID_RAT":          "mutated (1).png",
-        "CAVE_BAT":           "mutated (2).png",
-        "SLIME":              "mutated (3).png",
-        "MUTATED_HOUND":      "mutated (4).png",
-        "VENOM_SPIDER":       "mutated (5).png",
-        "SHADOW_STALKER":     "mutated (6).png",
-        "SHADOW STALKER MUTANT": "mutated (7).png",
-        "FLESH ABOMINATION":  "mutated (1).png",
-        "PERFECT MUTATION":   "mutated (2).png",
-        "CHIMERA BEAST":      "mutated (3).png",
-        "SOUND REAPER":       "mutated (4).png",
-        "SOUL EATER":         "mutated (5).png",
-        "VOID NECROMANCER":   "mutated (6).png",
-        "TIME EATER":         "mutated (7).png",
+	// ── MUTATED FAMILY (infected/twisted creatures) ──
+	"RABID_RAT":             "mutated (1).png",
+	"CAVE_BAT":              "mutated (2).png",
+	"SLIME":                 "mutated (3).png",
+	"MUTATED_HOUND":         "mutated (4).png",
+	"VENOM_SPIDER":          "mutated (5).png",
+	"SHADOW_STALKER":        "mutated (6).png",
+	"SHADOW STALKER MUTANT": "mutated (7).png",
+	"FLESH ABOMINATION":     "mutated (1).png",
+	"PERFECT MUTATION":      "mutated (2).png",
+	"CHIMERA BEAST":         "mutated (3).png",
+	"SOUND REAPER":          "mutated (4).png",
+	"SOUL EATER":            "mutated (5).png",
+	"VOID NECROMANCER":      "mutated (6).png",
+	"TIME EATER":            "mutated (7).png",
 
-        // ── HYBRID FAMILY (void-touched / cross-type creatures) ──
-        "STORM_CALLER":       "hybrides (1).png",
-        "VOID_HARBINGER":      "hybrides (2).png",
-        "BLOOD_REAVER":        "hybrides (3).png",
-        "ANCIENT_GUARDIAN":    "hybrides (4).png",
-        "VOID-CORRUPTED ENTITY": "hybrides (5).png",
-        "VOID PREDATOR":       "hybrides (6).png",
-        "VOID SEEKER":         "hybrides (7).png",
-        "VOID ASSASSIN":       "hybrides (1).png",
-        "ABYSSAL HORROR":      "hybrides (2).png",
-        "ABYSSAL WHISPER":     "hybrides (3).png",
-        "RUNE EATER":          "hybrides (4).png",
-        "STAR EATER":          "hybrides (5).png",
-        "MAESTRO OF VOID":     "hybrides (6).png",
-        "ETERNAL NEMESIS":     "hybrides (7).png",
-        "VOID_CORRUPTED":      "hybrides (1).png",
-        "STORM-EARTH TITAN":   "hybrides (2).png",
-        "ARCANE SENTINEL":     "hybrides (3).png",
-        "IRON BODY GRANDMASTER": "hybrides (4).png",
+	// ── HYBRID FAMILY (void-touched / cross-type creatures) ──
+	"STORM_CALLER":          "hybrides (1).png",
+	"VOID_HARBINGER":        "hybrides (2).png",
+	"BLOOD_REAVER":          "hybrides (3).png",
+	"ANCIENT_GUARDIAN":      "hybrides (4).png",
+	"VOID-CORRUPTED ENTITY": "hybrides (5).png",
+	"VOID PREDATOR":         "hybrides (6).png",
+	"VOID SEEKER":           "hybrides (7).png",
+	"VOID ASSASSIN":         "hybrides (1).png",
+	"ABYSSAL HORROR":        "hybrides (2).png",
+	"ABYSSAL WHISPER":       "hybrides (3).png",
+	"RUNE EATER":            "hybrides (4).png",
+	"STAR EATER":            "hybrides (5).png",
+	"MAESTRO OF VOID":       "hybrides (6).png",
+	"ETERNAL NEMESIS":       "hybrides (7).png",
+	"VOID_CORRUPTED":        "hybrides (1).png",
+	"STORM-EARTH TITAN":     "hybrides (2).png",
+	"ARCANE SENTINEL":       "hybrides (3).png",
+	"IRON BODY GRANDMASTER": "hybrides (4).png",
 
-        // ── DRAGON FAMILY (dragon-type creatures, use fire sprites) ──
-        "YOUNG DRAKE":        "fire (5).png",
-        "LESSER WYVERN":      "fire (6).png",
-        "ANCIENT DRAGON":     "fire (7).png",
-        "ETERNAL DRAGON":     "fire (8).png",
-        "ANCIENT WURM":       "fire (11).png",
+	// ── DRAGON FAMILY (dragon-type creatures, use fire sprites) ──
+	"YOUNG DRAKE":    "fire (5).png",
+	"LESSER WYVERN":  "fire (6).png",
+	"ANCIENT DRAGON": "fire (7).png",
+	"ETERNAL DRAGON": "fire (8).png",
+	"ANCIENT WURM":   "fire (11).png",
 }
 
 var BossSprites = map[string][]string{
-        "MID_BOSSES":  {"midlevelbosses (1).png", "midlevelbosses (2).png", "midlevelbosses (3).png", "midlevelbosses (4).png", "midlevelbosses (5).png", "midlevelbosses (6).png", "midlevelbosses (7).png"},
-        "HIGH_BOSSES": {"highlevelbosses (7).png", "highlevelbosses (8).png", "highlevelbosses (9).png", "highlevelbosses (10).png", "highlevelbosses (11).png", "highlevelbosses (12).png", "highlevelbosses (13).png"},
-        "CALAMITY":    {"calamaties (1).png", "calamaties (2).png", "calamaties (3).png", "calamaties (4).png", "calamaties (5).png", "calamaties (6).png"},
+	"MID_BOSSES":  {"midlevelbosses (1).png", "midlevelbosses (2).png", "midlevelbosses (3).png", "midlevelbosses (4).png", "midlevelbosses (5).png", "midlevelbosses (6).png", "midlevelbosses (7).png"},
+	"HIGH_BOSSES": {"highlevelbosses (7).png", "highlevelbosses (8).png", "highlevelbosses (9).png", "highlevelbosses (10).png", "highlevelbosses (11).png", "highlevelbosses (12).png", "highlevelbosses (13).png"},
+	"CALAMITY":    {"calamaties (1).png", "calamaties (2).png", "calamaties (3).png", "calamaties (4).png", "calamaties (5).png", "calamaties (6).png"},
 }
 
 // BossNameSprites maps a boss's display name (UPPERCASED) to a specific
@@ -383,15 +447,16 @@ var BossSprites = map[string][]string{
 // visually distinct sprite.
 //
 // Sprite pool (48 total in assets/rpgasset/enemies/):
-//   calamaties (1-6).png      — 6 calamity-tier sprites (S/SS/SSS bosses, trials)
-//   highlevelbosses (7-13).png — 7 high-level sprites (A/S bosses, some trials)
-//   midlevelbosses (1-7).png   — 7 mid-level sprites (F-E-D-C-B bosses)
-//   mutated (1-7).png          — 7 mutated-tier sprites (B/A bosses)
-//   hybrides (1-7).png         — 7 hybrid-tier sprites (SS bosses)
-//   earth (1-5).png            — 5 earth-themed sprites
-//   fire (5,6,7,8,11).png      — 5 fire-themed sprites
-//   ice (1,2,3).png            — 3 ice-themed sprites
-//   water (4,6,7).png          — 3 water-themed sprites
+//
+//	calamaties (1-6).png      — 6 calamity-tier sprites (S/SS/SSS bosses, trials)
+//	highlevelbosses (7-13).png — 7 high-level sprites (A/S bosses, some trials)
+//	midlevelbosses (1-7).png   — 7 mid-level sprites (F-E-D-C-B bosses)
+//	mutated (1-7).png          — 7 mutated-tier sprites (B/A bosses)
+//	hybrides (1-7).png         — 7 hybrid-tier sprites (SS bosses)
+//	earth (1-5).png            — 5 earth-themed sprites
+//	fire (5,6,7,8,11).png      — 5 fire-themed sprites
+//	ice (1,2,3).png            — 3 ice-themed sprites
+//	water (4,6,7).png          — 3 water-themed sprites
 //
 // Mapping strategy:
 //   - Rank bosses (S/SS/SSS) → calamaties sprites (visually epic)
@@ -400,93 +465,93 @@ var BossSprites = map[string][]string{
 //   - Trial bosses → assigned thematically (fire→fire, water→water, etc.)
 //   - Special bosses (dragon→fire-themed, undead→mutated, etc.)
 var BossNameSprites = map[string]string{
-        // ═══ S/SS/SSS-rank dungeon bosses — use new boss_N sprites from SpriteAssets ═══
-        "PRIMORDIAL CHAOS":       "boss_0_N.png",
-        "ELDER CHAOS":            "boss_1_N.png",
-        "VOID TITAN":             "boss_2_N.png",
-        "ABYSSAL GOD":            "boss_3_N.png",
-        "MUTATION PRIME":         "boss_4_N.png",
-        "ELEMENTAL ARCHON":       "boss_5_N.png",
+	// ═══ S/SS/SSS-rank dungeon bosses — use new boss_N sprites from SpriteAssets ═══
+	"PRIMORDIAL CHAOS": "boss_0_N.png",
+	"ELDER CHAOS":      "boss_1_N.png",
+	"VOID TITAN":       "boss_2_N.png",
+	"ABYSSAL GOD":      "boss_3_N.png",
+	"MUTATION PRIME":   "boss_4_N.png",
+	"ELEMENTAL ARCHON": "boss_5_N.png",
 
-        // ═══ Mid-level bosses — use new boss sprites ═══
-        "THE INFECTED COLOSSUS":  "boss_6_N.png",
-        "INFECTED COLOSSUS":      "boss_6_N.png",
-        // 💡 FIX 2026-09-11: F-tier abyss boss had NO mapping — always fell to the
-        // generic level rotation (same blob as every other unmapped low boss).
-        "MUTATED OVERSEER":       "midlevelbosses (4).png",
-        "CORRUPTED GUARDIAN":     "boss_7_N.png",
-        "STONE HULK":             "boss_9_N.png",
-        "CRYSTAL CORRUPTED":      "boss_10_N.png",
-        "EARTH WARDEN":           "boss_11_N.png",
-        "FROST GHOUL":            "boss_12_N.png",
-        "GLACIAL BEAST":          "boss_13_N.png",
+	// ═══ Mid-level bosses — use new boss sprites ═══
+	"THE INFECTED COLOSSUS": "boss_6_N.png",
+	"INFECTED COLOSSUS":     "boss_6_N.png",
+	// 💡 FIX 2026-09-11: F-tier abyss boss had NO mapping — always fell to the
+	// generic level rotation (same blob as every other unmapped low boss).
+	"MUTATED OVERSEER":   "midlevelbosses (4).png",
+	"CORRUPTED GUARDIAN": "boss_7_N.png",
+	"STONE HULK":         "boss_9_N.png",
+	"CRYSTAL CORRUPTED":  "boss_10_N.png",
+	"EARTH WARDEN":       "boss_11_N.png",
+	"FROST GHOUL":        "boss_12_N.png",
+	"GLACIAL BEAST":      "boss_13_N.png",
 
-        // ═══ High-level bosses — use new boss sprites + old highlevelbosses ═══
-        "MAGMA BRUTE":            "boss_0_S.png",
-        "HELLFIRE DEMON":         "boss_1_S.png",
-        "ABYSSAL HORROR":         "boss_2_S.png",
-        "TSUNAMI WALKER":         "boss_3_S.png",
-        "BLIZZARD WRAITH":        "boss_4_S.png",
-        "GRAVEYARD LORD":         "boss_5_S.png",
-        "SHADOW LORD":            "boss_6_S.png",
+	// ═══ High-level bosses — use new boss sprites + old highlevelbosses ═══
+	"MAGMA BRUTE":     "boss_0_S.png",
+	"HELLFIRE DEMON":  "boss_1_S.png",
+	"ABYSSAL HORROR":  "boss_2_S.png",
+	"TSUNAMI WALKER":  "boss_3_S.png",
+	"BLIZZARD WRAITH": "boss_4_S.png",
+	"GRAVEYARD LORD":  "boss_5_S.png",
+	"SHADOW LORD":     "boss_6_S.png",
 
-        // ═══ Dragon bosses ═══
-        "IGNEEL THE FIRE KING":   "boss_7_S.png",
-        "ANCIENT DRAGON":         "boss_7_S.png",
-        "ETERNAL DRAGON":         "boss_9_S.png",
-        "ELDER FLAME":            "boss_10_S.png",
+	// ═══ Dragon bosses ═══
+	"IGNEEL THE FIRE KING": "boss_7_S.png",
+	"ANCIENT DRAGON":       "boss_7_S.png",
+	"ETERNAL DRAGON":       "boss_9_S.png",
+	"ELDER FLAME":          "boss_10_S.png",
 
-        // ═══ Trial bosses ═══
-        "ARCANE SENTINEL":        "boss_11_S.png",
-        "LICH KING":              "boss_12_S.png",
-        "SHADOW STALKER":         "boss_13_S.png",
-        "VOID ASSASSIN":          "highlevelbosses (9).png",
-        "IRON BODY GRANDMASTER":  "midlevelbosses (3).png",
-        "ANCIENT WURM":           "boss_7_S.png",
-        "SOUL EATER":             "mutated (3).png",
-        "ABYSSAL WHISPER":        "boss_3_S.png",
-        "ELEMENTAL PRIMORDIAL":   "boss_5_N.png",
-        "PRIME ELEMENT":          "boss_5_N.png",
-        "VOID NECROMANCER":       "mutated (5).png",
-        "CHRONOS WARDEN":         "boss_4_S.png",
-        "TIME EATER":             "mutated (7).png",
-        "HEAVENLY GUARDIAN":      "boss_3_N.png",
-        "SERAPHIM PRIME":         "boss_0_S.png",
-        "FOREST ANCESTOR":        "midlevelbosses (5).png",
-        "GAIA SENTINEL":          "midlevelbosses (5).png",
-        "GOLDEN GOLEM":           "midlevelbosses (3).png",
-        "TREASURE HOARDER":       "boss_7_S.png",
-        "SOUND REAPER":           "mutated (4).png",
-        "MAESTRO OF VOID":        "boss_2_N.png",
-        "CLOCKWORK TITAN":        "boss_0_S.png",
-        "MECH GOD":               "boss_3_S.png",
-        "DEMON LORD":             "boss_4_S.png",
-        "PRIMORDIAL EVIL":        "boss_0_N.png",
-        "LEVIATHAN":              "boss_3_N.png",
-        "LEVIATHAN SPAWN ALPHA":  "boss_3_N.png",
-        "INFERNAL OVERLORD":      "boss_1_S.png",
-        "PRIMORDIAL FLAME":       "boss_7_S.png",
-        "PERMAFROST TITAN":       "boss_4_S.png",
+	// ═══ Trial bosses ═══
+	"ARCANE SENTINEL":       "boss_11_S.png",
+	"LICH KING":             "boss_12_S.png",
+	"SHADOW STALKER":        "boss_13_S.png",
+	"VOID ASSASSIN":         "highlevelbosses (9).png",
+	"IRON BODY GRANDMASTER": "midlevelbosses (3).png",
+	"ANCIENT WURM":          "boss_7_S.png",
+	"SOUL EATER":            "mutated (3).png",
+	"ABYSSAL WHISPER":       "boss_3_S.png",
+	"ELEMENTAL PRIMORDIAL":  "boss_5_N.png",
+	"PRIME ELEMENT":         "boss_5_N.png",
+	"VOID NECROMANCER":      "mutated (5).png",
+	"CHRONOS WARDEN":        "boss_4_S.png",
+	"TIME EATER":            "mutated (7).png",
+	"HEAVENLY GUARDIAN":     "boss_3_N.png",
+	"SERAPHIM PRIME":        "boss_0_S.png",
+	"FOREST ANCESTOR":       "midlevelbosses (5).png",
+	"GAIA SENTINEL":         "midlevelbosses (5).png",
+	"GOLDEN GOLEM":          "midlevelbosses (3).png",
+	"TREASURE HOARDER":      "boss_7_S.png",
+	"SOUND REAPER":          "mutated (4).png",
+	"MAESTRO OF VOID":       "boss_2_N.png",
+	"CLOCKWORK TITAN":       "boss_0_S.png",
+	"MECH GOD":              "boss_3_S.png",
+	"DEMON LORD":            "boss_4_S.png",
+	"PRIMORDIAL EVIL":       "boss_0_N.png",
+	"LEVIATHAN":             "boss_3_N.png",
+	"LEVIATHAN SPAWN ALPHA": "boss_3_N.png",
+	"INFERNAL OVERLORD":     "boss_1_S.png",
+	"PRIMORDIAL FLAME":      "boss_7_S.png",
+	"PERMAFROST TITAN":      "boss_4_S.png",
 }
 
 func GetCharacterSpritePath(class string, index int, assetsPath string) string {
-        list, ok := CharacterSprites[class]
-        if !ok {
-                list = CharacterSprites["FIGHTER"]
-        }
-        filename := list[index%len(list)]
-        return filepath.Join(assetsPath, "rpgasset", "characters", filename)
+	list, ok := CharacterSprites[class]
+	if !ok {
+		list = CharacterSprites["FIGHTER"]
+	}
+	filename := list[index%len(list)]
+	return filepath.Join(assetsPath, "rpgasset", "characters", filename)
 }
 
 // GetCharacterSpriteFile returns just the sprite FILENAME (without path)
 // for a given class + spriteIndex. Used by the renderer to look up the
 // sprite's default facing direction via GetSpriteFacing().
 func GetCharacterSpriteFile(class string, index int, assetsPath string) string {
-        list, ok := CharacterSprites[class]
-        if !ok {
-                list = CharacterSprites["FIGHTER"]
-        }
-        return list[index%len(list)]
+	list, ok := CharacterSprites[class]
+	if !ok {
+		list = CharacterSprites["FIGHTER"]
+	}
+	return list[index%len(list)]
 }
 
 // GetEnemySpritePath picks the sprite PNG for an enemy.
@@ -500,97 +565,97 @@ func GetCharacterSpriteFile(class string, index int, assetsPath string) string {
 // The JS bot already sends enemy.name in the combat payload — it was just
 // being ignored. Now it's the primary lookup key for bosses.
 func GetEnemySpritePath(name string, level int, index int, isBoss bool, assetsPath string) string {
-        var filename string
-        if isBoss {
-                // 1) Name-based lookup first (case-insensitive). If this boss has
-                //    a specific sprite mapped in BossNameSprites, use it — no
-                //    level/index rotation, so the boss always renders identically.
-                if name != "" {
-                        // 💡 FIX 2026-09-11: strip decorative prefixes. Abyss bosses are
-                        // sent as "⚡ STONE HULK" — the raw ToUpper key missed every
-                        // BossNameSprites entry and fell to generic rotation (pixel-
-                        // diff verified: ⚡-bosses rendered the fallback blob).
-                        upperName := sanitizeNameKey(name)
-                        if specific, ok := BossNameSprites[upperName]; ok && specific != "" {
-                                filename = specific
-                                return filepath.Join(assetsPath, "rpgasset", "enemies", filename)
-                        }
-                        // 💡 FIX 2026-08-08: Also check EnemyNameSprites as fallback.
-                        // Many enemies (MOUNTAIN_COLOSSUS, STONE_HULK, etc.) appear as
-                        // both regular enemies AND bosses. They're in EnemyNameSprites
-                        // but not BossNameSprites. Without this fallback, boss versions
-                        // fall through to level-based rotation and get a random sprite.
-                        underscoreName := strings.ReplaceAll(upperName, " ", "_")
-                        if specific, ok := EnemyNameSprites[upperName]; ok && specific != "" {
-                                return filepath.Join(assetsPath, "rpgasset", "enemies", specific)
-                        }
-                        if specific, ok := EnemyNameSprites[underscoreName]; ok && specific != "" {
-                                return filepath.Join(assetsPath, "rpgasset", "enemies", specific)
-                        }
-                }
-                // 2) Fallback: level-based bucket rotation (original behavior)
-                var list []string
-                if level <= 60 {
-                        list = BossSprites["MID_BOSSES"]
-                } else if level <= 90 {
-                        list = BossSprites["HIGH_BOSSES"]
-                } else {
-                        list = BossSprites["CALAMITY"]
-                }
-                filename = list[index%len(list)]
-        } else {
-                // 💡 FIX 2026-08-07 (P4.4): Name-based lookup for non-boss enemies.
-                // Check EnemyNameSprites first — if this enemy name has a specific
-                // sprite mapped, use it. Falls back to level-based rotation if no match.
-                if name != "" {
-                        upperName := sanitizeNameKey(name)
-                        // Also try with underscores (Node side sends bossId with underscores)
-                        underscoreName := strings.ReplaceAll(upperName, " ", "_")
-                        if specific, ok := EnemyNameSprites[upperName]; ok && specific != "" {
-                                return filepath.Join(assetsPath, "rpgasset", "enemies", specific)
-                        }
-                        if specific, ok := EnemyNameSprites[underscoreName]; ok && specific != "" {
-                                return filepath.Join(assetsPath, "rpgasset", "enemies", specific)
-                        }
-                }
+	var filename string
+	if isBoss {
+		// 1) Name-based lookup first (case-insensitive). If this boss has
+		//    a specific sprite mapped in BossNameSprites, use it — no
+		//    level/index rotation, so the boss always renders identically.
+		if name != "" {
+			// 💡 FIX 2026-09-11: strip decorative prefixes. Abyss bosses are
+			// sent as "⚡ STONE HULK" — the raw ToUpper key missed every
+			// BossNameSprites entry and fell to generic rotation (pixel-
+			// diff verified: ⚡-bosses rendered the fallback blob).
+			upperName := sanitizeNameKey(name)
+			if specific, ok := BossNameSprites[upperName]; ok && specific != "" {
+				filename = specific
+				return filepath.Join(assetsPath, "rpgasset", "enemies", filename)
+			}
+			// 💡 FIX 2026-08-08: Also check EnemyNameSprites as fallback.
+			// Many enemies (MOUNTAIN_COLOSSUS, STONE_HULK, etc.) appear as
+			// both regular enemies AND bosses. They're in EnemyNameSprites
+			// but not BossNameSprites. Without this fallback, boss versions
+			// fall through to level-based rotation and get a random sprite.
+			underscoreName := strings.ReplaceAll(upperName, " ", "_")
+			if specific, ok := EnemyNameSprites[upperName]; ok && specific != "" {
+				return filepath.Join(assetsPath, "rpgasset", "enemies", specific)
+			}
+			if specific, ok := EnemyNameSprites[underscoreName]; ok && specific != "" {
+				return filepath.Join(assetsPath, "rpgasset", "enemies", specific)
+			}
+		}
+		// 2) Fallback: level-based bucket rotation (original behavior)
+		var list []string
+		if level <= 60 {
+			list = BossSprites["MID_BOSSES"]
+		} else if level <= 90 {
+			list = BossSprites["HIGH_BOSSES"]
+		} else {
+			list = BossSprites["CALAMITY"]
+		}
+		filename = list[index%len(list)]
+	} else {
+		// 💡 FIX 2026-08-07 (P4.4): Name-based lookup for non-boss enemies.
+		// Check EnemyNameSprites first — if this enemy name has a specific
+		// sprite mapped, use it. Falls back to level-based rotation if no match.
+		if name != "" {
+			upperName := sanitizeNameKey(name)
+			// Also try with underscores (Node side sends bossId with underscores)
+			underscoreName := strings.ReplaceAll(upperName, " ", "_")
+			if specific, ok := EnemyNameSprites[upperName]; ok && specific != "" {
+				return filepath.Join(assetsPath, "rpgasset", "enemies", specific)
+			}
+			if specific, ok := EnemyNameSprites[underscoreName]; ok && specific != "" {
+				return filepath.Join(assetsPath, "rpgasset", "enemies", specific)
+			}
+		}
 
-                var list []string
-                if level <= 10 {
-                        list = EnemySprites["FIRE_LOW"]
-                } else if level <= 20 {
-                        list = EnemySprites["WATER_LOW"]
-                } else if level <= 30 {
-                        list = EnemySprites["EARTH_MID"]
-                } else if level <= 40 {
-                        list = EnemySprites["ICE_MID"]
-                } else if level <= 50 {
-                        list = EnemySprites["FIRE_HIGH"]
-                } else if level <= 60 {
-                        list = EnemySprites["WATER_HIGH"]
-                } else if level <= 70 {
-                        list = EnemySprites["EARTH_HIGH"]
-                } else if level <= 80 {
-                        list = EnemySprites["MUTATED"]
-                } else if level <= 90 {
-                        list = EnemySprites["HYBRID"]
-                } else {
-                        list = EnemySprites["FIRE_ELITE"]
-                }
-                filename = list[index%len(list)]
-        }
+		var list []string
+		if level <= 10 {
+			list = EnemySprites["FIRE_LOW"]
+		} else if level <= 20 {
+			list = EnemySprites["WATER_LOW"]
+		} else if level <= 30 {
+			list = EnemySprites["EARTH_MID"]
+		} else if level <= 40 {
+			list = EnemySprites["ICE_MID"]
+		} else if level <= 50 {
+			list = EnemySprites["FIRE_HIGH"]
+		} else if level <= 60 {
+			list = EnemySprites["WATER_HIGH"]
+		} else if level <= 70 {
+			list = EnemySprites["EARTH_HIGH"]
+		} else if level <= 80 {
+			list = EnemySprites["MUTATED"]
+		} else if level <= 90 {
+			list = EnemySprites["HYBRID"]
+		} else {
+			list = EnemySprites["FIRE_ELITE"]
+		}
+		filename = list[index%len(list)]
+	}
 
-        if filename == "" {
-                filename = "fire (5).png"
-        }
+	if filename == "" {
+		filename = "fire (5).png"
+	}
 
-        return filepath.Join(assetsPath, "rpgasset", "enemies", filename)
+	return filepath.Join(assetsPath, "rpgasset", "enemies", filename)
 }
 
 func GetEnvironmentPath(bgName string, assetsPath string) string {
-        if bgName == "" {
-                bgName = "forest1.png"
-        }
-        return filepath.Join(assetsPath, "rpgasset", "environment", bgName)
+	if bgName == "" {
+		bgName = "forest1.png"
+	}
+	return filepath.Join(assetsPath, "rpgasset", "environment", bgName)
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -603,64 +668,64 @@ func GetEnvironmentPath(bgName string, assetsPath string) string {
 // then falls back to enemy sprites.
 
 var SummonSprites = map[string]string{
-        // 💡 NEW: Sparklinlabs monster sprites (primary summon assets now)
-        // These are in summons/sparklinlabs/
-        "bat":             "bat.png",
-        "boar":            "boar.png",
-        "chest":           "chest.png",
-        "dino":            "dino.png",
-        "dragon":          "dragon.png",
-        "ghost":           "ghost.png",
-        "giant":           "giant.png",
-        "mimic":           "mimic.png",
-        "mushroom":        "mushroom.png",
-        "octopus":         "octopus.png",
-        "reptile":         "reptile.png",
-        "slime":           "slime.png",
-        "snake":           "snake.png",
-        "yeti":            "yeti.png",
+	// 💡 NEW: Sparklinlabs monster sprites (primary summon assets now)
+	// These are in summons/sparklinlabs/
+	"bat":      "bat.png",
+	"boar":     "boar.png",
+	"chest":    "chest.png",
+	"dino":     "dino.png",
+	"dragon":   "dragon.png",
+	"ghost":    "ghost.png",
+	"giant":    "giant.png",
+	"mimic":    "mimic.png",
+	"mushroom": "mushroom.png",
+	"octopus":  "octopus.png",
+	"reptile":  "reptile.png",
+	"slime":    "slime.png",
+	"snake":    "snake.png",
+	"yeti":     "yeti.png",
 
-        // 💡 NEW: Grand Inventor torrent summons (space-shooter ships)
-        "ship_cruiser":    "ship_cruiser.png",
-        "ship_fighter":    "ship_fighter.png",
-        "ship_squid":      "ship_squid.png",
+	// 💡 NEW: Grand Inventor torrent summons (space-shooter ships)
+	"ship_cruiser": "ship_cruiser.png",
+	"ship_fighter": "ship_fighter.png",
+	"ship_squid":   "ship_squid.png",
 
-        // 💡 Starter summons (use sparklinlabs sprites)
-        "stoneguard":      "giant.png",
-        "emberdrake":      "dragon.png",
-        "mistwisp":        "ghost.png",
-        "bloompixie":      "mushroom.png",
+	// 💡 Starter summons (use sparklinlabs sprites)
+	"stoneguard": "giant.png",
+	"emberdrake": "dragon.png",
+	"mistwisp":   "ghost.png",
+	"bloompixie": "mushroom.png",
 
-        // 💡 Evolved starters
-        "iron_sentinel":       "giant.png",
-        "mountain_titan":      "giant.png",
-        "flare_wyrm":          "dragon.png",
-        "infernal_dragon":     "dragon.png",
-        "frost_spectre":       "ghost.png",
-        "abyssal_phantom":     "ghost.png",
-        "blossom_sylph":       "mushroom.png",
-        "world_tree_spirit":   "mushroom.png",
+	// 💡 Evolved starters
+	"iron_sentinel":     "giant.png",
+	"mountain_titan":    "giant.png",
+	"flare_wyrm":        "dragon.png",
+	"infernal_dragon":   "dragon.png",
+	"frost_spectre":     "ghost.png",
+	"abyssal_phantom":   "ghost.png",
+	"blossom_sylph":     "mushroom.png",
+	"world_tree_spirit": "mushroom.png",
 
-        // 💡 UNCHANGED: Necromancer summons (keep existing assets)
-        "skeleton":        "mutated (1).png",
-        "skeleton_knight": "mutated (3).png",
-        "lich_minion":     "mutated (4).png",
-        "imp":             "hybrides (1).png",
-        "void_walker":     "hybrides (3).png",
-        "flame_elemental": "fire (5).png",
-        "frost_elemental": "ice (1).png",
-        "storm_elemental": "ice (3).png",
-        "wolf":            "mutated (5).png",
-        "bear":            "mutated (2).png",
-        "turret_mk1":      "earth (1).png",
-        "cannon_turret":   "earth (3).png",
-        "wyrmling":        "highlevelbosses (7).png",
-        "juvenile_dragon": "highlevelbosses (9).png",
-        "ifrit_fire":      "ifrit_fire.png",
-        "ifrit_nofire":    "ifrit_nofire.png",
-        "leviathan":       "leviathan.png",
-        "shiva_full":      "shiva_full.png",
-        "shiva_ice":       "shiva_ice.png",
+	// 💡 UNCHANGED: Necromancer summons (keep existing assets)
+	"skeleton":        "mutated (1).png",
+	"skeleton_knight": "mutated (3).png",
+	"lich_minion":     "mutated (4).png",
+	"imp":             "hybrides (1).png",
+	"void_walker":     "hybrides (3).png",
+	"flame_elemental": "fire (5).png",
+	"frost_elemental": "ice (1).png",
+	"storm_elemental": "ice (3).png",
+	"wolf":            "mutated (5).png",
+	"bear":            "mutated (2).png",
+	"turret_mk1":      "earth (1).png",
+	"cannon_turret":   "earth (3).png",
+	"wyrmling":        "highlevelbosses (7).png",
+	"juvenile_dragon": "highlevelbosses (9).png",
+	"ifrit_fire":      "ifrit_fire.png",
+	"ifrit_nofire":    "ifrit_nofire.png",
+	"leviathan":       "leviathan.png",
+	"shiva_full":      "shiva_full.png",
+	"shiva_ice":       "shiva_ice.png",
 }
 
 // GetSummonSpritePath returns the sprite file path for a summon species.
@@ -671,47 +736,47 @@ var SummonSprites = map[string]string{
 // 4. summons/retromon/ (Retromon monster sprites)
 // 5. enemies/ (fallback to enemy sprite via SummonSprites map)
 func GetSummonSpritePath(species string, assetsPath string) string {
-        species = strings.ToLower(strings.TrimSpace(species))
+	species = strings.ToLower(strings.TrimSpace(species))
 
-        // 0. Check sparklinlabs (NEW: primary summon sprites — try .png first, then .gif)
-        sparkPathPng := filepath.Join(assetsPath, "rpgasset", "summons", "sparklinlabs", species+".png")
-        if fileExists(sparkPathPng) {
-                return sparkPathPng
-        }
-        sparkPathGif := filepath.Join(assetsPath, "rpgasset", "summons", "sparklinlabs", species+"_idle.gif")
-        if fileExists(sparkPathGif) {
-                return sparkPathGif
-        }
+	// 0. Check sparklinlabs (NEW: primary summon sprites — try .png first, then .gif)
+	sparkPathPng := filepath.Join(assetsPath, "rpgasset", "summons", "sparklinlabs", species+".png")
+	if fileExists(sparkPathPng) {
+		return sparkPathPng
+	}
+	sparkPathGif := filepath.Join(assetsPath, "rpgasset", "summons", "sparklinlabs", species+"_idle.gif")
+	if fileExists(sparkPathGif) {
+		return sparkPathGif
+	}
 
-        // 1. Check digimon cache
-        digimonPath := filepath.Join(assetsPath, "rpgasset", "summons", "digimon", species+".png")
-        if fileExists(digimonPath) {
-                return digimonPath
-        }
+	// 1. Check digimon cache
+	digimonPath := filepath.Join(assetsPath, "rpgasset", "summons", "digimon", species+".png")
+	if fileExists(digimonPath) {
+		return digimonPath
+	}
 
-        // 2. Check SD summons
-        sdPath := filepath.Join(assetsPath, "rpgasset", "summons", species+".png")
-        if fileExists(sdPath) {
-                return sdPath
-        }
+	// 2. Check SD summons
+	sdPath := filepath.Join(assetsPath, "rpgasset", "summons", species+".png")
+	if fileExists(sdPath) {
+		return sdPath
+	}
 
-        // 3. Check retromon
-        retromonPath := filepath.Join(assetsPath, "rpgasset", "summons", "retromon", species+".png")
-        if fileExists(retromonPath) {
-                return retromonPath
-        }
+	// 3. Check retromon
+	retromonPath := filepath.Join(assetsPath, "rpgasset", "summons", "retromon", species+".png")
+	if fileExists(retromonPath) {
+		return retromonPath
+	}
 
-        // 4. Fallback to SummonSprites map (which may point to sparklinlabs or enemies)
-        filename, ok := SummonSprites[species]
-        if !ok || filename == "" {
-                filename = "slime.png"
-        }
-        // Check if the mapped file is in sparklinlabs first
-        sparkFallback := filepath.Join(assetsPath, "rpgasset", "summons", "sparklinlabs", filename)
-        if fileExists(sparkFallback) {
-                return sparkFallback
-        }
-        return filepath.Join(assetsPath, "rpgasset", "enemies", filename)
+	// 4. Fallback to SummonSprites map (which may point to sparklinlabs or enemies)
+	filename, ok := SummonSprites[species]
+	if !ok || filename == "" {
+		filename = "slime.png"
+	}
+	// Check if the mapped file is in sparklinlabs first
+	sparkFallback := filepath.Join(assetsPath, "rpgasset", "summons", "sparklinlabs", filename)
+	if fileExists(sparkFallback) {
+		return sparkFallback
+	}
+	return filepath.Join(assetsPath, "rpgasset", "enemies", filename)
 }
 
 // GetSpriteFacing returns the default facing direction of a sprite file.
@@ -719,17 +784,21 @@ func GetSummonSpritePath(species string, assetsPath string) string {
 // Used by the renderer to decide whether to flip a sprite so all players
 // face RIGHT (toward enemies) in PvE and face each other in PvP.
 func GetSpriteFacing(filename string) string {
-        // FIX (2026-08-17): Case-insensitive lookup. SpriteFacing map uses
-        // "Fighter1.png" but files are "fighter1.png". Without this, all
-        // character sprites return CENTER and never get flipped.
-        lowerFile := strings.ToLower(filename)
-        for k, v := range SpriteFacing {
-                if strings.ToLower(k) == lowerFile { return v }
-        }
-        for k, v := range SummonSpriteFacing {
-                if strings.ToLower(k) == lowerFile { return v }
-        }
-        return "CENTER"
+	// FIX (2026-08-17): Case-insensitive lookup. SpriteFacing map uses
+	// "Fighter1.png" but files are "fighter1.png". Without this, all
+	// character sprites return CENTER and never get flipped.
+	lowerFile := strings.ToLower(filename)
+	for k, v := range SpriteFacing {
+		if strings.ToLower(k) == lowerFile {
+			return v
+		}
+	}
+	for k, v := range SummonSpriteFacing {
+		if strings.ToLower(k) == lowerFile {
+			return v
+		}
+	}
+	return "CENTER"
 }
 
 // 💡 NEW 2026-08-07: Summon sprite facing directions.
@@ -739,41 +808,41 @@ func GetSpriteFacing(filename string) string {
 // RIGHT = more content on right side (sprite faces right)
 // CENTER = roughly symmetric
 var SummonSpriteFacing = map[string]string{
-        "bat_idle.gif":       "RIGHT",
-        "boar_idle.gif":      "LEFT",
-        "boglurk_idle.gif":   "CENTER",
-        "chest_idle.gif":     "CENTER",
-        "dino_idle.gif":      "RIGHT",
-        "dragon_idle.gif":    "LEFT",
-        "emberwick_idle.gif": "LEFT",
-        "fireguard_idle.gif": "RIGHT",
-        "frostpeep_idle.gif": "LEFT",
-        "ghost_idle.gif":     "CENTER",
-        "giant_idle.gif":     "LEFT",
-        "lumenmoth_idle.gif": "CENTER",
-        "mimic_idle.gif":     "LEFT",
-        "mushroom_idle.gif":  "LEFT",
-        "octopus_idle.gif":   "CENTER",
-        "plaguefang_idle.gif":"RIGHT",
-        "reptile_idle.gif":   "CENTER",
-        "skitterswarm_idle.gif":"CENTER",
-        "slime_idle.gif":     "RIGHT",
-        "snake_idle.gif":     "RIGHT",
-        "starnail_idle.gif":  "CENTER",
-        "tidalmaw_idle.gif":  "CENTER",
-        "yeti_idle.gif":      "RIGHT",
-        // Ship sprites are rotated, not flipped — facing doesn't apply
-        "ship_cruiser_idle.gif":  "CENTER",
-        "ship_fighter_idle.gif":  "CENTER",
-        "ship_squid_idle.gif":    "CENTER",
+	"bat_idle.gif":          "RIGHT",
+	"boar_idle.gif":         "LEFT",
+	"boglurk_idle.gif":      "CENTER",
+	"chest_idle.gif":        "CENTER",
+	"dino_idle.gif":         "RIGHT",
+	"dragon_idle.gif":       "LEFT",
+	"emberwick_idle.gif":    "LEFT",
+	"fireguard_idle.gif":    "RIGHT",
+	"frostpeep_idle.gif":    "LEFT",
+	"ghost_idle.gif":        "CENTER",
+	"giant_idle.gif":        "LEFT",
+	"lumenmoth_idle.gif":    "CENTER",
+	"mimic_idle.gif":        "LEFT",
+	"mushroom_idle.gif":     "LEFT",
+	"octopus_idle.gif":      "CENTER",
+	"plaguefang_idle.gif":   "RIGHT",
+	"reptile_idle.gif":      "CENTER",
+	"skitterswarm_idle.gif": "CENTER",
+	"slime_idle.gif":        "RIGHT",
+	"snake_idle.gif":        "RIGHT",
+	"starnail_idle.gif":     "CENTER",
+	"tidalmaw_idle.gif":     "CENTER",
+	"yeti_idle.gif":         "RIGHT",
+	// Ship sprites are rotated, not flipped — facing doesn't apply
+	"ship_cruiser_idle.gif": "CENTER",
+	"ship_fighter_idle.gif": "CENTER",
+	"ship_squid_idle.gif":   "CENTER",
 
-        // 💡 FIX 2026-08-08 #3: .png entries for species where the .png art faces a
-        // DIFFERENT direction than the _idle.gif art. GetSummonSpritePath loads .png
-        // first (priority), so without these entries the facing map lookup fails and
-        // defaults to CENTER — causing sprites to not be flipped when they should be.
-        // Only species where .png facing ≠ .gif facing need entries here.
-        // (Verified by pixel analysis: all other .png files match their .gif facing.)
-        "giant.png":          "RIGHT", // giant_idle.gif = LEFT, but giant.png faces RIGHT
+	// 💡 FIX 2026-08-08 #3: .png entries for species where the .png art faces a
+	// DIFFERENT direction than the _idle.gif art. GetSummonSpritePath loads .png
+	// first (priority), so without these entries the facing map lookup fails and
+	// defaults to CENTER — causing sprites to not be flipped when they should be.
+	// Only species where .png facing ≠ .gif facing need entries here.
+	// (Verified by pixel analysis: all other .png files match their .gif facing.)
+	"giant.png": "RIGHT", // giant_idle.gif = LEFT, but giant.png faces RIGHT
 }
 
 // 💡 FIX 2026-08-07: Side-based facing rule (Spec 1C).
@@ -785,23 +854,23 @@ var SummonSpriteFacing = map[string]string{
 // flipForSide returns true if the sprite needs horizontal flipping to face
 // the correct direction for its screen side.
 func flipForSide(filename string, isLeftSide bool) bool {
-        facing := GetSpriteFacing(filename)
-        if isLeftSide {
-                return facing == "LEFT" // flip LEFT→RIGHT; RIGHT and CENTER stay
-        }
-        return facing == "RIGHT" // flip RIGHT→LEFT; LEFT and CENTER stay
+	facing := GetSpriteFacing(filename)
+	if isLeftSide {
+		return facing == "LEFT" // flip LEFT→RIGHT; RIGHT and CENTER stay
+	}
+	return facing == "RIGHT" // flip RIGHT→LEFT; LEFT and CENTER stay
 }
 
 // ShouldFlipForPvE returns true if the sprite should be flipped horizontally
 // so it faces RIGHT (toward enemies on the right side of the screen).
 func ShouldFlipForPvE(filename string) bool {
-        return flipForSide(filename, true)
+	return flipForSide(filename, true)
 }
 
 // ShouldFlipForPvPRight returns true if the sprite should be flipped so it
 // faces LEFT (toward the left player).
 func ShouldFlipForPvPRight(filename string) bool {
-        return flipForSide(filename, false)
+	return flipForSide(filename, false)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -815,20 +884,20 @@ func ShouldFlipForPvPRight(filename string) bool {
 // except letters/digits/space/hyphen/apostrophe/'&' makes the lookup immune
 // to any current or future decorative prefix/suffix.
 func sanitizeNameKey(name string) string {
-        upper := strings.ToUpper(strings.TrimSpace(name))
-        cleaned := strings.Map(func(r rune) rune {
-                switch {
-                case r >= 'A' && r <= 'Z',
-                        r >= '0' && r <= '9',
-                        r == ' ', r == '-', r == '\'', r == '&':
-                        return r
-                default:
-                        return -1
-                }
-        }, upper)
-        // 💡 Trim AFTER stripping: dropping a leading glyph (e.g. "⚡ ") leaves
-        // the separator space at the start — " THE INFECTED..." never matched.
-        return strings.TrimSpace(cleaned)
+	upper := strings.ToUpper(strings.TrimSpace(name))
+	cleaned := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'A' && r <= 'Z',
+			r >= '0' && r <= '9',
+			r == ' ', r == '-', r == '\'', r == '&':
+			return r
+		default:
+			return -1
+		}
+	}, upper)
+	// 💡 Trim AFTER stripping: dropping a leading glyph (e.g. "⚡ ") leaves
+	// the separator space at the start — " THE INFECTED..." never matched.
+	return strings.TrimSpace(cleaned)
 }
 
 // spriteFamilies groups single-frame mob sprites by element family.
@@ -839,12 +908,12 @@ func sanitizeNameKey(name string) string {
 // calamaties) are intentionally NOT families — a named boss must always
 // keep its own sprite.
 var spriteFamilies = map[string][]string{
-        "fire":     {"fire (5).png", "fire (6).png", "fire (7).png", "fire (8).png", "fire (11).png"},
-        "water":    {"water (4).png", "water (6).png", "water (7).png"},
-        "earth":    {"earth (1).png", "earth (2).png", "earth (3).png", "earth (4).png", "earth (5).png"},
-        "ice":      {"ice (1).png", "ice (2).png", "ice (3).png"},
-        "mutated":  {"mutated (1).png", "mutated (2).png", "mutated (3).png", "mutated (4).png", "mutated (5).png", "mutated (6).png", "mutated (7).png"},
-        "hybrides": {"hybrides (1).png", "hybrides (2).png", "hybrides (3).png", "hybrides (4).png", "hybrides (5).png", "hybrides (6).png", "hybrides (7).png"},
+	"fire":     {"fire (5).png", "fire (6).png", "fire (7).png", "fire (8).png", "fire (11).png"},
+	"water":    {"water (4).png", "water (6).png", "water (7).png"},
+	"earth":    {"earth (1).png", "earth (2).png", "earth (3).png", "earth (4).png", "earth (5).png"},
+	"ice":      {"ice (1).png", "ice (2).png", "ice (3).png"},
+	"mutated":  {"mutated (1).png", "mutated (2).png", "mutated (3).png", "mutated (4).png", "mutated (5).png", "mutated (6).png", "mutated (7).png"},
+	"hybrides": {"hybrides (1).png", "hybrides (2).png", "hybrides (3).png", "hybrides (4).png", "hybrides (5).png", "hybrides (6).png", "hybrides (7).png"},
 }
 
 // DedupeEnemySprites spreads visible enemies that resolved to the SAME mob
@@ -853,40 +922,40 @@ var spriteFamilies = map[string][]string{
 // Empty entries (dead/skipped enemies) and non-family files pass through.
 // resolved is aligned 1:1 with the request's enemy slice.
 func DedupeEnemySprites(resolved []string) []string {
-        out := make([]string, len(resolved))
-        copy(out, resolved)
-        used := map[string]bool{}
-        for i, f := range out {
-                if f == "" {
-                        continue
-                }
-                if !used[f] {
-                        used[f] = true
-                        continue
-                }
-                lower := strings.ToLower(f)
-                dash := strings.Index(lower, " (")
-                if dash <= 0 {
-                        used[f] = true
-                        continue
-                }
-                family, ok := spriteFamilies[lower[:dash]]
-                if !ok {
-                        used[f] = true
-                        continue
-                }
-                swapped := false
-                for _, cand := range family {
-                        if !used[cand] {
-                                out[i] = cand
-                                used[cand] = true
-                                swapped = true
-                                break
-                        }
-                }
-                if !swapped {
-                        used[f] = true // family exhausted — keep the twin
-                }
-        }
-        return out
+	out := make([]string, len(resolved))
+	copy(out, resolved)
+	used := map[string]bool{}
+	for i, f := range out {
+		if f == "" {
+			continue
+		}
+		if !used[f] {
+			used[f] = true
+			continue
+		}
+		lower := strings.ToLower(f)
+		dash := strings.Index(lower, " (")
+		if dash <= 0 {
+			used[f] = true
+			continue
+		}
+		family, ok := spriteFamilies[lower[:dash]]
+		if !ok {
+			used[f] = true
+			continue
+		}
+		swapped := false
+		for _, cand := range family {
+			if !used[cand] {
+				out[i] = cand
+				used[cand] = true
+				swapped = true
+				break
+			}
+		}
+		if !swapped {
+			used[f] = true // family exhausted — keep the twin
+		}
+	}
+	return out
 }

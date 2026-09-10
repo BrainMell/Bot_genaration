@@ -49,10 +49,11 @@ type Slot struct {
 // Slot 0 is the main player (rendered with the left UI panel).
 //
 // Columns: X1=80, X2=153, X3=227, X4=300
-//   Row 1 (Y=440): X1, X3    → slots 0, 1
-//   Row 2 (Y=390): X2, X4    → slots 2, 3
-//   Row 3 (Y=340): X1, X3    → slots 4, 5
-//   Row 4 (Y=290): X2, X4    → slots 6, 7
+//
+//	Row 1 (Y=440): X1, X3    → slots 0, 1
+//	Row 2 (Y=390): X2, X4    → slots 2, 3
+//	Row 3 (Y=340): X1, X3    → slots 4, 5
+//	Row 4 (Y=290): X2, X4    → slots 6, 7
 var PlayerSlots = []Slot{
 	{80, 440},  // slot 0 — front-left
 	{227, 440}, // slot 1 — front-right
@@ -64,50 +65,44 @@ var PlayerSlots = []Slot{
 	{300, 290}, // slot 7 — deep-right (in gap, deepest)
 }
 
-// SummonSlots — 8 slots in a 4-column zigzag, behind the player cluster.
-// Smaller sprites (75px) so columns pack tighter. All X ≤ 100 (well left
-// of player formation at X=80-300, so summons never overlap players).
+// SummonSlots — 8 slots in two neat rows BEHIND the player formation.
+// Smaller sprites (75px) so columns pack tightly.
 //
-// Columns: X1=10, X2=40, X3=70, X4=100
-//   Row 1 (Y=415): X1, X3    → slots 0, 1
-//   Row 2 (Y=380): X2, X4    → slots 2, 3
-//   Row 3 (Y=345): X1, X3    → slots 4, 5
-//   Row 4 (Y=310): X2, X4    → slots 6, 7
-// 💡 FIX 2026-09-11 (visual audit): old columns X=10..100 pushed summons
-// OFF-CANVAS — X is the sprite CENTER, so slot 0 (X=10) clipped ~half of any
-// sprite, and slot 1 (X=70) sat directly under the main player (X=80) with
-// the summon painted over it. Pixel-verified: even the common 1-summon case
-// rendered half-missing. New columns keep every slot fully on-canvas (min
-// center X=50 fits ~90px-wide sprites), stagger summons between the player
-// columns, and read as companions beside/behind the party.
+// 💡 FIX 2026-09-11 (visual audit round 2): the old cluster (X=50..160, rows
+// Y=418..313) sat ON TOP of the main player (slot X=80, Y=440) — one summon
+// half-hid behind its master and two summons painted straight over the master's
+// body (E10), while 4+ summons stacked into a pyramid (D1). New rows sit fully
+// BEHIND the front-row players (Y=345/305, heads poke above the party line),
+// span the party width, and stay left of the no-man's land and above the panels.
 var SummonSlots = []Slot{
-	{50, 418},  // slot 0 — front-left (companion beside the main player)
-	{125, 418}, // slot 1 — front-right of the summon cluster
-	{88, 383},  // slot 2 — mid-center (in the gap)
-	{160, 383}, // slot 3 — mid-right
-	{50, 348},  // slot 4 — back-left
-	{125, 348}, // slot 5 — back-right
-	{88, 313},  // slot 6 — deep-center
-	{160, 313}, // slot 7 — deep-right
+	{60, 345},  // slot 0 — companion upper-left of the main player
+	{150, 345}, // slot 1 — behind, between P1/P2 columns
+	{240, 345}, // slot 2 — behind, between P2/P3 columns
+	{330, 345}, // slot 3 — behind the rightmost player
+	{105, 305}, // slot 4 — deep-left
+	{195, 305}, // slot 5 — deep-center-left
+	{285, 305}, // slot 6 — deep-center-right
+	{375, 305}, // slot 7 — deep-right
 }
 
-// EnemySlots — 8 slots in a 4-column zigzag, all RIGHT of center (X ≥ 730).
+// EnemySlots — 8 slots in a staggered formation, all RIGHT of center (X ≥ 715).
 // Slot 0 is the main enemy (front-left, closest to players).
 //
-// Columns: X1=730, X2=787, X3=843, X4=900
-//   Row 1 (Y=440): X1, X3    → slots 0, 1
-//   Row 2 (Y=390): X2, X4    → slots 2, 3
-//   Row 3 (Y=340): X1, X3    → slots 4, 5
-//   Row 4 (Y=290): X2, X4    → slots 6, 7
+// 💡 FIX 2026-09-11 (visual audit round 2): the old columns (730/787/843/900)
+// packed 170px-wide mobs at a 57px pitch — every encounter of 3+ enemies merged
+// into one overlapping blob with labels crossing bodies (E5/E7/E8/E11). New
+// geometry spreads the formation across the full right half (pitch 115-140px),
+// keeps every slot on-canvas for 210px bosses (max center X = 930 → half-width
+// ≤ 95 fits), and staggers rows so back-row sprites peek through the gaps.
 var EnemySlots = []Slot{
-	{730, 440}, // slot 0 — front-left (closest to players)
-	{843, 440}, // slot 1 — front-right
-	{787, 390}, // slot 2 — mid-left (in gap)
-	{900, 390}, // slot 3 — mid-right (in gap)
-	{730, 340}, // slot 4 — back-left
-	{843, 340}, // slot 5 — back-right
-	{787, 290}, // slot 6 — deep-left
-	{900, 290}, // slot 7 — deep-right
+	{715, 440}, // slot 0 — front-left (closest to players)
+	{835, 440}, // slot 1 — front-center
+	{930, 440}, // slot 2 — front-right
+	{775, 390}, // slot 3 — mid-left (in gap)
+	{895, 390}, // slot 4 — mid-right (in gap)
+	{715, 340}, // slot 5 — back-left
+	{835, 340}, // slot 6 — back-center
+	{930, 340}, // slot 7 — back-right
 }
 
 // slotFor returns the slot at index i, wrapping with a Y-depth shift for
