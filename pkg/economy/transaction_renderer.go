@@ -1,182 +1,140 @@
 package economy
 
+// transaction_renderer.go — /api/cards/transaction, Kenney redesign.
+// Owner-approved designs: MONEY2_transfer_kenney.png / MONEY3_withdraw_kenney.png
+// Extended to DEPOSIT (from->to, blue), CRAFT/BREW/COOK/FORGE (item plate).
+
 import (
-	"fmt"
-	"image/color"
-	"log"
+        "fmt"
+        "strings"
 
-	"image-service/pkg/utils"
+        "image-service/pkg/utils"
 
-	"github.com/disintegration/imaging"
-	"github.com/fogleman/gg"
-	"github.com/gin-gonic/gin"
+        "github.com/fogleman/gg"
+        "github.com/gin-gonic/gin"
 )
 
 const (
-	TRANS_W = 600
-	TRANS_H = 250
+        TRANS_W = 1000
+        TRANS_H = 600
 )
 
 type TransactionCardRequest struct {
-	Nickname   string  `json:"nickname"`
-	Type       string  `json:"type"` // "DEPOSIT", "WITHDRAW", "TRANSFER", "CRAFT", "BREW", "COOK", "FORGE"
-	Amount     float64 `json:"amount"`
-	NewWallet  float64 `json:"newWallet"`
-	NewBank    float64 `json:"newBank"`
-	ZeniSymbol string  `json:"zeniSymbol"`
-	PfpUrl     string  `json:"pfpUrl"`
-	ItemName   string  `json:"itemName"`
+        Nickname   string  `json:"nickname"`
+        Type       string  `json:"type"` // "DEPOSIT", "WITHDRAW", "TRANSFER", "CRAFT", "BREW", "COOK", "FORGE"
+        Amount     float64 `json:"amount"`
+        NewWallet  float64 `json:"newWallet"`
+        NewBank    float64 `json:"newBank"`
+        ZeniSymbol string  `json:"zeniSymbol"`
+        PfpUrl     string  `json:"pfpUrl"`
+        ItemName   string  `json:"itemName"`
 }
 
 func GenerateTransactionCard(c *gin.Context) {
-	var req TransactionCardRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
-		return
-	}
-	if req.ZeniSymbol == "" {
-		req.ZeniSymbol = "Z"
-	}
-	if req.Nickname == "" {
-		req.Nickname = "Adventurer"
-	}
+        var req TransactionCardRequest
+        if err := c.ShouldBindJSON(&req); err != nil {
+                c.JSON(400, gin.H{"error": err.Error()})
+                return
+        }
+        if req.ZeniSymbol == "" {
+                req.ZeniSymbol = "Z"
+        }
+        if req.Nickname == "" {
+                req.Nickname = "Adventurer"
+        }
 
-	dc := gg.NewContext(TRANS_W, TRANS_H)
+        txType := strings.ToUpper(strings.TrimSpace(req.Type))
+        if txType == "" {
+                txType = "TRANSFER"
+        }
+        acc := txStyle(txType)
 
-	// Draw Background
-	dc.SetColor(color.RGBA{15, 16, 23, 255})
-	dc.DrawRectangle(0, 0, TRANS_W, TRANS_H)
-	dc.Fill()
+        dc := gg.NewContext(TRANS_W, TRANS_H)
+        drawBase(dc)
 
-	var accentColor color.RGBA
-	var iconText string
-	switch req.Type {
-	case "DEPOSIT":
-		accentColor = color.RGBA{80, 160, 255, 255} // Blue
-		iconText = "▼"
-	case "WITHDRAW":
-		accentColor = color.RGBA{255, 140, 0, 255} // Orange
-		iconText = "▲"
-	case "TRANSFER":
-		accentColor = color.RGBA{255, 60, 60, 255} // Red
-		iconText = "▶"
-	case "CRAFT":
-		accentColor = color.RGBA{60, 210, 130, 255} // Green
-		iconText = "◆"
-	case "BREW":
-		accentColor = color.RGBA{170, 80, 255, 255} // Purple
-		iconText = "❖"
-	case "COOK":
-		accentColor = color.RGBA{255, 200, 50, 255} // Yellow
-		iconText = "✦"
-	case "FORGE":
-		accentColor = color.RGBA{255, 90, 40, 255} // Orange/Red
-		iconText = "◆"
-	default:
-		accentColor = color.RGBA{120, 120, 130, 255} // Gray
-		iconText = "◆"
-	}
+        name := sanitize(req.Nickname)
+        if name == "" {
+                name = "Adventurer"
+        }
+        // badge: post-transaction total (payload carries no rank/level)
+        badge := fmt.Sprintf("%s %s", req.ZeniSymbol, formatFull(req.NewWallet+req.NewBank))
+        drawHead(dc, name, badge, acc.set)
 
-	// Left accent bar
-	dc.SetColor(accentColor)
-	dc.DrawRectangle(0, 0, 4, TRANS_H)
-	dc.Fill()
+        // title plate
+        drawTitlePlate(dc, fmt.Sprintf("%s SUCCESSFUL", txType), acc.set, acc.titleCol)
 
-	fontBold := utils.GetAssetPath("rpgasset", "ui", "Inter-Bold.ttf")
-	fontSemi := utils.GetAssetPath("rpgasset", "ui", "Inter-SemiBold.ttf")
-	fontMed := utils.GetAssetPath("rpgasset", "ui", "Inter-Medium.ttf")
+        switch {
+        case txType == "TRANSFER" || txType == "DEPOSIT":
+                // big amount
+                drawCoin(dc, cardW/2-180, 316, 40, req.ZeniSymbol)
+                amount := formatFull(req.Amount)
+                loadFit(dc, fontFuture(), 70, amount, 380, 20)
+                aw, _ := dc.MeasureString(amount) // measure at the FINAL (70pt Future) face
+                textLM(dc, amount, cardW/2-118, 318, acc.amountCol)
+                loadFit(dc, fontFutureNarrow(), 26, "ZENI", 200, 12)
+                textLM(dc, "ZENI", cardW/2-118+aw+28, 318, rgb(200, 176, 110))
 
-	// === Header ===
-	textX := 40.0
-	if req.PfpUrl != "" {
-		pfpImg, pfpErr := utils.DownloadImage(req.PfpUrl)
-		if pfpErr == nil {
-			pfpSize := 50
-			pfpImg = imaging.Fill(pfpImg, pfpSize, pfpSize, imaging.Center, imaging.Lanczos)
-			
-			dc.DrawCircle(65, 55, float64(pfpSize)/2)
-			dc.Clip()
-			dc.DrawImageAnchored(pfpImg, 65, 55, 0.5, 0.5)
-			dc.ResetClip()
+                // from wallet -> to bank (values = balances AFTER the tx)
+                fpw, fph := 330.0, 84.0
+                kenButtonFlat(dc, 100, 416, fpw, fph, knGrey)
+                kvPill(dc, 100, 416, 430, 500, "FROM · WALLET", formatFull(req.NewWallet),
+                        18, 28, rgb(128, 132, 152), rgb(56, 60, 84), 26)
+                drawArrow(dc, cardW/2, 458)
+                kenButtonFlat(dc, cardW-100-fpw, 416, fpw, fph, knBlue)
+                kvPill(dc, cardW-100-fpw, 416, cardW-100, 500, "TO · BANK", formatFull(req.NewBank),
+                        18, 28, rgb(178, 208, 240), rgb(255, 255, 255), 26)
 
-			dc.SetColor(accentColor)
-			dc.DrawCircle(65, 55, float64(pfpSize)/2)
-			dc.SetLineWidth(2)
-			dc.Stroke()
-			
-			textX = 105.0
-		}
-	}
+                drawCaption(dc, fmt.Sprintf(".j %s %s", strings.ToLower(txType), amount))
 
-	if err := dc.LoadFontFace(fontBold, 22); err == nil {
-		dc.SetColor(color.RGBA{250, 250, 255, 255})
-		dc.DrawString(req.Nickname, textX, 48)
-	} else {
-		log.Printf("failed to load fontBold (%s): %v", fontBold, err)
-	}
+        case txType == "WITHDRAW":
+                amount := "-" + formatFull(req.Amount)
+                drawAmountLine(dc, amount, 318, acc.amountCol, 420)
 
-	if err := dc.LoadFontFace(fontSemi, 12); err == nil {
-		dc.SetColor(accentColor)
-		dc.DrawString(fmt.Sprintf("%s SUCCESSFUL", req.Type), textX, 68)
-	}
+                // rows show the balances AFTER the withdrawal
+                rows := []struct {
+                        label, delta, value string
+                        set                 kenSet
+                }{
+                        {"BANK", "-" + formatFull(req.Amount), formatFull(req.NewBank), knRed},
+                        {"WALLET", "+" + formatFull(req.Amount), formatFull(req.NewWallet), knGreen},
+                }
+                y := 420.0
+                for _, row := range rows {
+                        kenButtonFlat(dc, 70, y, 860, 60, row.set)
+                        cy := faceCY(y, 60)
+                        loadFit(dc, fontFutureNarrow(), 22, row.label, 240, 10)
+                        textLM(dc, row.label, 100, cy, rgb(30, 32, 40))
+                        loadFit(dc, fontFuture(), 28, row.delta, 220, 12)
+                        textRM(dc, row.delta, 560, cy, rgb(30, 32, 40))
+                        loadFit(dc, fontFutureNarrow(), 16, "NEW", 120, 9)
+                        textLM(dc, "NEW", 600, cy, rgb(52, 56, 68))
+                        loadFit(dc, fontFuture(), 28, row.value, 260, 12)
+                        textRM(dc, row.value, 900, cy, rgb(20, 22, 30))
+                        y += 76
+                }
+                // no caption here — the approved mock ends with the WALLET row
 
-	// Separator
-	dc.SetColor(color.RGBA{255, 255, 255, 255})
-	dc.DrawLine(40, 95, float64(TRANS_W)-40, 95)
-	dc.Stroke()
+        default: // CRAFT / BREW / COOK / FORGE and unknown types
+                item := sanitize(req.ItemName)
+                if item == "" {
+                        item = "Unknown Item"
+                }
+                loadFit(dc, fontFutureNarrow(), 22, "ITEM CREATED", 420, 12)
+                textCenter(dc, "ITEM CREATED", cardW/2, 272, rgb(150, 158, 190))
 
-	// === Middle Section ===
-	
-	isCrafting := req.Type == "CRAFT" || req.Type == "BREW" || req.Type == "COOK" || req.Type == "FORGE"
+                display := item
+                if req.Amount > 1 {
+                        display = fmt.Sprintf("%s X%d", item, int(req.Amount))
+                }
+                loadFit(dc, fontFuture(), 70, display, 680, 20)
+                textCenter(dc, display, cardW/2, 330, acc.amountCol)
+                drawCaption(dc, fmt.Sprintf(".j %s %s", strings.ToLower(txType), item))
+        }
 
-	// Transaction Amount
-	if err := dc.LoadFontFace(fontMed, 14); err == nil {
-		dc.SetColor(color.RGBA{200, 200, 220, 255})
-		if isCrafting {
-			dc.DrawString("ITEM CREATED", 40, 130)
-		} else {
-			dc.DrawString("TRANSACTION AMOUNT", 40, 130)
-		}
-	}
-
-	if err := dc.LoadFontFace(fontBold, 36); err == nil {
-		dc.SetColor(accentColor)
-		if isCrafting {
-			displayItem := req.ItemName
-			if displayItem == "" {
-				displayItem = "Unknown Item"
-			}
-			dc.DrawString(fmt.Sprintf("%s %s", iconText, displayItem), 40, 175)
-		} else {
-			dc.DrawString(fmt.Sprintf("%s %s%s", iconText, req.ZeniSymbol, formatNumber(req.Amount)), 40, 175)
-		}
-	}
-
-	// Balances (Right side)
-	if err := dc.LoadFontFace(fontMed, 12); err == nil {
-		dc.SetColor(color.RGBA{200, 200, 220, 255})
-		dc.DrawString("NEW WALLET", 350, 130)
-		dc.DrawString("NEW BANK", 470, 130)
-	}
-
-	if err := dc.LoadFontFace(fontSemi, 20); err == nil {
-		dc.SetColor(color.RGBA{60, 210, 130, 255}) // Wallet green
-		dc.DrawString(fmt.Sprintf("%s%s", req.ZeniSymbol, formatNumber(req.NewWallet)), 350, 160)
-
-		dc.SetColor(color.RGBA{80, 160, 255, 255}) // Bank blue
-		dc.DrawString(fmt.Sprintf("%s%s", req.ZeniSymbol, formatNumber(req.NewBank)), 470, 160)
-	}
-
-	// Watermark
-	if err := dc.LoadFontFace(fontSemi, 10); err == nil {
-		dc.SetColor(color.RGBA{255, 255, 255, 60})
-		dc.DrawStringAnchored("JOKER BOT • TRANSACTION", float64(TRANS_W)/2, float64(TRANS_H)-15, 0.5, 0.5)
-	}
-
-	buf, err := utils.EncodeImageToBuffer(dc.Image())
-	if err != nil {
-		c.JSON(500, gin.H{"error": "encode failed"})
-		return
-	}
-	c.Data(200, "image/png", buf)
+        buf, err := utils.EncodeImageToBuffer(dc.Image())
+        if err != nil {
+                c.JSON(500, gin.H{"error": "encode failed"})
+                return
+        }
+        c.Data(200, "image/png", buf)
 }
