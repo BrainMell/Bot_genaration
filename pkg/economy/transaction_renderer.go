@@ -49,6 +49,19 @@ func GenerateTransactionCard(c *gin.Context) {
         }
         acc := txStyle(txType)
 
+        // CRAFT / BREW / COOK / FORGE get their own RPG-style card (not Kenney)
+        if isCraftType(txType) {
+                dc := gg.NewContext(TRANS_W, TRANS_H)
+                drawRPGCraft(dc, req, txType)
+                buf, err := utils.EncodeImageToBuffer(dc.Image())
+                if err != nil {
+                        c.JSON(500, gin.H{"error": "encode failed"})
+                        return
+                }
+                c.Data(200, "image/png", buf)
+                return
+        }
+
         dc := gg.NewContext(TRANS_W, TRANS_H)
         drawBase(dc)
 
