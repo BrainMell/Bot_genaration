@@ -260,6 +260,12 @@ var SpriteFacing = map[string]string{
 	"bat_frame.png":      "RIGHT",
 	"boar_still.png":     "RIGHT",
 
+	// hunt animals (LPC family, 2026-09-12) — single frames, native facing
+	// verified per-file: rabbit hops RIGHT; deer & bear are LEFT-profile art
+	"rabbit_lpc.png": "RIGHT",
+	"deer_lpc.png":   "LEFT",
+	"bear_lpc.png":   "LEFT",
+
 	// element-family 64x96 mobs + boss tiers: front-facing symmetric art →
 	// CENTER (no flip is a visual no-op on symmetric art). hybrides (1) has a
 	// readable left profile and keeps LEFT.
@@ -412,9 +418,9 @@ var EnemyNameSprites = map[string]string{
 	"PHALANX SOVEREIGN":  "ice (1).png",
 
 	// ── MUTATED FAMILY (infected/twisted creatures) ──
-	"RABID_RAT":             "mutated (1).png",
-	"CAVE_BAT":              "mutated (2).png",
-        // "SLIME" entry removed (r4): now maps to slime_frame.png via mob map
+	"RABID_RAT": "mutated (1).png",
+	"CAVE_BAT":  "mutated (2).png",
+	// "SLIME" entry removed (r4): now maps to slime_frame.png via mob map
 	"MUTATED_HOUND":         "mutated (4).png",
 	"VENOM_SPIDER":          "mutated (5).png",
 	"SHADOW_STALKER":        "mutated (6).png",

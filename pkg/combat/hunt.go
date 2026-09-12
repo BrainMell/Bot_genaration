@@ -1,304 +1,332 @@
 package combat
 
 // ============================================
-// 🏹 HUNTING CARD RENDERER
+// 🏹 HUNTING CARD RENDERER — parchment redesign 2026-09-12
 // ============================================
-// Renders a stylized "hunting result" image card showing the player,
-// the hunted animal, the loot item, and the biome.
+// Owner complaint: old card showed placeholder sprites ("rabbit" = pink bat,
+// "deer" = earth golem, "bear" = troll) and flipped the player unconditionally
+// (right-facing classes faced AWAY from the animal). Rebuilt in the approved
+// lamoot wood+gold+parchment family (same as CRAFT/BREW cards).
 //
-// Payload:
-//   {
-//     "playerName":   "Mellow",
-//     "playerClass":  "RANGER",
-//     "biome":        "forest",           // forest | plains | mountains | swamp
-//     "animal":       "Deer",             // Rabbit | Deer | Bear | Boar | Wolf
-//     "animalSprite": "deer.png",         // optional: filename in rpgasset/enemies/
-//     "item":         "Fresh Venison",
-//     "itemRarity":   "UNCOMMON",
-//     "xp":           25,
-//     "zeni":         50,
-//     "rank":         "C"
-//   }
+// Static art baked in assets/rpgasset/ui/craft/bg_HUNT.png (build_hfd_bgs.py):
+//   - leather name plate (66..340, 56..112)        → nickname drawn by us
+//   - wood banner title "HUNT SUCCESSFUL"          → baked
+//   - scene window (130,185)-(870,400) dark inset  → we paint forest+player+animal
+//   - "SPOILS OF THE HUNT" label + divider y440    → baked
+//   - ledger line y463                             → item left, rarity/XP/Zeni right
+//   - wax rank seal at (70,546) r26                → drawn by us
+//   - caption strip y552                           → drawn by us
 //
-// Returns PNG.
+// Animals now use real LPC art (bluecarrou LPC Animals 2022 + PixelFarm bunny,
+// CC-BY-SA/GPL — see docs/asset_credits.md): rabbit_lpc / deer_lpc / bear_lpc.
+// Payload unchanged: {playerName, playerClass, biome, animal, animalSprite,
+//                     item, itemRarity, xp, zeni, rank}
 
 import (
-        "image/color"
-        "math"
-        "path/filepath"
+	"fmt"
+	"image/color"
+	"path/filepath"
+	"strings"
 
-        "image-service/pkg/utils"
+	"image-service/pkg/utils"
 
-        "github.com/disintegration/imaging"
-        "github.com/fogleman/gg"
-        "github.com/gin-gonic/gin"
+	"github.com/disintegration/imaging"
+	"github.com/fogleman/gg"
+	"github.com/gin-gonic/gin"
 )
 
 var huntBiomeBackground = map[string]string{
-        "forest":    "forest1.png",
-        "plains":    "sand.png",
-        "mountains": "ice.png",
-        "swamp":     "background2.png",
-        "":          "forest1.png",
+	"forest":    "forest.png",
+	"plains":    "background1.png", // grassland
+	"mountains": "ice.png",
+	"swamp":     "spark_4.png",
+	"":          "forest.png",
 }
 
+// 2026-09-12: REAL animal art (was: RABBIT=bat, DEER=earth golem, BEAR=troll).
 var huntAnimalSprite = map[string]string{
-        "RABBIT": "Bat_0000_dark.png", // closest small creature
-        "DEER":   "earth (1).png",     // earth creature = deer-sized
-        "BEAR":   "mutated (1).png",   // mutated = bear-sized
-        "BOAR":   "earth (2).png",
-        "WOLF":   "Werewolf_0004_brown.png",
-        "":       "Bat_0000_dark.png",
+	"RABBIT": "rabbit_lpc.png",
+	"DEER":   "deer_lpc.png",
+	"BEAR":   "bear_lpc.png",
+	"BOAR":   "boar_still.png",
+	"WOLF":   "wolf_frame.png",
+	"":       "rabbit_lpc.png",
 }
 
 var huntRarityColor = map[string]string{
-        "COMMON":    "#9E9E9E",
-        "UNCOMMON":  "#4CAF50",
-        "RARE":      "#2196F3",
-        "EPIC":      "#9C27B0",
-        "LEGENDARY": "#FF9800",
-        "MYTHIC":    "#E91E63",
+	"COMMON":    "#9E9E9E",
+	"UNCOMMON":  "#4CAF50",
+	"RARE":      "#2196F3",
+	"EPIC":      "#9C27B0",
+	"LEGENDARY": "#FF9800",
+	"MYTHIC":    "#E91E63",
 }
 
-// GenerateHuntCard renders a hunting result image card.
+// darker variants for the parchment ledger (mid-grays vanish on lamoot paper)
+var huntLedgerRarityColor = map[string]string{
+	"COMMON":    "#5E5E5E",
+	"UNCOMMON":  "#1B5E20",
+	"RARE":      "#0D47A1",
+	"EPIC":      "#4A148C",
+	"LEGENDARY": "#8D4004",
+	"MYTHIC":    "#880E4F",
+}
+
+// hunt window geometry — MUST match bg_HUNT.png bake (build_hfd_bgs.py)
+const (
+	huntSceneX = 130.0
+	huntSceneY = 185.0
+	huntSceneW = 740.0
+	huntSceneH = 215.0
+)
+
+func huntAsset(name string) string { return utils.GetAssetPath("rpgasset", "ui", "craft/"+name) }
+
+// huntSanitize — printable ASCII + middle dot only (same rule as economy.sanitize);
+// WhatsApp nicknames can carry emoji that Cinzel would render as tofu.
+func huntSanitize(s string) string {
+	var b []rune
+	for _, r := range s {
+		if r == '·' || (r >= 0x20 && r <= 0x7E) {
+			b = append(b, r)
+		}
+	}
+	return strings.TrimSpace(string(b))
+}
+
+// huntFitText loads font at size, shrinking until s fits maxW (min minSize).
+func huntFitText(dc *gg.Context, path string, size int, s string, maxW float64, minSize int) {
+	for size > minSize {
+		if face, err := utils.LoadFont(path, float64(size)); err == nil {
+			dc.SetFontFace(face)
+			if w, _ := dc.MeasureString(s); w <= maxW {
+				return
+			}
+		}
+		size -= 2
+	}
+	if face, err := utils.LoadFont(path, float64(minSize)); err == nil {
+		dc.SetFontFace(face)
+	}
+}
+
+// GenerateHuntCard renders the parchment hunting result card (1000x600).
 func GenerateHuntCard(c *gin.Context) {
-        var req struct {
-                PlayerName   string `json:"playerName"`
-                PlayerClass  string `json:"playerClass"`
-                Biome        string `json:"biome"`
-                Animal       string `json:"animal"`
-                AnimalSprite string `json:"animalSprite"`
-                Item         string `json:"item"`
-                ItemRarity   string `json:"itemRarity"`
-                XP           int    `json:"xp"`
-                Zeni         int    `json:"zeni"`
-                Rank         string `json:"rank"`
-        }
-        if err := c.ShouldBindJSON(&req); err != nil {
-                c.JSON(400, gin.H{"error": err.Error()})
-                return
-        }
+	var req struct {
+		PlayerName   string `json:"playerName"`
+		PlayerClass  string `json:"playerClass"`
+		Biome        string `json:"biome"`
+		Animal       string `json:"animal"`
+		AnimalSprite string `json:"animalSprite"`
+		Item         string `json:"item"`
+		ItemRarity   string `json:"itemRarity"`
+		XP           int    `json:"xp"`
+		Zeni         int    `json:"zeni"`
+		Rank         string `json:"rank"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
 
-        assetsPath := "assets"
-        W, H := 800, 500
-        Wf, Hf := float64(W), float64(H)
-        dc := gg.NewContext(W, H)
+	assetsPath := "assets"
+	dc := gg.NewContext(1000, 600)
 
-        // ── Background ──
-        bgFile := huntBiomeBackground[req.Biome]
-        bgPath := filepath.Join(assetsPath, "rpgasset", "environment", bgFile)
-        if bgImg, err := utils.LoadImage(bgPath); err == nil {
-                bgImg = imaging.Fill(bgImg, W, H, imaging.Center, imaging.NearestNeighbor)
-                dc.DrawImage(bgImg, 0, 0)
-        } else {
-                // Fallback gradient
-                for y := 0; y < H; y++ {
-                        t := float64(y) / float64(H)
-                        dc.SetRGB(0.1+0.05*t, 0.15+0.05*t, 0.1+0.03*t)
-                        dc.DrawRectangle(0, float64(y), Wf, 1)
-                        dc.Fill()
-                }
-        }
+	// ── baked parchment base ──
+	if bgImg, err := utils.LoadImage(huntAsset("bg_HUNT.png")); err == nil {
+		dc.DrawImage(bgImg, 0, 0)
+	} else {
+		dc.SetRGB(0.09, 0.06, 0.04)
+		dc.DrawRectangle(0, 0, 1000, 600)
+		dc.Fill()
+	}
 
-        // Dark overlay
-        dc.SetColor(color.RGBA{0, 0, 0, 110})
-        dc.DrawRectangle(0, 0, Wf, Hf)
-        dc.Fill()
+	// ── nickname on the leather plate ──
+	name := huntSanitize(req.PlayerName)
+	if name == "" {
+		name = "Adventurer"
+	}
+	huntFitText(dc, huntAsset("Cinzel.ttf"), 30, name, 240, 12)
+	dc.SetRGB(214.0/255.0, 170.0/255.0, 82.0/255.0)
+	dc.DrawStringAnchored(name, 90, 84, 0, 0.5)
 
-        // ── Top banner ──
-        dc.SetRGBA(0, 0, 0, 0.7)
-        dc.DrawRectangle(0, 0, Wf, 60)
-        dc.Fill()
+	// ── scene window: forest + player (left, facing RIGHT) + animal (right, facing LEFT) ──
+	// NOTE: no gg Clip() here — clip state leaked in this gg version and erased the
+	// ledger/seal/caption drawn afterwards. Every scene element is pixel-bounded to
+	// the window rect by construction (Fill produces exactly WxH; sprites are
+	// bottom-anchored at y=397 with height ≤ 192, x-ranges 190..846).
+	sceneBottom := huntSceneY + huntSceneH - 3
+	if bgFile, ok := huntBiomeBackground[req.Biome]; ok {
+		if sceneImg, err := utils.LoadImage(filepath.Join(assetsPath, "rpgasset", "environment", bgFile)); err == nil {
+			sceneImg = imaging.Fill(sceneImg, int(huntSceneW), int(huntSceneH), imaging.Center, imaging.NearestNeighbor)
+			dc.DrawImage(sceneImg, int(huntSceneX), int(huntSceneY))
+		}
+	}
+	// light mood overlay so sprites pop
+	dc.SetColor(color.RGBA{0, 0, 0, 46})
+	dc.DrawRectangle(huntSceneX, huntSceneY, huntSceneW, huntSceneH)
+	dc.Fill()
 
-        fontPath := filepath.Join(assetsPath, "rpgasset", "ui", "Inter-Bold.ttf")
-        if face, err := utils.LoadFont(fontPath, 32); err == nil {
-                dc.SetFontFace(face)
-                dc.SetRGB(1, 0.85, 0.3) // gold
-                dc.DrawStringAnchored("HUNT SUCCESSFUL", Wf/2, 30, 0.5, 0.5)
-        }
+	// player sprite — FIX: flip ONLY when native facing is LEFT (was unconditional FlipH)
+	playerFile := "Fighter1.png"
+	if req.PlayerClass != "" {
+		if sprites, ok := CharacterSprites[req.PlayerClass]; ok && len(sprites) > 0 {
+			playerFile = sprites[0]
+		}
+	}
+	if pImg, err := utils.LoadImage(filepath.Join(assetsPath, "rpgasset", "characters", playerFile)); err == nil {
+		pImg = imaging.Fit(pImg, 210, 192, imaging.NearestNeighbor)
+		if GetSpriteFacing(playerFile) == "LEFT" {
+			pImg = imaging.FlipH(pImg)
+		}
+		b := pImg.Bounds()
+		pw, ph := float64(b.Dx()), float64(b.Dy())
+		px := huntSceneX + 60
+		utils.DrawShadow(dc, px+pw/2, sceneBottom-2, pw*0.45, 0.5)
+		dc.DrawImage(pImg, int(px), int(sceneBottom-ph))
+	}
+	animalFile := req.AnimalSprite
+	if animalFile == "" {
+		animalFile = huntAnimalSprite[req.Animal]
+		if animalFile == "" {
+			animalFile = "rabbit_lpc.png"
+		}
+	}
+	if aImg, err := utils.LoadImage(filepath.Join(assetsPath, "rpgasset", "enemies", animalFile)); err == nil {
+		// LPC frames are tiny (29..63px) and imaging.Fit never upscales —
+		// integer-scale with NEAREST first so the pixel art stays crisp.
+		b0 := aImg.Bounds()
+		aw0, ah0 := b0.Dx(), b0.Dy()
+		if aw0 < 240 && ah0 < 175 {
+			scale := 240 / aw0
+			if s2 := 175 / ah0; s2 < scale {
+				scale = s2
+			}
+			if scale > 1 {
+				aImg = imaging.Resize(aImg, aw0*scale, ah0*scale, imaging.NearestNeighbor)
+			}
+		}
+		aImg = imaging.Fit(aImg, 240, 175, imaging.NearestNeighbor)
+		if GetSpriteFacing(animalFile) == "RIGHT" {
+			aImg = imaging.FlipH(aImg)
+		}
+		b := aImg.Bounds()
+		aw, ah := float64(b.Dx()), float64(b.Dy())
+		ax := huntSceneX + huntSceneW - 24 - aw
+		utils.DrawShadow(dc, ax+aw/2, sceneBottom-2, aw*0.42, 0.5)
+		dc.DrawImage(aImg, int(ax), int(sceneBottom-ah))
+	}
 
-        // ── Player sprite (left) ──
-        playerSpriteFile := "Fighter1.png" // default
-        if req.PlayerClass != "" {
-                if sprites, ok := CharacterSprites[req.PlayerClass]; ok && len(sprites) > 0 {
-                        playerSpriteFile = sprites[0]
-                }
-        }
-        playerSpritePath := filepath.Join(assetsPath, "rpgasset", "characters", playerSpriteFile)
-        if pImg, err := utils.LoadImage(playerSpritePath); err == nil {
-                pImg = imaging.Resize(pImg, 220, 0, imaging.NearestNeighbor)
-                // Flip horizontally so player faces right (toward animal)
-                pImg = imaging.FlipH(pImg)
-                // Shadow
-                utils.DrawShadow(dc, 130, 380, 90, 0.6)
-                dc.DrawImage(pImg, 20, 200)
-        }
+	// "<ANIMAL> CAPTURED" tag pill, top-right inside the scene window
+	animalLabel := req.Animal
+	if animalLabel == "" {
+		animalLabel = "CREATURE"
+	}
+	tag := animalLabel + " — CAPTURED"
+	huntFitText(dc, huntAsset("Cinzel.ttf"), 18, tag, 400, 12)
+	tagW, _ := dc.MeasureString(tag)
+	dc.SetColor(color.RGBA{8, 8, 8, 150})
+	dc.DrawRoundedRectangle(huntSceneX+huntSceneW-tagW-26, huntSceneY+10, tagW+16, 26, 8)
+	dc.Fill()
+	dc.SetRGBA(1, 1, 1, 0.96)
+	dc.DrawStringAnchored(tag, huntSceneX+huntSceneW-18, huntSceneY+23, 1, 0.5)
 
-        // ── Animal sprite (right) ──
-        animalSpriteFile := req.AnimalSprite
-        if animalSpriteFile == "" {
-                if req.Animal != "" {
-                        animalSpriteFile = huntAnimalSprite[req.Animal]
-                }
-                if animalSpriteFile == "" {
-                        animalSpriteFile = "Bat_0000_dark.png"
-                }
-        }
-        animalPath := filepath.Join(assetsPath, "rpgasset", "enemies", animalSpriteFile)
-        if aImg, err := utils.LoadImage(animalPath); err == nil {
-                aImg = imaging.Resize(aImg, 200, 0, imaging.NearestNeighbor)
-                // Tint red (defeated)
-                aImg = utils.TintImage(aImg, color.RGBA{255, 0, 0, 100})
-                // Shadow
-                utils.DrawShadow(dc, 600, 380, 80, 0.6)
-                dc.DrawImage(aImg, 540, 200)
-        }
+	// ── spoils ledger (y463): item left · rarity | +XP | +Zeni right ──
+	item := huntSanitize(req.Item)
+	if item == "" {
+		item = "Unknown Item"
+	}
+	huntFitText(dc, huntAsset("CinzelDecBold.ttf"), 30, item, 430, 14)
+	dc.SetRGB(52.0/255.0, 32.0/255.0, 16.0/255.0)
+	dc.DrawStringAnchored(item, 150, 463, 0, 0.5)
 
-        // ── Loot panel (bottom) ──
-        rarityColor := huntRarityColor[req.ItemRarity]
-        if rarityColor == "" {
-                rarityColor = huntRarityColor["COMMON"]
-        }
-        rarityRGBA := utils.ParseHexColor(rarityColor)
+	rarity := req.ItemRarity
+	if rarity == "" {
+		rarity = "COMMON"
+	}
+	const ledgerRight = 860.0
+	const segGap = 18.0
+	zStr := fmt.Sprintf("+%d Z", req.Zeni)
+	xStr := fmt.Sprintf("+%d XP", req.XP)
 
-        // Panel background
-        dc.SetRGBA(0, 0, 0, 0.75)
-        drawRoundedRect(dc, 20, 410, Wf-40, 80, 8)
-        dc.Fill()
+	huntFitText(dc, huntAsset("Cinzel.ttf"), 20, zStr, 200, 12)
+	wZ, _ := dc.MeasureString(zStr)
+	dc.SetRGB(150.0/255.0, 110.0/255.0, 30.0/255.0)
+	dc.DrawStringAnchored(zStr, ledgerRight, 463, 1, 0.5)
 
-        // Rarity-colored left border
-        dc.SetColor(rarityRGBA)
-        dc.DrawRectangle(20, 410, 6, 80)
-        dc.Fill()
+	huntFitText(dc, huntAsset("Cinzel.ttf"), 20, xStr, 200, 12)
+	wX, _ := dc.MeasureString(xStr)
+	dc.SetRGB(96.0/255.0, 110.0/255.0, 50.0/255.0)
+	dc.DrawStringAnchored(xStr, ledgerRight-wZ-segGap, 463, 1, 0.5)
 
-        // Item name (large)
-        if face, err := utils.LoadFont(fontPath, 22); err == nil {
-                dc.SetFontFace(face)
-                dc.SetRGB(1, 1, 1)
-                dc.DrawStringAnchored(req.Item, 40, 440, 0, 0.5)
-        }
+	huntFitText(dc, huntAsset("Cinzel.ttf"), 20, rarity, 220, 12)
+	ledgerCol := huntLedgerRarityColor[rarity]
+	if ledgerCol == "" {
+		ledgerCol = huntLedgerRarityColor["COMMON"]
+	}
+	dc.SetColor(utils.ParseHexColor(ledgerCol))
+	dc.DrawStringAnchored(rarity, ledgerRight-wZ-segGap-wX-segGap, 463, 1, 0.5)
 
-        // Item rarity + rewards (smaller)
-        if face, err := utils.LoadFont(fontPath, 16); err == nil {
-                dc.SetFontFace(face)
-                dc.SetColor(rarityRGBA)
-                dc.DrawStringAnchored(req.ItemRarity, 40, 470, 0, 0.5)
+	// ── wax rank seal (70,546) r26 ──
+	if req.Rank != "" {
+		cx, cy, r := 70.0, 546.0, 26.0
+		dc.SetColor(color.NRGBA{R: 128, G: 28, B: 40, A: 245})
+		dc.DrawCircle(cx, cy, r)
+		dc.Fill()
+		dc.SetRGB(70.0/255.0, 12.0/255.0, 20.0/255.0)
+		dc.SetLineWidth(3)
+		dc.DrawCircle(cx, cy, r)
+		dc.Stroke()
+		dc.SetRGB(220.0/255.0, 150.0/255.0, 90.0/255.0)
+		dc.SetLineWidth(2)
+		dc.DrawCircle(cx, cy, r-6)
+		dc.Stroke()
+		huntFitText(dc, huntAsset("Cinzel.ttf"), 24, req.Rank, 60, 10)
+		dc.SetRGB(250.0/255.0, 210.0/255.0, 120.0/255.0)
+		dc.DrawStringAnchored(req.Rank, cx, cy-1, 0.5, 0.5)
+	}
 
-                // XP + Zeni on the right
-                dc.SetRGB(0.4, 1, 0.4)
-                dc.DrawStringAnchored("+"+itoa(req.XP)+" XP", Wf-180, 440, 0, 0.5)
-                dc.SetRGB(1, 0.85, 0.3)
-                dc.DrawStringAnchored("+"+itoa(req.Zeni)+" Zeni", Wf-180, 470, 0, 0.5)
-        }
+	// ── caption ──
+	if face, err := utils.LoadFont(huntAsset("MedievalSharp.ttf"), 22); err == nil {
+		dc.SetFontFace(face)
+		dc.SetRGB(176.0/255.0, 140.0/255.0, 96.0/255.0)
+		dc.DrawStringAnchored("the wilds yield — sell at HQ or craft with it", 500, 552, 0.5, 0.5)
+	}
 
-        // ── Player name (under player sprite) ──
-        if face, err := utils.LoadFont(fontPath, 18); err == nil {
-                dc.SetFontFace(face)
-                dc.SetRGBA(1, 1, 1, 0.9)
-                dc.DrawStringAnchored(req.PlayerName, 130, 410, 0.5, 0.5)
-        }
-
-        // ── Animal name (under animal sprite, with red "DEFEATED" tag) ──
-        if face, err := utils.LoadFont(fontPath, 18); err == nil {
-                dc.SetFontFace(face)
-                dc.SetRGBA(1, 0.4, 0.4, 0.95)
-                label := req.Animal + " (defeated)"
-                if req.Animal == "" {
-                        label = "defeated"
-                }
-                dc.DrawStringAnchored(label, 620, 410, 0.5, 0.5)
-        }
-
-        // ── Decorative top corners (rank badge) ──
-        if req.Rank != "" {
-                if face, err := utils.LoadFont(fontPath, 16); err == nil {
-                        dc.SetFontFace(face)
-                        // Rank badge top-right
-                        rankRGBA := utils.ParseHexColor(getRankColor(req.Rank))
-                        dc.SetColor(rankRGBA)
-                        drawRoundedRect(dc, Wf-90, 10, 70, 40, 6)
-                        dc.Fill()
-                        dc.SetRGB(1, 1, 1)
-                        dc.DrawStringAnchored(req.Rank+"-RANK", Wf-55, 30, 0.5, 0.5)
-                }
-        }
-
-        // ── Vignette ──
-        for i := 0; i < 30; i++ {
-                dc.SetRGBA(0, 0, 0, 0.015)
-                dc.DrawRectangle(0, 0, float64(i), Hf)
-                dc.Fill()
-                dc.DrawRectangle(float64(W-i), 0, float64(i), Hf)
-                dc.Fill()
-        }
-
-        // Encode
-        buf, err := utils.EncodeImageToBuffer(dc.Image())
-        if err != nil {
-                c.JSON(500, gin.H{"error": "Failed to encode hunt card"})
-                return
-        }
-
-        c.Data(200, "image/png", buf)
-}
-
-// drawRoundedRect is a helper that draws a rounded rectangle path (does not fill — caller must Fill).
-func drawRoundedRect(dc *gg.Context, x, y, w, h, r float64) {
-        dc.DrawRoundedRectangle(x, y, w, h, r)
-}
-
-// itoa converts int to string without importing strconv (keeps imports minimal).
-func itoa(n int) string {
-        if n == 0 {
-                return "0"
-        }
-        neg := n < 0
-        if neg {
-                n = -n
-        }
-        var buf [20]byte
-        i := len(buf)
-        for n > 0 {
-                i--
-                buf[i] = byte('0' + n%10)
-                n /= 10
-        }
-        if neg {
-                i--
-                buf[i] = '-'
-        }
-        return string(buf[i:])
+	buf, err := utils.EncodeImageToBuffer(dc.Image())
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to encode hunt card"})
+		return
+	}
+	c.Data(200, "image/png", buf)
 }
 
 // getRankColor returns a hex color for the given rank letter.
 func getRankColor(rank string) string {
-        switch rank {
-        case "F":
-                return "#9E9E9E"
-        case "E":
-                return "#8D6E63"
-        case "D":
-                return "#795548"
-        case "C":
-                return "#558B2F"
-        case "B":
-                return "#2E7D32"
-        case "A":
-                return "#1565C0"
-        case "S":
-                return "#7B1FA2"
-        case "SS":
-                return "#C2185B"
-        case "SSS":
-                return "#E65100"
-        case "GOD":
-                return "#FFD700"
-        case "DRAGON":
-                return "#FF6F00"
-        default:
-                return "#9E9E9E"
-        }
+	switch rank {
+	case "F":
+		return "#9E9E9E"
+	case "E":
+		return "#8D6E63"
+	case "D":
+		return "#795548"
+	case "C":
+		return "#558B2F"
+	case "B":
+		return "#2E7D32"
+	case "A":
+		return "#1565C0"
+	case "S":
+		return "#7B1FA2"
+	case "SS":
+		return "#C2185B"
+	case "SSS":
+		return "#E65100"
+	case "GOD":
+		return "#FFD700"
+	case "DRAGON":
+		return "#FF6F00"
+	default:
+		return "#9E9E9E"
+	}
 }
-
-// Unused but kept for future expansion (silences linter about math import)
-var _ = math.Pi

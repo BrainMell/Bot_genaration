@@ -10,6 +10,7 @@ import (
         "net/url"
         "os"
         "strings"
+        "syscall"
         "time"
 
         "github.com/gin-gonic/gin"
@@ -239,7 +240,24 @@ func main() {
         scrape.GET("/anikai", proxyToScraper)
         scrape.GET("/news", proxyToScraper)
 
-        log.Printf("🚀 Microservice starting on port %s [MODE=%s]", port, mode)
+        	r.POST("/admin/reload", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "reloading", "pid": os.Getpid(), "mode": mode})
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			exe, err := os.Executable()
+			if err != nil {
+				fmt.Printf("[ADMIN] reload: executable lookup failed: %v\n", err)
+				os.Exit(0)
+			}
+			fmt.Printf("[ADMIN] reload: self-exec %s\n", exe)
+			if err := syscall.Exec(exe, os.Args, os.Environ()); err != nil {
+				fmt.Printf("[ADMIN] reload: self-exec failed: %v\n", err)
+				os.Exit(0)
+			}
+		}()
+	})
+
+log.Printf("🚀 Microservice starting on port %s [MODE=%s]", port, mode)
         if err := r.Run("0.0.0.0:" + port); err != nil {
                 log.Fatal("Engine Startup Failed: ", err)
         }
