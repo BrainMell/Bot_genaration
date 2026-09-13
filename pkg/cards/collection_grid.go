@@ -55,6 +55,14 @@ type CollCardInput struct {
         Name     string `json:"name"`
         Tier     string `json:"tier"`
         Animated bool   `json:"animated"` // ignored — we render static PNG
+        // LocalPath — 💡 FIX 2026-09-10: optional pre-downloaded copy of the card.
+        // The hybrid grid endpoint already fetched every card in its STEP 1; when
+        // LocalPath is set the renderer reads the local file instead of
+        // re-downloading the URL (previously each card was fetched TWICE per
+        // hybrid render — brutal for decks holding 10-40MB GIFs).
+        // Not part of the JSON API (`json:"-"`), so /api/cards/grid callers are
+        // unaffected and keep the pure-URL behavior.
+        LocalPath string `json:"-"`
 }
 
 // CollGridRequest is the payload for the collection grid endpoint
@@ -101,6 +109,20 @@ func renderCollectionGridPNG(images []CollCardInput, title string) ([]byte, int,
         totalW := gridW
         totalH := COLL_HEADER_H + gridH + COLL_FOOTER_H
 
+        // 💡 FIX 2026-09-10 (CRITICAL): libx264 yuv420p requires EVEN width and
+        // height. totalH = 105 + 395*rows → 2 rows (5-8 cards) = 895px = ODD,
+        // so the hybrid ffmpeg encode failed with "height not divisible by 2"
+        // and every such coll/deck silently degraded to a static image. Only
+        // 1-row and 3-row layouts (500/1290, even) ever worked — by luck.
+        // Round the canvas up to even W/H (a 1px background-color sliver at
+        // the bottom edge — invisible).
+        if totalW%2 != 0 {
+                totalW++
+        }
+        if totalH%2 != 0 {
+                totalH++
+        }
+
         dc := gg.NewContext(totalW, totalH)
 
         // === Background ===
@@ -139,10 +161,29 @@ func renderCollectionGridPNG(images []CollCardInput, title string) ([]byte, int,
         fetchResults := make([]fetchedCard, len(images))
 
         var wg sync.WaitGroup
+        // 💡 FIX 2026-09-10: bound concurrent decode work. Each worker holds a
+        // full copy of the card bytes in RAM (heavy GIFs run up to ~40MB); 12
+        // parallel decodes = ~480MB peak on a 954MB box that also runs the
+        // bot itself — OOM territory. 3 concurrent decodes ≈ max 120MB.
+        decodeSem := make(chan struct{}, 3)
         for i, card := range images {
                 wg.Add(1)
                 go func(idx int, c CollCardInput) {
                         defer wg.Done()
+                        decodeSem <- struct{}{}
+                        defer func() { <-decodeSem }()
+                        // 💡 FIX 2026-09-10: hybrid grid passes pre-downloaded local
+                        // files — use them and skip the network entirely.
+                        if c.LocalPath != "" {
+                                data, err := os.ReadFile(c.LocalPath)
+                                if err != nil {
+                                        fetchResults[idx] = fetchedCard{err: err}
+                                        return
+                                }
+                                img, err := decodeAndResizeCardData(data, c.URL, COLL_CARD_W-2*COLL_BORDER, COLL_CARD_H-2*COLL_BORDER)
+                                fetchResults[idx] = fetchedCard{img: img, err: err}
+                                return
+                        }
                         if c.URL == "" {
                                 return
                         }
@@ -270,6 +311,16 @@ func downloadAndResizeCollImage(client *http.Client, url string, targetW, target
                 return nil, fmt.Errorf("read failed: %w", err)
         }
 
+        return decodeAndResizeCardData(data, url, targetW, targetH)
+}
+
+// decodeAndResizeCardData — 💡 EXTRACTED 2026-09-10 so local files (hybrid
+// grid's pre-downloaded copies) go through the exact same decode path as
+// freshly downloaded ones:
+//   - .webm/.webp bodies → FFmpeg extracts the first frame
+//   - everything else (JPEG/PNG/GIF) → imaging.Decode (GIF = first frame),
+//     then NearestNeighbor fill to target size.
+func decodeAndResizeCardData(data []byte, url string, targetW, targetH int) (image.Image, error) {
         // For .webm video cards (Tier 6/S), extract the first frame with FFmpeg.
         lowerURL := strings.ToLower(url)
         if strings.HasSuffix(lowerURL, ".webm") || strings.HasSuffix(lowerURL, ".webp") {

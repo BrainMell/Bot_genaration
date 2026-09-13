@@ -293,12 +293,12 @@ func GenerateHuntCard(c *gin.Context) {
 		dc.DrawStringAnchored("the wilds yield — sell at HQ or craft with it", 500, 552, 0.5, 0.5)
 	}
 
-	buf, err := utils.EncodeImageToBuffer(dc.Image())
+	buf, ctype, err := utils.EncodeImageToBufferFormat(dc.Image(), c.Query("fmt"), 90)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to encode hunt card"})
 		return
 	}
-	c.Data(200, "image/png", buf)
+	c.Data(200, ctype, buf)
 }
 
 // getRankColor returns a hex color for the given rank letter.

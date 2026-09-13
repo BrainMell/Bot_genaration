@@ -225,41 +225,100 @@ func portraitPillCentred(dc *gg.Context, text string, x, y float64, fill, txt co
 	dc.DrawStringAnchored(text, x, y, 0.5, 0.5)
 }
 
-// GeneratePortraitCard renders DUEL / QUEST portrait event cards (600x1000).
+// portraitRow — generic label/value ledger row.
+type portraitRow struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+type portraitPlayerRow struct {
+	Name string `json:"name"`
+	XP   string `json:"xp"`
+	Zeni string `json:"zeni"`
+}
+
+// portraitNode — one skill node on the SKILLTREE card (r4).
+type portraitNode struct {
+	Name  string `json:"name"`
+	Cur   int    `json:"cur"`
+	Max   int    `json:"max"`
+	State string `json:"state"` // locked | open | learned | maxed
+	Tier  int    `json:"tier"`
+}
+
+type portraitBranch struct {
+	Name   string         `json:"name"`
+	Skills []portraitNode `json:"skills"`
+}
+
+type portraitBuilding struct {
+	Name  string `json:"name"`
+	Level int    `json:"level"`
+}
+
+// portraitRequest — payload for /api/cards/portrait (all kinds).
+type portraitRequest struct {
+	Kind        string              `json:"kind"`
+	Nickname    string              `json:"nickname"`
+	Caption     string              `json:"caption"`
+	SealText    string              `json:"sealText"`
+	Forfeit     bool                `json:"forfeit"` // DUEL only: "BY FORFEIT" stamp
+	Ledger      []portraitRow       `json:"ledger"`
+	Players     []portraitPlayerRow `json:"players"`
+	WinnerClass string              `json:"winnerClass"`
+	WinnerIndex int                 `json:"winnerIndex"`
+	LoserClass  string              `json:"loserClass"`
+	LoserIndex  int                 `json:"loserIndex"`
+	// RANK kind (2026-09-14):
+	Level      int           `json:"level"`
+	RankLetter string        `json:"rankLetter"`
+	RankLine   string        `json:"rankLine"`
+	XPNow      string        `json:"xpNow"`
+	XPLeft     string        `json:"xpLeft"`
+	XPPercent  int           `json:"xpPercent"`
+	Standing   []portraitRow `json:"standing"`
+	// r4 kinds (2026-09-14): QUESTSTART/RAID + GUILDINFO + SKILLTREE + SKILLUP
+	Rows        []portraitRow      `json:"rows"`
+	Branches    []portraitBranch   `json:"branches"`
+	ClassName   string             `json:"className"`
+	SkillPoints int                `json:"skillPoints"`
+	SkillName   string             `json:"skillName"`
+	SkillMax    int                `json:"skillMax"`
+	Cur         int                `json:"cur"`
+	Tier        int                `json:"tier"`
+	Ascended    bool               `json:"ascended"`
+	HexColor    string             `json:"hexColor"`
+	Motto       string             `json:"motto"`
+	Buildings   []portraitBuilding `json:"buildings"`
+	Background  string             `json:"background"` // env asset filename
+	PlayerClass string             `json:"playerClass"`
+	PlayerIndex int                `json:"playerIndex"`
+	PartyText   string             `json:"partyText"`
+}
+
+// GeneratePortraitCard renders DUEL / QUEST portrait event cards (600x1000)
+// plus the r4 kinds (QUESTSTART/RAID 1000x600, GUILDINFO 800x800,
+// SKILLTREE 1200x800, SKILLUP 600x1000 — see eventcards.go).
 func GeneratePortraitCard(c *gin.Context) {
-	var req struct {
-		Kind     string `json:"kind"`
-		Nickname string `json:"nickname"`
-		Caption  string `json:"caption"`
-		SealText string `json:"sealText"`
-		Forfeit  bool   `json:"forfeit"` // DUEL only: "BY FORFEIT" stamp
-		Ledger   []struct {
-			Label string `json:"label"`
-			Value string `json:"value"`
-		} `json:"ledger"`
-		Players []struct {
-			Name string `json:"name"`
-			XP   string `json:"xp"`
-			Zeni string `json:"zeni"`
-		} `json:"players"`
-		WinnerClass string `json:"winnerClass"`
-		WinnerIndex int    `json:"winnerIndex"`
-		LoserClass  string `json:"loserClass"`
-		LoserIndex  int    `json:"loserIndex"`
-		// RANK kind (2026-09-14):
-		Level      int    `json:"level"`
-		RankLetter string `json:"rankLetter"`
-		RankLine   string `json:"rankLine"`
-		XPNow      string `json:"xpNow"`
-		XPLeft     string `json:"xpLeft"`
-		XPPercent  int    `json:"xpPercent"`
-		Standing   []struct {
-			Label string `json:"label"`
-			Value string `json:"value"`
-		} `json:"standing"`
-	}
+	var req portraitRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	// r4 kinds have their own canvases + arrangements
+	switch req.Kind {
+	case "QUESTSTART", "RAID":
+		renderQuestStartCard(c, &req, req.Kind == "RAID")
+		return
+	case "GUILDINFO":
+		renderGuildInfoCard(c, &req)
+		return
+	case "SKILLTREE":
+		renderSkillTreeCard(c, &req)
+		return
+	case "SKILLUP":
+		renderSkillUpCard(c, &req)
 		return
 	}
 
@@ -354,9 +413,11 @@ func GeneratePortraitCard(c *gin.Context) {
 		}
 
 		// ── THE STANDING (lower section): label/value rows ──
+		// 2026-09-14: raised to 5 rows (y556 + 4x64 = 812, panel ends
+		// y832) so the next-rank gate rows fit beside the standings.
 		y := questPlayerY0
 		for i, row := range req.Standing {
-			if i >= 4 {
+			if i >= 5 {
 				break
 			}
 			portraitFitText(dc, portraitAsset("Cinzel.ttf"), 22, portraitSanitize(row.Label), 220, 12)
@@ -465,12 +526,12 @@ func GeneratePortraitCard(c *gin.Context) {
 		portraitCaption(dc, portraitSanitize(req.Caption))
 	}
 
-	buf, err := utils.EncodeImageToBuffer(dc.Image())
+	buf, ctype, err := utils.EncodeImageToBufferFormat(dc.Image(), c.Query("fmt"), 90)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to encode portrait card"})
 		return
 	}
-	c.Data(200, "image/png", buf)
+	c.Data(200, ctype, buf)
 }
 
 // EndCardPayload — victory/defeat end screen, rendered by WriteEndCard.
@@ -670,10 +731,10 @@ func WriteEndCard(c *gin.Context, req EndCardPayload) {
 	}
 	portraitCaption(dc, portraitSanitize(cap))
 
-	buf, err := utils.EncodeImageToBuffer(dc.Image())
+	buf, ctype, err := utils.EncodeImageToBufferFormat(dc.Image(), c.Query("fmt"), 90)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to encode end card"})
 		return
 	}
-	c.Data(200, "image/png", buf)
+	c.Data(200, ctype, buf)
 }

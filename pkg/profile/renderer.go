@@ -15,8 +15,6 @@ import (
 	"log"
 )
 
-
-
 const (
 	PROF_W = 800
 	PROF_H = 460
@@ -116,10 +114,10 @@ func GenerateProfileCard(c *gin.Context) {
 		"D":   {60, 220, 130, 255},  // Green/Emerald
 		"C":   {255, 220, 80, 255},  // Gold/Yellow
 		"B":   {255, 140, 0, 255},   // Orange/Fiery
-		"A":   {255, 70, 70, 255},    // Crimson/Red
-		"S":   {180, 100, 255, 255},  // Royal Purple/Amethyst
-		"SS":  {255, 60, 180, 255},   // Deep Pink/Rose
-		"SSS": {255, 50, 50, 255},    // Hellfire/Dragon Red
+		"A":   {255, 70, 70, 255},   // Crimson/Red
+		"S":   {180, 100, 255, 255}, // Royal Purple/Amethyst
+		"SS":  {255, 60, 180, 255},  // Deep Pink/Rose
+		"SSS": {255, 50, 50, 255},   // Hellfire/Dragon Red
 	}
 	rankSecColors := map[string]color.RGBA{
 		"F":   {180, 180, 200, 255},
@@ -181,43 +179,43 @@ func GenerateProfileCard(c *gin.Context) {
 
 	// === Left Panel: Avatar & Identity ===
 	const avCX, avCY, avR = 135.0, 75.0, 46.0
-    // Avatar handling with fallback
-    pfpLoaded := false
-    if req.PfpUrl != "" {
-        if img, err := utils.DownloadImage(req.PfpUrl); err == nil {
-            img = imaging.Fill(img, int(avR*2), int(avR*2), imaging.Center, imaging.Lanczos)
-            dc.Push()
-            dc.DrawCircle(avCX, avCY, avR)
-            dc.Clip()
-            dc.DrawImage(img, int(avCX-avR), int(avCY-avR))
-            dc.ResetClip()
-            dc.Pop()
-            pfpLoaded = true
-        }
-    }
-    if !pfpLoaded {
-        // Try UI Avatars placeholder based on nickname
-        placeholderURL := "https://ui-avatars.com/api/?name=" + url.QueryEscape(req.Nickname) + "&size=92&background=random&color=fff&bold=true&format=png"
-        if img, err := utils.DownloadImage(placeholderURL); err == nil {
-            img = imaging.Fill(img, int(avR*2), int(avR*2), imaging.Center, imaging.Lanczos)
-            dc.Push()
-            dc.DrawCircle(avCX, avCY, avR)
-            dc.Clip()
-            dc.DrawImage(img, int(avCX-avR), int(avCY-avR))
-            dc.ResetClip()
-            dc.Pop()
-            pfpLoaded = true
-        }
-    }
-    if !pfpLoaded {
-        // Solid circle with initial fallback
-        dc.SetColor(color.RGBA{rankColor.R / 4, rankColor.G / 4, rankColor.B / 4, 255})
-        dc.DrawCircle(avCX, avCY, avR)
-        dc.Fill()
-        dc.SetFontFace(bold22)
-        dc.SetColor(color.RGBA{220, 220, 230, 200})
-        dc.DrawStringAnchored(string([]rune(req.Nickname)[0:1]), avCX, avCY+2, 0.5, 0.5)
-    }
+	// Avatar handling with fallback
+	pfpLoaded := false
+	if req.PfpUrl != "" {
+		if img, err := utils.DownloadImage(req.PfpUrl); err == nil {
+			img = imaging.Fill(img, int(avR*2), int(avR*2), imaging.Center, imaging.Lanczos)
+			dc.Push()
+			dc.DrawCircle(avCX, avCY, avR)
+			dc.Clip()
+			dc.DrawImage(img, int(avCX-avR), int(avCY-avR))
+			dc.ResetClip()
+			dc.Pop()
+			pfpLoaded = true
+		}
+	}
+	if !pfpLoaded {
+		// Try UI Avatars placeholder based on nickname
+		placeholderURL := "https://ui-avatars.com/api/?name=" + url.QueryEscape(req.Nickname) + "&size=92&background=random&color=fff&bold=true&format=png"
+		if img, err := utils.DownloadImage(placeholderURL); err == nil {
+			img = imaging.Fill(img, int(avR*2), int(avR*2), imaging.Center, imaging.Lanczos)
+			dc.Push()
+			dc.DrawCircle(avCX, avCY, avR)
+			dc.Clip()
+			dc.DrawImage(img, int(avCX-avR), int(avCY-avR))
+			dc.ResetClip()
+			dc.Pop()
+			pfpLoaded = true
+		}
+	}
+	if !pfpLoaded {
+		// Solid circle with initial fallback
+		dc.SetColor(color.RGBA{rankColor.R / 4, rankColor.G / 4, rankColor.B / 4, 255})
+		dc.DrawCircle(avCX, avCY, avR)
+		dc.Fill()
+		dc.SetFontFace(bold22)
+		dc.SetColor(color.RGBA{220, 220, 230, 200})
+		dc.DrawStringAnchored(string([]rune(req.Nickname)[0:1]), avCX, avCY+2, 0.5, 0.5)
+	}
 	// PFP border
 	dc.SetColor(rankColor)
 	dc.SetLineWidth(3)
@@ -363,30 +361,30 @@ func GenerateProfileCard(c *gin.Context) {
 
 	// Row 1
 	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[0], "⚔️", "MAIN HAND", req.GearMainHand, cardBorderColor, req.DurMainHand)
-	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[0], "🗡️", "OFF HAND",  req.GearOffHand,  cardBorderColor, req.DurOffHand)
-	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[0], "👕", "ARMOR",     req.GearArmor,    cardBorderColor, req.DurArmor)
+	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[0], "🗡️", "OFF HAND", req.GearOffHand, cardBorderColor, req.DurOffHand)
+	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[0], "👕", "ARMOR", req.GearArmor, cardBorderColor, req.DurArmor)
 
 	// Row 2
-	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[1], "⛑️", "HELMET",   req.GearHelmet,   cardBorderColor, req.DurHelmet)
-	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[1], "🧤", "GLOVES",   req.GearGloves,   cardBorderColor, req.DurGloves)
-	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[1], "👢", "BOOTS",    req.GearBoots,    cardBorderColor, req.DurBoots)
+	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[1], "⛑️", "HELMET", req.GearHelmet, cardBorderColor, req.DurHelmet)
+	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[1], "🧤", "GLOVES", req.GearGloves, cardBorderColor, req.DurGloves)
+	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[1], "👢", "BOOTS", req.GearBoots, cardBorderColor, req.DurBoots)
 
 	// Row 3
-	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[2], "💍", "RING",     req.GearRing,     cardBorderColor, req.DurRing)
-	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[2], "📿", "AMULET",   req.GearAmulet,   cardBorderColor, req.DurAmulet)
-	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[2], "🧥", "CLOAK",    req.GearCloak,    cardBorderColor, req.DurCloak)
+	drawGearSlot(dc, med8, med10, gearColX[0], gearRowY[2], "💍", "RING", req.GearRing, cardBorderColor, req.DurRing)
+	drawGearSlot(dc, med8, med10, gearColX[1], gearRowY[2], "📿", "AMULET", req.GearAmulet, cardBorderColor, req.DurAmulet)
+	drawGearSlot(dc, med8, med10, gearColX[2], gearRowY[2], "🧥", "CLOAK", req.GearCloak, cardBorderColor, req.DurCloak)
 
 	// Watermark
 	dc.SetFontFace(med8)
 	dc.SetColor(color.RGBA{45, 45, 75, 255})
 	dc.DrawStringAnchored("Made By Mellow™", PROF_W-20, PROF_H-12, 1.0, 0.5)
 
-	buf, err := utils.EncodeImageToBuffer(dc.Image())
+	buf, ctype, err := utils.EncodeImageToBufferFormat(dc.Image(), c.Query("fmt"), 90)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "encode failed"})
 		return
 	}
-	c.Data(200, "image/png", buf)
+	c.Data(200, ctype, buf)
 }
 
 func drawStatRow(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, statIcon, statName string, baseVal, bonusVal float64, isPercent bool) {
@@ -422,96 +420,94 @@ func drawStatRow(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, sta
 }
 
 func drawGearSlot(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, slotIcon, slotLabel, itemName string, borderColor color.RGBA, durPct int) {
-    w := 148.0
-    h := 50.0
-    hasItem := itemName != "" && itemName != "None"
+	w := 148.0
+	h := 50.0
+	hasItem := itemName != "" && itemName != "None"
 
-    // 1. Dark base background
-    dc.SetColor(color.RGBA{22, 22, 38, 255})
-    dc.DrawRoundedRectangle(x, y, w, h, 4)
-    dc.Fill()
+	// 1. Dark base background
+	dc.SetColor(color.RGBA{22, 22, 38, 255})
+	dc.DrawRoundedRectangle(x, y, w, h, 4)
+	dc.Fill()
 
-    // 2. Durability fill bar — rises from bottom, height = durPct% of box
-    // durPct -1 = empty slot (no bar drawn)
-    if durPct >= 0 && hasItem {
-        var barColor color.RGBA
-        switch {
-        case durPct >= 75:
-            barColor = color.RGBA{40, 180, 80, 60}   // green, semi-transparent
-        case durPct >= 50:
-            barColor = color.RGBA{180, 200, 30, 55}  // yellow-green
-        case durPct >= 25:
-            barColor = color.RGBA{230, 130, 20, 65}  // orange
-        case durPct >= 1:
-            barColor = color.RGBA{210, 40, 40, 70}   // red
-        default:
-            barColor = color.RGBA{80, 80, 100, 55}   // grey (broken)
-        }
-        fillH := h * float64(durPct) / 100.0
-        fillY := y + h - fillH
-        dc.SetColor(barColor)
-        dc.DrawRoundedRectangle(x, fillY, w, fillH, 3)
-        dc.Fill()
+	// 2. Durability fill bar — rises from bottom, height = durPct% of box
+	// durPct -1 = empty slot (no bar drawn)
+	if durPct >= 0 && hasItem {
+		var barColor color.RGBA
+		switch {
+		case durPct >= 75:
+			barColor = color.RGBA{40, 180, 80, 60} // green, semi-transparent
+		case durPct >= 50:
+			barColor = color.RGBA{180, 200, 30, 55} // yellow-green
+		case durPct >= 25:
+			barColor = color.RGBA{230, 130, 20, 65} // orange
+		case durPct >= 1:
+			barColor = color.RGBA{210, 40, 40, 70} // red
+		default:
+			barColor = color.RGBA{80, 80, 100, 55} // grey (broken)
+		}
+		fillH := h * float64(durPct) / 100.0
+		fillY := y + h - fillH
+		dc.SetColor(barColor)
+		dc.DrawRoundedRectangle(x, fillY, w, fillH, 3)
+		dc.Fill()
 
-        // % label at left edge, vertically centered in the filled area
-        if durPct > 0 {
-            dc.SetFontFace(fontLabel)
-            pctStr := fmt.Sprintf("%d%%", durPct)
-            textY := fillY + fillH/2 + 4
-            if textY > y+h-4 {
-                textY = y + h - 4
-            }
-            if textY < y+10 {
-                textY = y + 10
-            }
-            dc.SetColor(color.RGBA{255, 255, 255, 160})
-            dc.DrawString(pctStr, x+4, textY)
-        }
-    }
+		// % label at left edge, vertically centered in the filled area
+		if durPct > 0 {
+			dc.SetFontFace(fontLabel)
+			pctStr := fmt.Sprintf("%d%%", durPct)
+			textY := fillY + fillH/2 + 4
+			if textY > y+h-4 {
+				textY = y + h - 4
+			}
+			if textY < y+10 {
+				textY = y + 10
+			}
+			dc.SetColor(color.RGBA{255, 255, 255, 160})
+			dc.DrawString(pctStr, x+4, textY)
+		}
+	}
 
-    // 3. Border color reflects durability state
-    var border color.RGBA
-    if !hasItem {
-        border = borderColor // dim/empty
-    } else if durPct == 0 {
-        border = color.RGBA{130, 50, 50, 255}   // broken: dark red
-    } else if durPct < 25 {
-        border = color.RGBA{210, 80, 40, 255}   // critical: orange-red
-    } else if durPct < 50 {
-        border = color.RGBA{200, 170, 30, 255}  // worn: yellow
-    } else {
-        border = color.RGBA{60, 210, 130, 255}  // healthy: green
-    }
-    dc.SetColor(border)
-    dc.SetLineWidth(0.8)
-    dc.DrawRoundedRectangle(x, y, w, h, 4)
-    dc.Stroke()
+	// 3. Border color reflects durability state
+	var border color.RGBA
+	if !hasItem {
+		border = borderColor // dim/empty
+	} else if durPct == 0 {
+		border = color.RGBA{130, 50, 50, 255} // broken: dark red
+	} else if durPct < 25 {
+		border = color.RGBA{210, 80, 40, 255} // critical: orange-red
+	} else if durPct < 50 {
+		border = color.RGBA{200, 170, 30, 255} // worn: yellow
+	} else {
+		border = color.RGBA{60, 210, 130, 255} // healthy: green
+	}
+	dc.SetColor(border)
+	dc.SetLineWidth(0.8)
+	dc.DrawRoundedRectangle(x, y, w, h, 4)
+	dc.Stroke()
 
-    // 4. Slot label (top)
-    dc.SetFontFace(fontLabel)
-    dc.SetColor(color.RGBA{120, 120, 150, 255})
-    dc.DrawString(slotIcon+" "+slotLabel, x+8, y+16)
+	// 4. Slot label (top)
+	dc.SetFontFace(fontLabel)
+	dc.SetColor(color.RGBA{120, 120, 150, 255})
+	dc.DrawString(slotIcon+" "+slotLabel, x+8, y+16)
 
-    // 5. Item name (bottom) — always renders on top of the bar fill
-    dc.SetFontFace(fontVal)
-    if !hasItem {
-        dc.SetColor(color.RGBA{70, 70, 95, 255})
-        dc.DrawString("Empty", x+8, y+36)
-    } else {
-        if durPct == 0 {
-            dc.SetColor(color.RGBA{160, 80, 80, 255}) // muted red for broken
-        } else {
-            dc.SetColor(color.RGBA{240, 240, 255, 255})
-        }
-        runes := []rune(itemName)
-        if len(runes) > 17 {
-            itemName = string(runes[:14]) + "..."
-        }
-        dc.DrawString(itemName, x+8, y+36)
-    }
+	// 5. Item name (bottom) — always renders on top of the bar fill
+	dc.SetFontFace(fontVal)
+	if !hasItem {
+		dc.SetColor(color.RGBA{70, 70, 95, 255})
+		dc.DrawString("Empty", x+8, y+36)
+	} else {
+		if durPct == 0 {
+			dc.SetColor(color.RGBA{160, 80, 80, 255}) // muted red for broken
+		} else {
+			dc.SetColor(color.RGBA{240, 240, 255, 255})
+		}
+		runes := []rune(itemName)
+		if len(runes) > 17 {
+			itemName = string(runes[:14]) + "..."
+		}
+		dc.DrawString(itemName, x+8, y+36)
+	}
 }
-
-
 
 func formatNum(n int) string {
 	f := float64(n)

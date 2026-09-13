@@ -1096,13 +1096,13 @@ func GenerateCombatImage(c *gin.Context) {
 	}
 
 	// Encode
-	buf, err := utils.EncodeImageToBuffer(dc.Image())
+	buf, ctype, err := utils.EncodeImageToBufferFormat(dc.Image(), c.Query("fmt"), 90)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to encode image"})
 		return
 	}
 
-	c.Data(200, "image/png", buf)
+	c.Data(200, ctype, buf)
 }
 
 func GenerateEndScreen(c *gin.Context) {
