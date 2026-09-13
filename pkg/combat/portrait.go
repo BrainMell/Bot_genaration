@@ -35,10 +35,32 @@ package combat
 //     path as QUEST (Ledger = WAS/NOW/TIER, Players = reward rows),
 //     seal = tier letter, caption = flavour.
 //
+//   RANK — 2026-09-14, owner: "make the .rank an image card and include
+//     your level and xp left to progress". baked bg_RANK.png — SAME
+//     geometry as QUEST/TRIAL (banner "ADVENTURER", panel (55,208)-(545,832),
+//     dividers y266/y492, lower label "THE STANDING" (85,520)). Top section
+//     (y266..y492) paints the RECORD: big LEVEL line, rank pill, XP bar
+//     (track (85,402)-(515,428), gold fill by percent, quarter ticks) and
+//     under-bar strings xpNow / xpLeft. Lower section paints Standing rows
+//     (y556 step 64, max 4, label/value). seal = rank letter, caption.
+//     Node caller: progressionCommands.handleRankCommand.
+//
+//   END (victory/defeat) — 2026-09-14, owner: "update the victory and
+//     defeat image cards with the style". Replaces the old gradient
+//     GenerateEndScreen. baked bg_VICTORY.png / bg_DEFEAT.png clone the
+//     DUEL geometry: banner VICTORY/DEFEATED, plate (player name), scene
+//     window (55,208)-(545,642) (arena + player sprite LEFT + enemy sprite
+//     RIGHT — vivid winner / faded loser), corner pills VICTOR+SLAIN /
+//     FALLEN+VICTORIOUS, spoils ledger y746 step 44 (victory: zeni/xp/
+//     spoils/depth — defeat: slain-by/rank/recovered), seal = rank letter
+//     (victory) or fallen-at level (defeat), caption. HTTP handler:
+//     renderer.go GenerateEndScreen -> WriteEndCard (this file).
+//
 // NOTE: no gg Clip() anywhere — clip state leaks in this gg version and
 // erases later draws (same bug as hunt/boss QA rounds).
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
@@ -224,6 +246,17 @@ func GeneratePortraitCard(c *gin.Context) {
 		WinnerIndex int    `json:"winnerIndex"`
 		LoserClass  string `json:"loserClass"`
 		LoserIndex  int    `json:"loserIndex"`
+		// RANK kind (2026-09-14):
+		Level      int    `json:"level"`
+		RankLetter string `json:"rankLetter"`
+		RankLine   string `json:"rankLine"`
+		XPNow      string `json:"xpNow"`
+		XPLeft     string `json:"xpLeft"`
+		XPPercent  int    `json:"xpPercent"`
+		Standing   []struct {
+			Label string `json:"label"`
+			Value string `json:"value"`
+		} `json:"standing"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{"error": err.Error()})
@@ -236,6 +269,8 @@ func GeneratePortraitCard(c *gin.Context) {
 		bgFile = "bg_QUEST.png"
 	} else if req.Kind == "TRIAL" {
 		bgFile = "bg_TRIAL.png"
+	} else if req.Kind == "RANK" {
+		bgFile = "bg_RANK.png"
 	}
 	if bgImg, err := utils.LoadImage(portraitAsset(bgFile)); err == nil {
 		dc.DrawImage(bgImg, 0, 0)
@@ -254,7 +289,87 @@ func GeneratePortraitCard(c *gin.Context) {
 	dc.SetRGB(214.0/255.0, 170.0/255.0, 82.0/255.0)
 	dc.DrawStringAnchored(name, 84, 159, 0, 0.5)
 
-	if req.Kind == "QUEST" || req.Kind == "TRIAL" {
+	if req.Kind == "RANK" {
+		// ── THE RECORD (top section, y266..y492): big level + rank + XP bar ──
+		lvl := fmt.Sprintf("LEVEL %d", req.Level)
+		portraitFitText(dc, portraitAsset("Cinzel.ttf"), 56, lvl, 380, 30)
+		dc.SetRGB(52.0/255.0, 32.0/255.0, 16.0/255.0)
+		dc.DrawStringAnchored(lvl, 300, 318, 0.5, 0.5)
+
+		rankLine := req.RankLine
+		if rankLine == "" && req.RankLetter != "" {
+			rankLine = req.RankLetter + "-RANK ADVENTURER"
+		}
+		rankLine = strings.ToUpper(portraitSanitize(rankLine))
+		if rankLine != "" {
+			portraitPillCentred(dc, rankLine, 300, 371,
+				portraitCol(96, 62, 24, 235), portraitCol(244, 214, 140, 255))
+		}
+
+		// XP bar: dark track + gold fill by percent + quarter ticks
+		pct := req.XPPercent
+		if pct < 0 {
+			pct = 0
+		}
+		if pct > 100 {
+			pct = 100
+		}
+		dc.SetColor(portraitCol(54, 36, 18, 255))
+		dc.DrawRoundedRectangle(85, 402, 430, 26, 10)
+		dc.Fill()
+		fillW := 430.0 * float64(pct) / 100.0
+		if fillW > 430 {
+			fillW = 430
+		}
+		if fillW > 4 {
+			dc.SetColor(portraitCol(214, 170, 82, 255))
+			dc.DrawRoundedRectangle(85, 402, fillW, 26, 10)
+			dc.Fill()
+			dc.SetColor(portraitCol(240, 205, 120, 90))
+			dc.DrawRoundedRectangle(85, 402, fillW, 10, 8)
+			dc.Fill()
+		}
+		dc.SetColor(portraitCol(170, 130, 60, 255))
+		dc.SetLineWidth(2)
+		dc.DrawRoundedRectangle(85, 402, 430, 26, 10)
+		dc.Stroke()
+		dc.SetColor(portraitCol(120, 88, 40, 130))
+		dc.SetLineWidth(1)
+		for _, t := range []float64{0.25, 0.5, 0.75} {
+			tx := 85 + 430*t
+			dc.DrawLine(tx, 405, tx, 425)
+			dc.Stroke()
+		}
+
+		// under-bar strings: progress (left) · xp left to progress (right)
+		if req.XPNow != "" {
+			portraitFitText(dc, portraitAsset("Cinzel.ttf"), 18, portraitSanitize(req.XPNow), 200, 10)
+			dc.SetRGB(96.0/255.0, 110.0/255.0, 50.0/255.0)
+			dc.DrawStringAnchored(portraitSanitize(req.XPNow), 85, 452, 0, 0.5)
+		}
+		if req.XPLeft != "" {
+			portraitFitText(dc, portraitAsset("Cinzel.ttf"), 18, portraitSanitize(req.XPLeft), 240, 10)
+			dc.SetRGB(52.0/255.0, 32.0/255.0, 16.0/255.0)
+			dc.DrawStringAnchored(portraitSanitize(req.XPLeft), 515, 452, 1, 0.5)
+		}
+
+		// ── THE STANDING (lower section): label/value rows ──
+		y := questPlayerY0
+		for i, row := range req.Standing {
+			if i >= 4 {
+				break
+			}
+			portraitFitText(dc, portraitAsset("Cinzel.ttf"), 22, portraitSanitize(row.Label), 220, 12)
+			dc.SetRGB(120.0/255.0, 88.0/255.0, 40.0/255.0)
+			dc.DrawStringAnchored(portraitSanitize(row.Label), 85, y, 0, 0.5)
+			portraitFitText(dc, portraitAsset("Cinzel.ttf"), 22, portraitSanitize(row.Value), 250, 12)
+			dc.SetRGB(52.0/255.0, 32.0/255.0, 16.0/255.0)
+			dc.DrawStringAnchored(portraitSanitize(row.Value), 515, y, 1, 0.5)
+			y += questPlayerStep
+		}
+		portraitWaxSeal(dc, portraitSanitize(req.SealText))
+		portraitCaption(dc, portraitSanitize(req.Caption))
+	} else if req.Kind == "QUEST" || req.Kind == "TRIAL" {
 		// ── stat rows (label/value) ──
 		y := questStatY0
 		for i, row := range req.Ledger {
@@ -353,6 +468,211 @@ func GeneratePortraitCard(c *gin.Context) {
 	buf, err := utils.EncodeImageToBuffer(dc.Image())
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to encode portrait card"})
+		return
+	}
+	c.Data(200, "image/png", buf)
+}
+
+// EndCardPayload — victory/defeat end screen, rendered by WriteEndCard.
+// Legacy fields (text/victory/gold/xp/items) kept for old callers; the
+// player/enemy/rank/floor/background/caption fields are optional enrichment
+// sent by combatIntegration.renderCombatEnd. Everything degrades gracefully:
+// no sprites -> bare arena, no rank -> no seal row, etc.
+type EndCardPayload struct {
+	Text        string `json:"text"`
+	Victory     bool   `json:"victory"`
+	Gold        int    `json:"gold"`
+	XP          int    `json:"xp"`
+	Items       string `json:"items"`
+	PlayerName  string `json:"playerName"`
+	PlayerClass string `json:"playerClass"`
+	PlayerIndex int    `json:"playerIndex"`
+	PlayerLevel int    `json:"playerLevel"`
+	EnemyName   string `json:"enemyName"`
+	EnemyLevel  int    `json:"enemyLevel"`
+	EnemyIndex  int    `json:"enemyIndex"`
+	EnemyIsBoss bool   `json:"enemyIsBoss"`
+	Rank        string `json:"rank"`
+	Floor       int    `json:"floor"`
+	Background  string `json:"background"`
+	Caption     string `json:"caption"`
+}
+
+// portraitEnemySprite resolves + trims + fits an enemy sprite for the END
+// scene window. Tiny canvases (beholder-class sprites can be ~30px) are
+// upscaled to at least 60% of the width budget so the enemy READS on the
+// card (QA r1: ABYSS WARDEN rendered ~55px — invisible).
+func portraitEnemySprite(name string, level, index int, isBoss bool, maxW, maxH int) image.Image {
+	path := GetEnemySpritePath(name, level, index, isBoss, "assets")
+	img, err := utils.LoadImage(path)
+	if err != nil {
+		return nil
+	}
+	img = trimTransparent(img, 8)
+	b := img.Bounds()
+	minW := maxW * 6 / 10
+	if b.Dx() > 0 && b.Dx() < minW {
+		scale := minW / b.Dx()
+		if scale > 1 {
+			img = imaging.Resize(img, b.Dx()*scale, b.Dy()*scale, imaging.NearestNeighbor)
+		}
+	}
+	return imaging.Fit(img, maxW, maxH, imaging.NearestNeighbor)
+}
+
+// WriteEndCard — 2026-09-14 redesign of the victory/defeat end screen
+// (owner: "update the victory and defeat image cards with the style").
+// Lamoot wood+gold+parchment portrait family on bg_VICTORY/bg_DEFEAT:
+// scene window with vivid winner + faded loser, corner pills, spoils
+// ledger, wax seal, caption.
+func WriteEndCard(c *gin.Context, req EndCardPayload) {
+	dc := gg.NewContext(int(portraitW), int(portraitH))
+	bgFile := "bg_VICTORY.png"
+	if !req.Victory {
+		bgFile = "bg_DEFEAT.png"
+	}
+	if bgImg, err := utils.LoadImage(portraitAsset(bgFile)); err == nil {
+		dc.DrawImage(bgImg, 0, 0)
+	} else {
+		dc.SetRGB(0.09, 0.06, 0.04)
+		dc.DrawRectangle(0, 0, portraitW, portraitH)
+		dc.Fill()
+	}
+
+	// ── name plate ──
+	name := portraitSanitize(req.PlayerName)
+	if name == "" {
+		if req.Victory {
+			name = "The Party"
+		} else {
+			name = "The Fallen"
+		}
+	}
+	portraitFitText(dc, portraitAsset("Cinzel.ttf"), 28, name, 215, 12)
+	dc.SetRGB(214.0/255.0, 170.0/255.0, 82.0/255.0)
+	dc.DrawStringAnchored(name, 84, 159, 0, 0.5)
+
+	// ── scene window: arena + player (left) + enemy (right) ──
+	bg := filepath.Base(req.Background)
+	if bg == "." || bg == "/" || bg == "" {
+		bg = "spark_1.png"
+	}
+	if arena, err := utils.LoadImage(filepath.Join("assets", "rpgasset", "environment", bg)); err == nil {
+		arena = imaging.Fill(arena, int(duelSceneW), int(duelSceneH), imaging.Center, imaging.NearestNeighbor)
+		dc.DrawImage(arena, int(duelSceneX), int(duelSceneY))
+	} else {
+		dc.SetColor(portraitCol(18, 22, 16, 255))
+		dc.DrawRectangle(duelSceneX, duelSceneY, duelSceneW, duelSceneH)
+		dc.Fill()
+	}
+	dc.SetColor(portraitCol(0, 0, 0, 46))
+	dc.DrawRectangle(duelSceneX, duelSceneY, duelSceneW, duelSceneH)
+	dc.Fill()
+
+	sceneBottom := duelSceneY + duelSceneH - 6
+	if pImg := portraitFighterSprite(req.PlayerClass, req.PlayerIndex, 270, 330, "RIGHT"); pImg != nil {
+		if !req.Victory {
+			pImg = portraitFade(pImg, 0.45)
+		}
+		b := pImg.Bounds()
+		px := duelSceneX + 44
+		utils.DrawShadow(dc, px+float64(b.Dx())/2, sceneBottom-2, float64(b.Dx())*0.45, 0.5)
+		dc.DrawImage(pImg, int(px), int(sceneBottom)-b.Dy())
+	}
+	if req.EnemyName != "" {
+		maxW, maxH := 200, 220
+		if !req.Victory {
+			maxW, maxH = 250, 270
+		}
+		if eImg := portraitEnemySprite(req.EnemyName, req.EnemyLevel, req.EnemyIndex, req.EnemyIsBoss, maxW, maxH); eImg != nil {
+			if req.Victory {
+				eImg = portraitFade(eImg, 0.5)
+			}
+			b := eImg.Bounds()
+			ax := duelSceneX + duelSceneW - 26 - float64(b.Dx())
+			eBottom := sceneBottom - 12
+			utils.DrawShadow(dc, ax+float64(b.Dx())/2, eBottom, float64(b.Dx())*0.42, 0.5)
+			dc.DrawImage(eImg, int(ax), int(eBottom)-b.Dy())
+		}
+	}
+
+	// ── corner pills ──
+	if req.Victory {
+		portraitPill(dc, "VICTOR", duelSceneX+62, duelSceneY+26, false,
+			portraitCol(8, 8, 8, 150), portraitCol(250, 210, 120, 255))
+		portraitPill(dc, "SLAIN", duelSceneX+duelSceneW-62, duelSceneY+26, true,
+			portraitCol(8, 8, 8, 150), portraitCol(232, 116, 97, 255))
+	} else {
+		portraitPill(dc, "FALLEN", duelSceneX+62, duelSceneY+26, false,
+			portraitCol(8, 8, 8, 150), portraitCol(232, 116, 97, 255))
+		portraitPill(dc, "VICTORIOUS", duelSceneX+duelSceneW-62, duelSceneY+26, true,
+			portraitCol(8, 8, 8, 150), portraitCol(250, 210, 120, 255))
+	}
+
+	// ── spoils ledger (victory) / the fallen (defeat) ──
+	type endRow struct {
+		label string
+		value string
+	}
+	rows := []endRow{}
+	if req.Gold > 0 {
+		rows = append(rows, endRow{"ZENI", fmt.Sprintf("+%d", req.Gold)})
+	}
+	if req.XP > 0 {
+		rows = append(rows, endRow{"EXPERIENCE", fmt.Sprintf("+%d", req.XP)})
+	}
+	if req.Victory {
+		if req.Items != "" {
+			rows = append(rows, endRow{"SPOILS", strings.ToUpper(portraitSanitize(req.Items))})
+		}
+		if req.Floor > 0 {
+			rows = append(rows, endRow{"DEPTH", fmt.Sprintf("FLOOR %d", req.Floor)})
+		} else if req.Rank != "" {
+			rows = append(rows, endRow{"RANK", strings.ToUpper(portraitSanitize(req.Rank))})
+		}
+	} else {
+		if req.EnemyName != "" {
+			rows = append(rows, endRow{"SLAIN BY", strings.ToUpper(portraitSanitize(req.EnemyName))})
+		}
+		if req.Rank != "" {
+			rows = append(rows, endRow{"RANK", strings.ToUpper(portraitSanitize(req.Rank))})
+		}
+		rows = append(rows, endRow{"RECOVERED", "NOTHING OF VALUE"})
+	}
+	y := duelLedgerY0
+	for i, row := range rows {
+		if i >= 4 {
+			break
+		}
+		portraitFitText(dc, portraitAsset("Cinzel.ttf"), 21, portraitSanitize(row.label), 190, 12)
+		dc.SetRGB(120.0/255.0, 88.0/255.0, 40.0/255.0)
+		dc.DrawStringAnchored(portraitSanitize(row.label), 85, y, 0, 0.5)
+		portraitFitText(dc, portraitAsset("Cinzel.ttf"), 21, portraitSanitize(row.value), 300, 10)
+		dc.SetRGB(52.0/255.0, 32.0/255.0, 16.0/255.0)
+		dc.DrawStringAnchored(portraitSanitize(row.value), 515, y, 1, 0.5)
+		y += duelLedgerStep
+	}
+
+	// ── seal: rank letter on victory, fallen-at level on defeat ──
+	if req.Victory {
+		portraitWaxSeal(dc, strings.ToUpper(portraitSanitize(req.Rank)))
+	} else if req.PlayerLevel > 0 {
+		portraitWaxSeal(dc, fmt.Sprintf("LV%d", req.PlayerLevel))
+	}
+
+	cap := req.Caption
+	if cap == "" {
+		if req.Victory {
+			cap = "the songs will remember this"
+		} else {
+			cap = "the dungeon keeps its dead"
+		}
+	}
+	portraitCaption(dc, portraitSanitize(cap))
+
+	buf, err := utils.EncodeImageToBuffer(dc.Image())
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to encode end card"})
 		return
 	}
 	c.Data(200, "image/png", buf)
