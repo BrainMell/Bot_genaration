@@ -419,7 +419,7 @@ func GeneratePortraitCard(c *gin.Context) {
                 lvl := fmt.Sprintf("LEVEL %d", req.Level)
                 portraitFitText(dc, portraitAsset("Cinzel.ttf"), 56, lvl, 380, 30)
                 dc.SetRGB(52.0/255.0, 32.0/255.0, 16.0/255.0)
-                dc.DrawStringAnchored(lvl, 300, 318, 0.5, 0.5)
+                dc.DrawStringAnchored(lvl, 300, 306, 0.5, 0.5)
 
                 rankLine := req.RankLine
                 if rankLine == "" && req.RankLetter != "" {
@@ -469,7 +469,7 @@ func GeneratePortraitCard(c *gin.Context) {
                 // under-bar strings: progress (left) · xp left to progress (right)
                 if req.XPNow != "" {
                         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 18, portraitSanitize(req.XPNow), 200, 10)
-                        dc.SetRGB(96.0/255.0, 110.0/255.0, 50.0/255.0)
+                        dc.SetRGB(84.0/255.0, 96.0/255.0, 44.0/255.0)
                         dc.DrawStringAnchored(portraitSanitize(req.XPNow), 85, 452, 0, 0.5)
                 }
                 if req.XPLeft != "" {
@@ -595,7 +595,7 @@ func GeneratePortraitCard(c *gin.Context) {
                 }
                 portraitFitText(dc, portraitAsset("Cinzel.ttf"), 56, big, 380, 30)
                 dc.SetRGB(52.0/255.0, 32.0/255.0, 16.0/255.0)
-                dc.DrawStringAnchored(big, 300, 318, 0.5, 0.5)
+                dc.DrawStringAnchored(big, 300, 306, 0.5, 0.5)
 
                 pillTxt := strings.ToUpper(portraitSanitize(req.Pill))
                 if pillTxt != "" {
@@ -639,7 +639,7 @@ func GeneratePortraitCard(c *gin.Context) {
                 }
                 if req.SpentNow != "" {
                         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 18, portraitSanitize(req.SpentNow), 200, 10)
-                        dc.SetRGB(96.0/255.0, 110.0/255.0, 50.0/255.0)
+                        dc.SetRGB(84.0/255.0, 96.0/255.0, 44.0/255.0)
                         dc.DrawStringAnchored(portraitSanitize(req.SpentNow), 85, 452, 0, 0.5)
                 }
                 if req.SpentLeft != "" {
@@ -659,7 +659,7 @@ func GeneratePortraitCard(c *gin.Context) {
                         dc.DrawStringAnchored(portraitSanitize(row.Label), 85, rowY, 0, 0.5)
                         if row.Sub != "" {
                                 portraitFitText(dc, portraitAsset("Cinzel.ttf"), 16, portraitSanitize(row.Sub), 110, 9)
-                                dc.SetRGB(96.0/255.0, 110.0/255.0, 50.0/255.0)
+                                dc.SetRGB(84.0/255.0, 96.0/255.0, 44.0/255.0)
                                 dc.DrawStringAnchored(portraitSanitize(row.Sub), 352, rowY, 1, 0.5)
                         }
                         val := portraitSanitize(row.Value)
@@ -669,7 +669,7 @@ func GeneratePortraitCard(c *gin.Context) {
                         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 20, val, 130, 11)
                         dc.SetRGB(52.0/255.0, 32.0/255.0, 16.0/255.0)
                         dc.DrawStringAnchored(val, 515, rowY, 1, 0.5)
-                        rowY += 40
+                        rowY += 38
                 }
                 portraitWaxSeal(dc, portraitSanitize(req.SealText))
                 portraitCaption(dc, portraitSanitize(req.Caption))
@@ -700,7 +700,7 @@ func GeneratePortraitCard(c *gin.Context) {
                         dc.DrawStringAnchored(pn, 85, y, 0, 0.5)
                         xp := portraitSanitize(p.XP)
                         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 20, xp, 150, 10)
-                        dc.SetRGB(96.0/255.0, 110.0/255.0, 50.0/255.0)
+                        dc.SetRGB(84.0/255.0, 96.0/255.0, 44.0/255.0)
                         dc.DrawStringAnchored(xp, 370, y, 1, 0.5)
                         zeni := portraitSanitize(p.Zeni)
                         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 20, zeni, 130, 10)
