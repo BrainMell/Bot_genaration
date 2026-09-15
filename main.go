@@ -30,6 +30,7 @@ import (
         "image-service/pkg/profile"
         "image-service/pkg/scraper"
         "image-service/pkg/ttt"
+        "image-service/pkg/utils"
 )
 
 // =============================================================================
@@ -211,6 +212,7 @@ func main() {
         api.POST("/combat/endscreen", combat.GenerateEndScreen)
         api.POST("/combat/splash", combat.GenerateBossSplash)
         api.POST("/hunt/card", combat.GenerateHuntCard) // NEW 2026-07-29: hunting image card
+        api.POST("/cards/portrait", combat.GeneratePortraitCard) // NEW 2026-09-12: DUEL/QUEST portrait event cards
         api.POST("/summons/roster", combat.GenerateSummonRosterGIF) // NEW 2026-08-03: animated summon roster GIF
         api.POST("/summons/detail", combat.GenerateSummonDetailGIF) // NEW 2026-08-04: single summon detail GIF
         api.POST("/ludo", ludo.RenderBoard)
@@ -227,6 +229,10 @@ func main() {
         api.POST("/cards/transaction", economy.GenerateTransactionCard)
         api.POST("/cards/profile", profile.GenerateProfileCard)
         api.POST("/cards/gif", cards.GenerateCardGif)
+        // NEW 2026-09-15 PERF: Go-side WhatsApp preview thumbnails — replaces
+        // the bot's 400-900ms jimp full-image decode with a ~10ms localhost
+        // call on every image send (see utils.ThumbHandler).
+        api.POST("/thumb", utils.ThumbHandler)
 
         // Scraper API Proxy Endpoints
         scrape := api.Group("/scrape")
@@ -240,22 +246,22 @@ func main() {
         scrape.GET("/anikai", proxyToScraper)
         scrape.GET("/news", proxyToScraper)
 
-        	r.POST("/admin/reload", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "reloading", "pid": os.Getpid(), "mode": mode})
-		go func() {
-			time.Sleep(300 * time.Millisecond)
-			exe, err := os.Executable()
-			if err != nil {
-				fmt.Printf("[ADMIN] reload: executable lookup failed: %v\n", err)
-				os.Exit(0)
-			}
-			fmt.Printf("[ADMIN] reload: self-exec %s\n", exe)
-			if err := syscall.Exec(exe, os.Args, os.Environ()); err != nil {
-				fmt.Printf("[ADMIN] reload: self-exec failed: %v\n", err)
-				os.Exit(0)
-			}
-		}()
-	})
+                r.POST("/admin/reload", func(c *gin.Context) {
+                c.JSON(http.StatusOK, gin.H{"status": "reloading", "pid": os.Getpid(), "mode": mode})
+                go func() {
+                        time.Sleep(300 * time.Millisecond)
+                        exe, err := os.Executable()
+                        if err != nil {
+                                fmt.Printf("[ADMIN] reload: executable lookup failed: %v\n", err)
+                                os.Exit(0)
+                        }
+                        fmt.Printf("[ADMIN] reload: self-exec %s\n", exe)
+                        if err := syscall.Exec(exe, os.Args, os.Environ()); err != nil {
+                                fmt.Printf("[ADMIN] reload: self-exec failed: %v\n", err)
+                                os.Exit(0)
+                        }
+                }()
+        })
 
 log.Printf("🚀 Microservice starting on port %s [MODE=%s]", port, mode)
         if err := r.Run("0.0.0.0:" + port); err != nil {
