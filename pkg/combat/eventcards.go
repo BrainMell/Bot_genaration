@@ -68,7 +68,10 @@ func sealAt(dc *gg.Context, text string, x, y, r float64) {
         dc.SetLineWidth(2)
         dc.DrawCircle(x, y, r-6)
         dc.Stroke()
-        portraitFitText(dc, portraitAsset("Cinzel.ttf"), 22, text, r*1.55, 9)
+        if runes := []rune(text); len(runes) > 4 {
+                text = string(runes[:4])
+        }
+        portraitFitText(dc, portraitAsset("Cinzel.ttf"), 22, text, r*1.55, 12)
         dc.SetRGB(250.0/255.0, 210.0/255.0, 120.0/255.0)
         dc.DrawStringAnchored(text, x, y-1, 0.5, 0.5)
 }
@@ -364,19 +367,19 @@ func renderGuildInfoCard(c *gin.Context, req *portraitRequest) {
                 }
                 cx := ringX[i]
                 dc.SetColor(portraitCol(24, 16, 10, 170))
-                dc.DrawCircle(cx, 722, 31)
+                dc.DrawCircle(cx, 722, 33)
                 dc.Fill()
                 bname := portraitSanitize(b.Name)
                 if bname == "" {
                         bname = "?"
                 }
-                portraitFitText(dc, portraitAsset("Cinzel.ttf"), 12, bname, 54, 8)
+                portraitFitText(dc, portraitAsset("Cinzel.ttf"), 11, bname, 62, 8)
                 dc.SetRGB(214.0/255.0, 170.0/255.0, 82.0/255.0)
-                dc.DrawStringAnchored(bname, cx, 710, 0.5, 0.5)
+                dc.DrawStringAnchored(bname, cx, 705, 0.5, 0.5)
                 lvlTxt := fmt.Sprintf("L%d", b.Level)
-                portraitFitText(dc, portraitAsset("Cinzel.ttf"), 25, lvlTxt, 54, 12)
+                portraitFitText(dc, portraitAsset("Cinzel.ttf"), 22, lvlTxt, 54, 12)
                 dc.SetRGB(240.0/255.0, 205.0/255.0, 120.0/255.0)
-                dc.DrawStringAnchored(lvlTxt, cx, 740, 0.5, 0.5)
+                dc.DrawStringAnchored(lvlTxt, cx, 736, 0.5, 0.5)
         }
 
         sealAt(dc, portraitSanitize(req.SealText), 70, 748, 24)
@@ -607,12 +610,6 @@ func initialMedallion(dc *gg.Context, x, y, r float64, name string, ring color.N
 // SHOP — 900x1400 supply board (pre-raid shop)
 // ─────────────────────────────────────────────────────────────────
 func renderShopCard(c *gin.Context, req *portraitRequest) {
-        dc := gg.NewContext(900, 1400)
-        contentY := paintRpgBoard(dc, 900, 1400, "PRE-RAID SUPPLY", req.Nickname)
-
-        // duration pill (right, under banner)
-        darkPill(dc, "90 SECONDS", 840, 146, true)
-
         entries := req.Entries
         if len(entries) > 16 {
                 entries = entries[:16]
@@ -622,8 +619,23 @@ func renderShopCard(c *gin.Context, req *portraitRequest) {
         if rows < 1 {
                 rows = 1
         }
-        cellW, cellH := 395.0, 118.0
-        gapX, gapY := 22.0, 16.0
+        // QA r3 (owner: "fix the alignment issues with all the cards"):
+        // the board was a fixed 900x1400 — a 4-entry stock left ~1000px
+        // of dead walnut under the grid. Height follows the entry count.
+        cellH, gapY := 118.0, 16.0
+        H := 205.0 + float64(rows)*(cellH+gapY) + 76.0
+        if H < 560 {
+                H = 560
+        }
+        if H > 1400 {
+                H = 1400
+        }
+        dc := gg.NewContext(900, int(H))
+        contentY := paintRpgBoard(dc, 900, H, "PRE-RAID SUPPLY", req.Nickname)
+
+        // duration pill (right, under banner)
+        darkPill(dc, "90 SECONDS", 840, 146, true)
+        cellW, gapX := 395.0, 22.0
         x0 := (900 - (float64(cols)*cellW + float64(cols-1)*gapX)) / 2
         y0 := contentY + 26
 
@@ -659,7 +671,10 @@ func renderShopCard(c *gin.Context, req *portraitRequest) {
 
                 // cost pill (bottom-right of the cell; QA r2: 6px inset so it
                 // doesn't kiss the cell border)
-                cost := fmt.Sprintf("Z %s", e.Value)
+                cost := e.Value
+                if cost == "" || (cost[0] != 'Z' && cost[0] != 'z') {
+                        cost = fmt.Sprintf("Z %s", e.Value)
+                }
                 portraitFitText(dc, portraitAsset("Cinzel.ttf"), 16, cost, 110, 9)
                 cw, _ := dc.MeasureString(cost)
                 if cw < 74 {
@@ -672,12 +687,12 @@ func renderShopCard(c *gin.Context, req *portraitRequest) {
                 dc.DrawStringAnchored(cost, x+cellW-13, y+cellH-22, 1, 0.5)
         }
 
-        sealAt(dc, portraitSanitize(req.SealText), 70, 1348, 24)
+        sealAt(dc, portraitSanitize(req.SealText), 70, H-52, 24)
         cap := req.Caption
         if cap == "" {
                 cap = "buy with .buy <#>"
         }
-        captionAt(dc, portraitSanitize(cap), 450, 1349, 300)
+        captionAt(dc, portraitSanitize(cap), 450, H-51, 300)
 
         utils.RespondImage(c, dc.Image())
 }

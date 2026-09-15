@@ -745,7 +745,7 @@ func renderEquipCard(c *gin.Context, req *portraitRequest) {
         if cap == "" {
                 cap = "repair at the blacksmith"
         }
-        captionAt(dc, portraitSanitize(cap), 780, 963, 320)
+        captionAt(dc, portraitSanitize(cap), 780, 946, 320)
 
         utils.RespondImage(c, dc.Image())
 }
@@ -810,14 +810,31 @@ func r6diamond(dc *gg.Context, x, y, r float64, col color.NRGBA) {
 }
 
 func renderAbilitiesCard(c *gin.Context, req *portraitRequest) {
-        dc := gg.NewContext(1000, 1400)
+        // QA r2 (owner: "fix the alignment issues with all the cards"):
+        // the scroll was a fixed 1000x1400 — a 4-ability grimoire left
+        // ~70% dead parchment. Height now follows the content.
+        natH := 246.0
+        for gi, g := range req.Groups {
+                if gi >= 6 {
+                        break
+                }
+                natH += 46 + float64(len(g.Items))*58 + 10
+        }
+        H := natH + 170.0
+        if H < 700 {
+                H = 700
+        }
+        if H > 1400 {
+                H = 1400
+        }
+        dc := gg.NewContext(1000, int(H))
 
         // wood backdrop
         dc.SetRGB(0.075, 0.05, 0.03)
-        dc.DrawRectangle(0, 0, 1000, 1400)
+        dc.DrawRectangle(0, 0, 1000, H)
         dc.Fill()
         dc.SetColor(portraitCol(255, 220, 160, 10))
-        for wy := 60.0; wy < 1400; wy += 60 {
+        for wy := 60.0; wy < H; wy += 60 {
                 dc.SetLineWidth(1)
                 dc.DrawLine(0, wy, 1000, wy)
                 dc.Stroke()
@@ -825,17 +842,17 @@ func renderAbilitiesCard(c *gin.Context, req *portraitRequest) {
 
         // parchment body between the rods
         dc.SetColor(portraitCol(233, 215, 171, 255))
-        dc.DrawRectangle(70, 92, 860, 1216)
+        dc.DrawRectangle(70, 92, 860, H-184)
         dc.Fill()
         // edge shading
         dc.SetColor(portraitCol(90, 70, 40, 26))
-        dc.DrawRectangle(70, 92, 14, 1216)
+        dc.DrawRectangle(70, 92, 14, H-184)
         dc.Fill()
-        dc.DrawRectangle(916, 92, 14, 1216)
+        dc.DrawRectangle(916, 92, 14, H-184)
         dc.Fill()
         // fiber lines
         dc.SetColor(portraitCol(90, 70, 40, 7))
-        for fy := 118.0; fy < 1300; fy += 26 {
+        for fy := 118.0; fy < H-100; fy += 26 {
                 dc.SetLineWidth(1)
                 dc.DrawLine(84, fy, 916, fy)
                 dc.Stroke()
@@ -843,12 +860,12 @@ func renderAbilitiesCard(c *gin.Context, req *portraitRequest) {
         // gold hairline frame
         dc.SetColor(portraitCol(170, 130, 60, 150))
         dc.SetLineWidth(1.5)
-        dc.DrawRoundedRectangle(82, 102, 836, 1196, 6)
+        dc.DrawRoundedRectangle(82, 102, 836, H-194, 6)
         dc.Stroke()
 
         // rods (over the parchment edges)
         r6rod(dc, 64)
-        r6rod(dc, 1336)
+        r6rod(dc, H-64)
 
         // ── header ──
         total := 0
@@ -890,7 +907,7 @@ func renderAbilitiesCard(c *gin.Context, req *portraitRequest) {
         y := 246.0
         abilityNo := 0
         for gi, g := range req.Groups {
-                if gi >= 6 || y > 1180 {
+                if gi >= 6 || y > H-220 {
                         break
                 }
                 current := strings.EqualFold(portraitSanitize(g.Sub), "CURRENT")
@@ -935,7 +952,7 @@ func renderAbilitiesCard(c *gin.Context, req *portraitRequest) {
                 y += ribH + 12
 
                 for _, it := range g.Items {
-                        if y > 1236 {
+                        if y > H-164 {
                                 break
                         }
                         abilityNo++
@@ -1005,7 +1022,7 @@ func renderAbilitiesCard(c *gin.Context, req *portraitRequest) {
         }
 
         // ── footer on the parchment, above the bottom rod ──
-        sealAt(dc, portraitSanitize(req.SealText), 112, 1262, 24)
+        sealAt(dc, portraitSanitize(req.SealText), 112, H-138, 24)
         cap := req.Caption
         if cap == "" {
                 cap = "cast with .combat ability <num>"
@@ -1016,7 +1033,7 @@ func renderAbilitiesCard(c *gin.Context, req *portraitRequest) {
         }
         portraitFitText(dc, portraitAsset("MedievalSharp.ttf"), 18, cap, 620, 11)
         dc.SetRGB(120.0 / 255.0, 88.0 / 255.0, 40.0 / 255.0)
-        dc.DrawStringAnchored(cap, 540, 1263, 0.5, 0.5)
+        dc.DrawStringAnchored(cap, 540, H-137, 0.5, 0.5)
 
         utils.RespondImage(c, dc.Image())
 }

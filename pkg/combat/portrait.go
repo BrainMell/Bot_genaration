@@ -176,7 +176,10 @@ func portraitWaxSeal(dc *gg.Context, text string) {
         dc.SetLineWidth(2)
         dc.DrawCircle(portraitSealX, portraitSealY, portraitSealR-6)
         dc.Stroke()
-        portraitFitText(dc, portraitAsset("Cinzel.ttf"), 22, text, 40, 10)
+        if runes := []rune(text); len(runes) > 4 {
+                text = string(runes[:4])
+        }
+        portraitFitText(dc, portraitAsset("Cinzel.ttf"), 22, text, 46, 12)
         dc.SetRGB(250.0/255.0, 210.0/255.0, 120.0/255.0)
         dc.DrawStringAnchored(text, portraitSealX, portraitSealY-1, 0.5, 0.5)
 }
@@ -674,8 +677,17 @@ func GeneratePortraitCard(c *gin.Context) {
                 portraitWaxSeal(dc, portraitSanitize(req.SealText))
                 portraitCaption(dc, portraitSanitize(req.Caption))
         } else if req.Kind == "QUEST" || req.Kind == "TRIAL" {
+                // QA r3: TRIAL's bake (THE ASCENSION / THE REWARD) has
+                // more room than bg_QUEST — spread rows to kill the
+                // 400-800 dead zone.
+                statY0, statStep := questStatY0, questStatStep
+                playY0, playStep := questPlayerY0, questPlayerStep
+                if req.Kind == "TRIAL" {
+                        statY0, statStep = 340.0, 56.0
+                        playY0, playStep = 585.0, 64.0
+                }
                 // ── stat rows (label/value) ──
-                y := questStatY0
+                y := statY0
                 for i, row := range req.Ledger {
                         if i >= 6 {
                                 break
@@ -686,10 +698,10 @@ func GeneratePortraitCard(c *gin.Context) {
                         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 22, portraitSanitize(row.Value), 280, 12)
                         dc.SetRGB(52.0/255.0, 32.0/255.0, 16.0/255.0)
                         dc.DrawStringAnchored(portraitSanitize(row.Value), 515, y, 1, 0.5)
-                        y += questStatStep
+                        y += statStep
                 }
                 // ── per-player spoils rows ──
-                y = questPlayerY0
+                y = playY0
                 for i, p := range req.Players {
                         if i >= 4 {
                                 break
@@ -706,7 +718,7 @@ func GeneratePortraitCard(c *gin.Context) {
                         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 20, zeni, 130, 10)
                         dc.SetRGB(150.0/255.0, 110.0/255.0, 30.0/255.0)
                         dc.DrawStringAnchored(zeni, 515, y, 1, 0.5)
-                        y += questPlayerStep
+                        y += playStep
                 }
                 portraitWaxSeal(dc, portraitSanitize(req.SealText))
                 portraitCaption(dc, portraitSanitize(req.Caption))
