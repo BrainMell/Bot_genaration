@@ -678,13 +678,15 @@ func GeneratePortraitCard(c *gin.Context) {
                 }
                 portraitWaxSeal(dc, portraitSanitize(req.SealText))
                 portraitCaption(dc, portraitSanitize(req.Caption))
-        } else if req.Kind == "ABYSS_ENTRY" || req.Kind == "ABYSS_RESULT" {
-                // ── THE ABYSS (2026-09-15, owner: "make cards for the various
-                // parts of the Abyss too") — bg_ABYSS bake: family frame and
-                // fonts on a dark cold grade with the tier depth-ruler.
-                // ENTRY = descent brief; RESULT = extraction/death record
-                // (outcome FALLEN via PartyText).
+                } else if req.Kind == "ABYSS_ENTRY" || req.Kind == "ABYSS_RESULT" {
+                // ── THE ABYSS v2 (2026-09-15, owner rejected the v1 olive
+                // re-grade "at allllll") — bg_ABYSS bake v2: family frame
+                // intact, interior rebuilt as the DESCENT SHAFT (stone
+                // walls, depth ruler F1-F200, converging platforms, slate
+                // ledger). Go draws: hero y255, pill y327, glowing floor
+                // marker on the ruler x120, info line y552, ledger rows.
                 outcomeFallen := req.Kind == "ABYSS_RESULT" && strings.ToUpper(portraitSanitize(req.PartyText)) == "FALLEN"
+                outcomeExtracted := req.Kind == "ABYSS_RESULT" && !outcomeFallen
                 hero := strings.ToUpper(portraitSanitize(req.PointsBig))
                 if hero == "" {
                         fl := req.Cur
@@ -693,88 +695,116 @@ func GeneratePortraitCard(c *gin.Context) {
                         }
                         hero = fmt.Sprintf("FLOOR %d", fl)
                 }
-                portraitFitText(dc, portraitAsset("Cinzel.ttf"), 56, hero, 380, 30)
-                dc.SetRGB(216.0/255.0, 228.0/255.0, 226.0/255.0)
-                dc.DrawStringAnchored(hero, 300, 306, 0.5, 0.5)
+                portraitFitText(dc, portraitAsset("Cinzel.ttf"), 52, hero, 380, 26)
+                dc.SetRGB(223.0/255.0, 242.0/255.0, 238.0/255.0)
+                dc.DrawStringAnchored(hero, 300, 255, 0.5, 0.5)
 
                 pillTxt := strings.ToUpper(portraitSanitize(req.Pill))
                 if pillTxt == "" {
                         if outcomeFallen {
                                 pillTxt = "FALLEN"
-                        } else if req.Kind == "ABYSS_RESULT" {
+                        } else if outcomeExtracted {
                                 pillTxt = "EXTRACTED"
                         } else {
                                 pillTxt = "THE DESCENT BEGINS"
                         }
                 }
                 if outcomeFallen {
-                        portraitPillCentred(dc, pillTxt, 300, 371,
+                        portraitPillCentred(dc, pillTxt, 300, 327,
                                 portraitCol(96, 16, 26, 235), portraitCol(244, 172, 150, 255))
+                } else if outcomeExtracted {
+                        portraitPillCentred(dc, pillTxt, 300, 327,
+                                portraitCol(64, 52, 18, 235), portraitCol(240, 214, 140, 255))
                 } else {
-                        portraitPillCentred(dc, pillTxt, 300, 371,
+                        portraitPillCentred(dc, pillTxt, 300, 327,
                                 portraitCol(22, 58, 54, 235), portraitCol(158, 226, 212, 255))
                 }
 
-                // depth bar — fill = floor/200, soulfire teal on dark track
+                // glowing floor marker on the baked depth ruler (x120, F1..F200)
                 floorNow := req.Cur
-                if floorNow < 0 {
-                        floorNow = 0
+                if floorNow < 1 {
+                        floorNow = 1
                 }
-                pctF := float64(floorNow) / 200.0
-                if pctF > 1 {
-                        pctF = 1
+                mkY := 356.0 + (float64(floorNow)/200.0)*(544.0-356.0)
+                if mkY > 544 {
+                        mkY = 544
                 }
-                dc.SetColor(portraitCol(16, 12, 10, 255))
-                dc.DrawRoundedRectangle(85, 402, 430, 26, 10)
-                dc.Fill()
-                fillW := 430.0 * pctF
-                if fillW > 4 {
-                        dc.SetColor(portraitCol(58, 152, 140, 255))
-                        dc.DrawRoundedRectangle(85, 402, fillW, 26, 10)
-                        dc.Fill()
-                        dc.SetColor(portraitCol(150, 230, 214, 90))
-                        dc.DrawRoundedRectangle(85, 402, fillW, 10, 8)
-                        dc.Fill()
+                markerCore := portraitCol(108, 220, 200, 255)
+                markerRing := portraitCol(170, 235, 222, 255)
+                glowCol := portraitCol(60, 160, 145, 70)
+                glowCol2 := portraitCol(60, 160, 145, 110)
+                if outcomeFallen {
+                        markerCore = portraitCol(206, 74, 74, 255)
+                        markerRing = portraitCol(232, 140, 130, 255)
+                        glowCol = portraitCol(150, 44, 44, 70)
+                        glowCol2 = portraitCol(150, 44, 44, 110)
+                } else if outcomeExtracted {
+                        markerCore = portraitCol(222, 186, 104, 255)
+                        markerRing = portraitCol(243, 222, 158, 255)
+                        glowCol = portraitCol(190, 150, 70, 70)
+                        glowCol2 = portraitCol(190, 150, 70, 110)
                 }
-                dc.SetColor(portraitCol(170, 130, 60, 255))
-                dc.SetLineWidth(2)
-                dc.DrawRoundedRectangle(85, 402, 430, 26, 10)
-                dc.Stroke()
-                dc.SetColor(portraitCol(120, 88, 40, 130))
+                // shaft-wide hairline at current depth
+                dc.SetColor(portraitCol(30, 72, 66, 255))
                 dc.SetLineWidth(1)
-                for _, t := range []float64{0.25, 0.5, 0.75} {
-                        tx := 85 + 430*t
-                        dc.DrawLine(tx, 405, tx, 425)
-                        dc.Stroke()
-                }
+                dc.DrawLine(128, mkY, 472, mkY)
+                dc.Stroke()
+                // glow halo + diamond (rotated square) + bright ring
+                dc.SetColor(glowCol)
+                dc.DrawCircle(120, mkY, 14)
+                dc.Fill()
+                dc.SetColor(glowCol2)
+                dc.DrawCircle(120, mkY, 9)
+                dc.Fill()
+                dc.SetColor(markerCore)
+                dc.MoveTo(120, mkY-7)
+                dc.LineTo(127, mkY)
+                dc.LineTo(120, mkY+7)
+                dc.LineTo(113, mkY)
+                dc.ClosePath()
+                dc.Fill()
+                dc.SetLineWidth(1)
+                dc.SetColor(markerRing)
+                dc.MoveTo(120, mkY-7)
+                dc.LineTo(127, mkY)
+                dc.LineTo(120, mkY+7)
+                dc.LineTo(113, mkY)
+                dc.ClosePath()
+                dc.Stroke()
+                lbl := fmt.Sprintf("F%d", floorNow)
+                portraitFitText(dc, portraitAsset("Cinzel.ttf"), 15, lbl, 60, 10)
+                dc.SetColor(markerRing)
+                dc.DrawStringAnchored(lbl, 136, mkY, 0, 0.5)
+
+                // info line under the shaft (above the ledger panel)
                 if req.SpentNow != "" {
-                        portraitFitText(dc, portraitAsset("Cinzel.ttf"), 16, portraitSanitize(req.SpentNow), 200, 9)
-                        dc.SetRGB(64.0/255.0, 122.0/255.0, 112.0/255.0)
-                        dc.DrawStringAnchored(portraitSanitize(req.SpentNow), 85, 452, 0, 0.5)
+                        portraitFitText(dc, portraitAsset("Cinzel.ttf"), 15, portraitSanitize(req.SpentNow), 250, 9)
+                        dc.SetRGB(95.0/255.0, 150.0/255.0, 140.0/255.0)
+                        dc.DrawStringAnchored(portraitSanitize(req.SpentNow), 85, 552, 0, 0.5)
                 }
                 if req.SpentLeft != "" {
-                        portraitFitText(dc, portraitAsset("Cinzel.ttf"), 16, portraitSanitize(req.SpentLeft), 240, 9)
-                        dc.SetRGB(214.0/255.0, 226.0/255.0, 222.0/255.0)
-                        dc.DrawStringAnchored(portraitSanitize(req.SpentLeft), 515, 452, 1, 0.5)
+                        portraitFitText(dc, portraitAsset("Cinzel.ttf"), 15, portraitSanitize(req.SpentLeft), 250, 9)
+                        dc.SetRGB(143.0/255.0, 163.0/255.0, 173.0/255.0)
+                        dc.DrawStringAnchored(portraitSanitize(req.SpentLeft), 515, 552, 1, 0.5)
                 }
 
-                // ── THE DEPTHS (lower panel) — up to 8 rows ──
-                rowY := 540.0
+                // ── THE LEDGER (baked slate panel) — up to 6 rows ──
+                rowY := 634.0
                 for i, row := range req.Rows {
-                        if i >= 8 {
+                        if i >= 6 {
                                 break
                         }
                         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 19, portraitSanitize(row.Label), 220, 10)
-                        dc.SetRGB(74.0/255.0, 62.0/255.0, 38.0/255.0)
+                        dc.SetRGB(168.0/255.0, 134.0/255.0, 78.0/255.0)
                         dc.DrawStringAnchored(portraitSanitize(row.Label), 85, rowY, 0, 0.5)
                         val := portraitSanitize(row.Value)
                         if val == "" {
                                 val = "—"
                         }
-                        portraitFitText(dc, portraitAsset("Cinzel.ttf"), 19, val, 200, 10)
-                        dc.SetRGB(214.0/255.0, 226.0/255.0, 222.0/255.0)
+                        portraitFitText(dc, portraitAsset("Cinzel.ttf"), 19, val, 210, 10)
+                        dc.SetRGB(207.0/255.0, 232.0/255.0, 226.0/255.0)
                         dc.DrawStringAnchored(val, 515, rowY, 1, 0.5)
-                        rowY += 38
+                        rowY += 32
                 }
                 portraitWaxSeal(dc, portraitSanitize(req.SealText))
                 portraitCaption(dc, portraitSanitize(req.Caption))
