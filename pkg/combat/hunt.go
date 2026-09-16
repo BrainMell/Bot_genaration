@@ -1,5 +1,7 @@
 package combat
 
+import "golang.org/x/text/unicode/norm"
+
 // ============================================
 // 🏹 HUNTING CARD RENDERER - parchment redesign 2026-09-12
 // ============================================
@@ -85,6 +87,7 @@ func huntAsset(name string) string { return utils.GetAssetPath("rpgasset", "ui",
 // huntSanitize - printable ASCII + middle dot only (same rule as economy.sanitize);
 // WhatsApp nicknames can carry emoji that Cinzel would render as tofu.
 func huntSanitize(s string) string {
+	s = norm.NFKD.String(s)
 	var b []rune
 	for _, r := range s {
 		if r == '·' || (r >= 0x20 && r <= 0x7E) {

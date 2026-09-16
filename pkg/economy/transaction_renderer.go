@@ -30,6 +30,7 @@ type TransactionCardRequest struct {
         ItemName   string  `json:"itemName"`
         SealText   string  `json:"sealText"` // DECREE: rank letter for the wax seal
         Details    string  `json:"details"`  // DECREE ledger "F -> S"; FISH caption override
+	Style      int     `json:"style"` // player cardstyle (1-10; 0/7 = baked art)
 }
 
 func GenerateTransactionCard(c *gin.Context) {
@@ -43,6 +44,16 @@ func GenerateTransactionCard(c *gin.Context) {
         }
         if req.Nickname == "" {
                 req.Nickname = "Adventurer"
+        }
+
+        // 2026-09-16 v2 redesign: rebuilt per-style craft/decree systems
+
+        if img := renderStyledEconomy(&req); img != nil {
+
+        	utils.RespondImage(c, img)
+
+        	return
+
         }
 
         txType := strings.ToUpper(strings.TrimSpace(req.Type))

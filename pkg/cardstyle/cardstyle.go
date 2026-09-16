@@ -15,6 +15,8 @@ import (
 	"os"
 	"strings"
 
+	"golang.org/x/text/unicode/norm"
+
 	"image-service/pkg/utils"
 
 	"github.com/fogleman/gg"
@@ -776,8 +778,13 @@ func FooterNote(dc *gg.Context, cx, y float64, text string, col color.NRGBA, fon
 	dc.DrawStringAnchored(text, cx, y, 0.5, 0.5)
 }
 
-// Sanitize strips control characters (presentation safety).
+// Sanitize strips control characters (presentation safety) and
+// transliterates fancy Unicode (fraktur, double-struck, circled letters,
+// accented Latin) to plain ASCII via NFKD: the theme faces (Cinzel/IM
+// Fell/PressStart/Inter) only cover basic Latin, anything else renders
+// as tofu boxes (live case: fraktur nickname in Stonekeep ALLOCATE).
 func Sanitize(s string) string {
+	s = norm.NFKD.String(s)
 	var b strings.Builder
 	for _, r := range s {
 		if r == '\n' || r == '\r' || r == '\t' {

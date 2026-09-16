@@ -21,7 +21,7 @@ import (
 // excluded by owner rule and keep the baked combat art).
 func styledKinds() map[string]bool {
 	return map[string]bool{
-		"RANK": true, "ALLOCATE": true, "SKILLUP": true, "ABILITIES": true,
+		"RANK": true, "ALLOCATE": true, "SKILLUP": true, "ABILITIES": true, "EVOLVE": true,
 		"SKILLTREE": true, "EQUIP": true, "SHOP": true, "GUILDINFO": true,
 	}
 }
