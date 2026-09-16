@@ -118,7 +118,7 @@ func GenerateAnimatedCombat(c *gin.Context) {
 	frames, err := renderAnimationFrames(&req)
 	if err != nil {
 		// Fallback to static on any error
-		fmt.Printf("[Animator] renderAnimationFrames failed: %v — falling back to static\n", err)
+		fmt.Printf("[Animator] renderAnimationFrames failed: %v - falling back to static\n", err)
 		GenerateCombatImage(c)
 		return
 	}
@@ -126,7 +126,7 @@ func GenerateAnimatedCombat(c *gin.Context) {
 	// Encode frames → MP4 via ffmpeg
 	mp4Buf, err := encodeFramesToMP4(frames)
 	if err != nil {
-		fmt.Printf("[Animator] encodeFramesToMP4 failed: %v — falling back to static\n", err)
+		fmt.Printf("[Animator] encodeFramesToMP4 failed: %v - falling back to static\n", err)
 		GenerateCombatImage(c)
 		return
 	}
@@ -345,11 +345,11 @@ func renderCombatFrame(req *CombatRequest, fs *frameState, assetsPath string) (i
 	enemyAnchorX, enemyAnchorY := 780.0, 160.0
 	spX, spY := 130.0, 110.0
 
-	// Player anchor (left side) — same Y as enemies for symmetry
+	// Player anchor (left side) - same Y as enemies for symmetry
 	playerAnchorX := enemyAnchorX - 560.0
 	playerAnchorY := enemyAnchorY
 
-	// Summon anchor — BESIDE players as own entity, not stacked behind
+	// Summon anchor - BESIDE players as own entity, not stacked behind
 	summonAnchorX := playerAnchorX + 210.0 // 210px right of players = between players and enemies
 	summonAnchorY := enemyAnchorY          // same Y for visual symmetry
 
@@ -376,7 +376,7 @@ func renderCombatFrame(req *CombatRequest, fs *frameState, assetsPath string) (i
 
 	// ── Enemies ──
 	// 💡 FIX 2026-09-11 (visual audit): same-family dedupe as the static
-	// renderer — resolves all sprites first, spreads duplicates.
+	// renderer - resolves all sprites first, spreads duplicates.
 	animResolved := make([]string, len(req.Enemies))
 	for i, enemy := range req.Enemies {
 		if enemy.CurrentHP <= 0 && !enemy.JustDied && !isTargetThisAction(req, "enemy", i, fs) {
@@ -449,13 +449,13 @@ func renderCombatFrame(req *CombatRequest, fs *frameState, assetsPath string) (i
 		}
 		// FIX 2026-09-11: crop transparent padding first (matches the static
 		// renderer), then resize. Facing now goes through the sprite-facing
-		// table via flipForSide — the old code flipped EVERY summon
+		// table via flipForSide - the old code flipped EVERY summon
 		// unconditionally, which sent right-facing natives (boar, dino,
 		// dragon, snake) to face AWAY from the enemy side.
 		sSprite = cropToVisibleBounds(sSprite)
 		sSprite = imaging.Resize(sSprite, 0, int(summonSpriteSize), imaging.NearestNeighbor)
 
-		// 💡 Ship sprites face forward — rotate 90° to face right
+		// 💡 Ship sprites face forward - rotate 90° to face right
 		if strings.Contains(summon.Species, "ship_") {
 			sSprite = imaging.Rotate90(sSprite)
 		} else {
@@ -512,7 +512,7 @@ func renderCombatFrame(req *CombatRequest, fs *frameState, assetsPath string) (i
 		})
 	}
 
-	// ── Players (as battlefield sprites — same formation as enemies, on left side) ──
+	// ── Players (as battlefield sprites - same formation as enemies, on left side) ──
 	// In PVE, draw each player as a full-body sprite on the battlefield using the enemy formation pattern.
 	// In PVP, draw both players using the formation pattern.
 	for i, p := range req.Players {
@@ -543,7 +543,7 @@ func renderCombatFrame(req *CombatRequest, fs *frameState, assetsPath string) (i
 		px += float64(i/4) * -250.0
 
 		// FIX 2026-09-11: flip via the facing table. The old unconditional
-		// FlipH mirrored EVERY player every frame — correct only for
+		// FlipH mirrored EVERY player every frame - correct only for
 		// LEFT-facing natives, wrong for the (many) RIGHT-facing ones.
 		playerSpriteFile := filepath.Base(spritePath)
 		if flipForSide(playerSpriteFile, true) {
@@ -567,7 +567,7 @@ func renderCombatFrame(req *CombatRequest, fs *frameState, assetsPath string) (i
 		}
 
 		// Apply attacker windup offset
-		// 💡 FIX: In PVP, DON'T move the attacker — keep everyone in their
+		// 💡 FIX: In PVP, DON'T move the attacker - keep everyone in their
 		// spawn position. The turn indicator (golden ellipse) shows whose
 		// turn it is. Only the windup lunge is kept (small 5-10px forward
 		// during the attack frame, not a permanent position change).
@@ -693,7 +693,7 @@ func renderCombatFrame(req *CombatRequest, fs *frameState, assetsPath string) (i
 	}
 
 	// ── UI overlay (player_state panel, banner, options menu) ──
-	// Same as static renderer — keeps the HUD consistent.
+	// Same as static renderer - keeps the HUD consistent.
 	drawImage := func(path string, x, y, w, h int) {
 		img, err := utils.LoadImage(path)
 		if err == nil {
@@ -944,7 +944,7 @@ func encodeFramesToMP4(frames []image.Image) ([]byte, error) {
 	//   ffmpeg -y -framerate 10 -i frame_%03d.png -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2"
 	//          -c:v libx264 -pix_fmt yuv420p -movflags +faststart output.mp4
 	// The pad filter ensures even dimensions (libx264 requires width AND height
-	// to be divisible by 2). Our canvas is 1024×687 — 687 is odd, so we pad to 688.
+	// to be divisible by 2). Our canvas is 1024×687-687 is odd, so we pad to 688.
 	args := []string{
 		"-y",
 		"-framerate", fmt.Sprintf("%d", ANIM_FPS),

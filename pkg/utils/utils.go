@@ -72,7 +72,7 @@ func DownloadImage(url string) (image.Image, error) {
 }
 
 // LoadFont loads a TTF font face at the given size.
-// 2026-09-14 PERF: the TTF bytes were re-read + re-PARSED on every call —
+// 2026-09-14 PERF: the TTF bytes were re-read + re-PARSED on every call -
 // a single card render loads fonts 15-30x (huntFitText re-loads while
 // shrinking), making parse the dominant CPU cost. opentype.Font is
 // immutable after Parse, so the parsed font is cached per path and shared
@@ -257,10 +257,10 @@ func RespondImage(c *gin.Context, img image.Image) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ThumbHandler — POST /api/thumb
+// ThumbHandler - POST /api/thumb
 // 2026-09-15 PERF (owner: "make images get sent faster"):
 // The bot's Node side built every WhatsApp preview thumbnail (jpegThumbnail)
-// with jimp — a pure-JS FULL-image decode — measured at 400-900ms per image
+// with jimp - a pure-JS FULL-image decode - measured at 400-900ms per image
 // on Box 1's CPU, paid inline on EVERY image send BEFORE the media upload
 // even starts. Go decodes the same bytes in single-digit ms and scales with
 // imaging.CatmullRom, so this endpoint turns that fixed cost into ~10-20ms

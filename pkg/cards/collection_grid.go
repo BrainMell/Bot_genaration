@@ -24,7 +24,7 @@ import (
 )
 
 // =============================================================================
-// COLLECTION/DECK GRID RENDERER — 4x4 grid (same style as eShop)
+// COLLECTION/DECK GRID RENDERER - 4x4 grid (same style as eShop)
 // =============================================================================
 // Uses the SAME rendering approach as eshop.go:
 //   - 4 columns × 4 rows (16 card slots max)
@@ -32,7 +32,7 @@ import (
 //   - Tier-colored borders
 //   - Card name below each card
 //   - PNG output
-//   - Sends as { image: buffer, caption } — no GIF/MP4 involved
+//   - Sends as { image: buffer, caption } - no GIF/MP4 involved
 //
 // This replaces the old GenerateCardGif path which tried Cloudinary
 // slideshow (always failed on 500MB) then fell back to a broken grid.
@@ -54,12 +54,12 @@ type CollCardInput struct {
         URL      string `json:"url"`
         Name     string `json:"name"`
         Tier     string `json:"tier"`
-        Animated bool   `json:"animated"` // ignored — we render static PNG
-        // LocalPath — 💡 FIX 2026-09-10: optional pre-downloaded copy of the card.
+        Animated bool   `json:"animated"` // ignored - we render static PNG
+        // LocalPath - 💡 FIX 2026-09-10: optional pre-downloaded copy of the card.
         // The hybrid grid endpoint already fetched every card in its STEP 1; when
         // LocalPath is set the renderer reads the local file instead of
         // re-downloading the URL (previously each card was fetched TWICE per
-        // hybrid render — brutal for decks holding 10-40MB GIFs).
+        // hybrid render - brutal for decks holding 10-40MB GIFs).
         // Not part of the JSON API (`json:"-"`), so /api/cards/grid callers are
         // unaffected and keep the pure-URL behavior.
         LocalPath string `json:"-"`
@@ -72,13 +72,13 @@ type CollGridRequest struct {
 }
 
 // GenerateCollectionGrid renders a 4×4 grid of card images as a static PNG.
-// Same style as eShop deck — full-width image, no GIF/MP4.
+// Same style as eShop deck - full-width image, no GIF/MP4.
 // renderCollectionGridPNG renders a styled collection grid PNG and returns the
 // PNG bytes + canvas dimensions (width, height).
 //
 // Extracted from GenerateCollectionGrid 2026-07-27 so the hybrid grid endpoint
 // can reuse the EXACT same rendering logic (same styling, same dimensions,
-// same card positioning) — then overlay animated GIFs on top via ffmpeg.
+// same card positioning) - then overlay animated GIFs on top via ffmpeg.
 //
 // This is the single source of truth for what the collection grid looks like.
 // Both /api/cards/grid and /api/cards/hybrid-grid call this function.
@@ -113,9 +113,9 @@ func renderCollectionGridPNG(images []CollCardInput, title string) ([]byte, int,
         // height. totalH = 105 + 395*rows → 2 rows (5-8 cards) = 895px = ODD,
         // so the hybrid ffmpeg encode failed with "height not divisible by 2"
         // and every such coll/deck silently degraded to a static image. Only
-        // 1-row and 3-row layouts (500/1290, even) ever worked — by luck.
+        // 1-row and 3-row layouts (500/1290, even) ever worked - by luck.
         // Round the canvas up to even W/H (a 1px background-color sliver at
-        // the bottom edge — invisible).
+        // the bottom edge - invisible).
         if totalW%2 != 0 {
                 totalW++
         }
@@ -151,7 +151,7 @@ func renderCollectionGridPNG(images []CollCardInput, title string) ([]byte, int,
                 dc.DrawStringAnchored(title, float64(totalW)/2, float64(COLL_HEADER_H)/2, 0.5, 0.5)
         }
 
-        // === Card Grid — PARALLEL downloads for speed ===
+        // === Card Grid - PARALLEL downloads for speed ===
         client := &http.Client{Timeout: 12 * time.Second}
 
         type fetchedCard struct {
@@ -164,7 +164,7 @@ func renderCollectionGridPNG(images []CollCardInput, title string) ([]byte, int,
         // 💡 FIX 2026-09-10: bound concurrent decode work. Each worker holds a
         // full copy of the card bytes in RAM (heavy GIFs run up to ~40MB); 12
         // parallel decodes = ~480MB peak on a 954MB box that also runs the
-        // bot itself — OOM territory. 3 concurrent decodes ≈ max 120MB.
+        // bot itself - OOM territory. 3 concurrent decodes ≈ max 120MB.
         decodeSem := make(chan struct{}, 3)
         for i, card := range images {
                 wg.Add(1)
@@ -173,7 +173,7 @@ func renderCollectionGridPNG(images []CollCardInput, title string) ([]byte, int,
                         decodeSem <- struct{}{}
                         defer func() { <-decodeSem }()
                         // 💡 FIX 2026-09-10: hybrid grid passes pre-downloaded local
-                        // files — use them and skip the network entirely.
+                        // files - use them and skip the network entirely.
                         if c.LocalPath != "" {
                                 data, err := os.ReadFile(c.LocalPath)
                                 if err != nil {
@@ -314,7 +314,7 @@ func downloadAndResizeCollImage(client *http.Client, url string, targetW, target
         return decodeAndResizeCardData(data, url, targetW, targetH)
 }
 
-// decodeAndResizeCardData — 💡 EXTRACTED 2026-09-10 so local files (hybrid
+// decodeAndResizeCardData - 💡 EXTRACTED 2026-09-10 so local files (hybrid
 // grid's pre-downloaded copies) go through the exact same decode path as
 // freshly downloaded ones:
 //   - .webm/.webp bodies → FFmpeg extracts the first frame
@@ -367,7 +367,7 @@ func decodeAndResizeCardData(data []byte, url string, targetW, targetH int) (ima
                 return img, nil
         }
 
-        // Static image — decode directly
+        // Static image - decode directly
         img, err := imaging.Decode(bytes.NewReader(data))
         if err != nil {
                 return nil, fmt.Errorf("decode failed: %w", err)

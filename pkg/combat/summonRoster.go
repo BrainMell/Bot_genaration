@@ -89,7 +89,7 @@ func GenerateSummonRosterGIF(c *gin.Context) {
 
 		// 💡 FIX 2026-08-04: Handle BOTH .gif and .png sprite files.
 		// Ship sprites (Torrent summons) are static PNGs, not animated GIFs.
-		// gif.DecodeAll fails on PNG — so check the extension.
+		// gif.DecodeAll fails on PNG - so check the extension.
 		var fullFrames []image.Image
 		var frameDelays []int
 
@@ -126,7 +126,7 @@ func GenerateSummonRosterGIF(c *gin.Context) {
 			}
 			frameDelays = g.Delay
 		} else {
-			// Static PNG — load as single frame
+			// Static PNG - load as single frame
 			img, err := utils.LoadImage(spritePath)
 			if err != nil {
 				continue
@@ -136,7 +136,7 @@ func GenerateSummonRosterGIF(c *gin.Context) {
 		}
 
 		// 💡 FIX 2026-08-04: Compute FIXED crop rect from the UNION of all
-		// frames' visible bounds. This preserves the bobbing animation —
+		// frames' visible bounds. This preserves the bobbing animation -
 		// if we cropped each frame independently, the sprite would be
 		// re-positioned to the top-left of the crop, destroying the motion.
 		cropRect := computeUnionVisibleBounds(fullFrames)
@@ -155,11 +155,11 @@ func GenerateSummonRosterGIF(c *gin.Context) {
 
 	// ── 3. Calculate summon positions ──
 	// 💡 CODEX LAYOUT: 5 per page in a 3-front / 2-back arrangement.
-	// Front row: 3 sprites (positions 0, 1, 2) — fills first, LARGER
-	// Back row: 2 sprites (positions 3, 4) — overflow, SMALLER (perspective)
+	// Front row: 3 sprites (positions 0, 1, 2) - fills first, LARGER
+	// Back row: 2 sprites (positions 3, 4) - overflow, SMALLER (perspective)
 	//
 	// 💡 FIX 2026-08-05 (v3): Back row at original Y position (not pushed up).
-	// Natural overlap is OK — back row is drawn FIRST, so front row occludes
+	// Natural overlap is OK - back row is drawn FIRST, so front row occludes
 	// it naturally (back row feet behind front row heads = realistic depth).
 	// Back row is ~75% the size of front row (subtle perspective, not extreme).
 	const frontSpriteH = 260
@@ -278,7 +278,7 @@ func GenerateSummonRosterGIF(c *gin.Context) {
 			spriteDrawX := slotCenterX - dstW/2
 			spriteDrawY := groundY - dstH + bottomPadding
 
-			// ── Shadow (FIXED size — does not scale with sprite) ──
+			// ── Shadow (FIXED size - does not scale with sprite) ──
 			shadowCenterX := float64(slotCenterX)
 			shadowCenterY := float64(groundY) - 2
 			shadowRadiusX := shadowRadiusFixed
@@ -359,10 +359,10 @@ func GenerateSummonRosterGIF(c *gin.Context) {
 		if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "dogicapixelbold.otf"), 16); err != nil {
 		}
 		totalSpecies := len(req.Summons)
-		hubTitle := fmt.Sprintf("📖 SUMMON CODEX — %d species shown", totalSpecies)
+		hubTitle := fmt.Sprintf("📖 SUMMON CODEX - %d species shown", totalSpecies)
 		if req.UserNickname == "CODEX" {
-			// Codex mode — show page info
-			hubTitle = fmt.Sprintf("📖 SUMMON CODEX — Browsing %d species", totalSpecies)
+			// Codex mode - show page info
+			hubTitle = fmt.Sprintf("📖 SUMMON CODEX - Browsing %d species", totalSpecies)
 		}
 		dc.DrawStringAnchored(hubTitle, 30, float64(hubY+15), 0, 0.5)
 
@@ -387,7 +387,7 @@ func GenerateSummonRosterGIF(c *gin.Context) {
 		dc.SetColor(color.RGBA{255, 255, 255, 120})
 		if err := dc.LoadFontFace(filepath.Join(assetsPath, "rpgasset", "fonts", "PixeloidSans.ttf"), 11); err != nil {
 		}
-		dc.DrawStringAnchored(".summon codex <page> — navigate pages", float64(W/2), float64(hubY+hubH-15), 0.5, 0.5)
+		dc.DrawStringAnchored(".summon codex <page> - navigate pages", float64(W/2), float64(hubY+hubH-15), 0.5, 0.5)
 
 		// Convert to paletted for GIF
 		frameImg := dc.Image()
@@ -413,7 +413,7 @@ func getSummonIdleGifPath(species string, assetsPath string) string {
 	species = strings.ToLower(strings.TrimSpace(species))
 
 	// Map our species IDs to sparklinlabs monster names.
-	// 💡 2026-08-04: 1:1 mapping — each summon has its OWN dedicated sprite.
+	// 💡 2026-08-04: 1:1 mapping - each summon has its OWN dedicated sprite.
 	// No sharing. The species ID IS the sprite filename.
 	speciesMap := map[string]string{
 		// Animated idle.gif sprites (20)
@@ -442,7 +442,7 @@ func getSummonIdleGifPath(species string, assetsPath string) string {
 		"boglurk":   "boglurk",
 		"frostpeep": "frostpeep",
 		"starnail":  "starnail",
-		// Static PNG sprites (3) — ship sprites for Grand Inventor
+		// Static PNG sprites (3) - ship sprites for Grand Inventor
 		"ship_cruiser": "ship_cruiser",
 		"ship_fighter": "ship_fighter",
 		"ship_squid":   "ship_squid",
@@ -450,7 +450,7 @@ func getSummonIdleGifPath(species string, assetsPath string) string {
 
 	monsterName, ok := speciesMap[species]
 	if !ok {
-		// Try direct match — species ID might be the sprite name directly
+		// Try direct match - species ID might be the sprite name directly
 		monsterName = species
 	}
 
@@ -469,7 +469,7 @@ func getSummonIdleGifPath(species string, assetsPath string) string {
 
 // computeUnionVisibleBounds returns the UNION of all frames' visible (non-transparent)
 // bounding boxes. This is used to compute a FIXED crop region that works for every
-// frame in an animated GIF — so the bobbing animation is preserved.
+// frame in an animated GIF - so the bobbing animation is preserved.
 //
 // 💡 FIX 2026-08-04: If we cropped each frame independently, the sprite would be
 // re-positioned to the top-left of the crop on every frame, destroying the motion.
@@ -508,7 +508,7 @@ func computeUnionVisibleBounds(frames []image.Image) image.Rectangle {
 	}
 
 	if maxX < 0 {
-		// No visible pixels in any frame — return full bounds of first frame
+		// No visible pixels in any frame - return full bounds of first frame
 		return frames[0].Bounds()
 	}
 	return image.Rect(minX, minY, maxX+1, maxY+1)
@@ -842,7 +842,7 @@ func createSolidBackground(w, h int, c color.RGBA) image.Image {
 }
 
 // ════════════════════════════════════════════════════════════════
-// 💡 SINGLE SUMMON DETAIL GIF — .summon <#>
+// 💡 SINGLE SUMMON DETAIL GIF - .summon <#>
 // Renders one summon's idle.gif large + detailed info hub
 // ════════════════════════════════════════════════════════════════
 
@@ -998,11 +998,11 @@ func GenerateSummonDetailGIF(c *gin.Context) {
 			spriteImg := gd.frames[gifFrameIdx]
 
 			// 💡 FIX 2026-08-04: Apply FIXED crop rect (same as codex).
-			// Preserves bobbing animation — crop region is constant across frames.
+			// Preserves bobbing animation - crop region is constant across frames.
 			croppedImg := applyCrop(spriteImg, gd.cropRect)
 
 			// 💡 FIX 2026-08-04: Manual contain-fit (scale UP or DOWN).
-			// imaging.Fit does NOT upscale — if the source is smaller than
+			// imaging.Fit does NOT upscale - if the source is smaller than
 			// the target box, it returns the original. Many sprites (chest,
 			// ships) are smaller than the target, so they'd stay tiny.
 			// We calculate the scale factor and use imaging.Resize instead.

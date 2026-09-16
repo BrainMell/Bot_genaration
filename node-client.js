@@ -13,7 +13,7 @@ class GoImageService {
     this.baseUrl = serviceUrl || process.env.GO_IMAGE_SERVICE_URL || 'http://localhost:3000';
     this.client = axios.create({
       baseURL: this.baseUrl,
-      timeout: 120000, // 2 min — heavy ops (HF Space wake + process)
+      timeout: 120000, // 2 min - heavy ops (HF Space wake + process)
       maxBodyLength: Infinity,
       maxContentLength: Infinity,
     });
@@ -83,7 +83,7 @@ class GoImageService {
   // ── Heavy (wakes HF Space, cached) ──────────────────────────────────────
 
   /**
-   * Pinterest — Chrome scrape, cached 1hr
+   * Pinterest - Chrome scrape, cached 1hr
    */
   async searchPinterest(query, count = 10) {
     const res = await this.client.get('/api/scrape/pinterest', { params: { query, count } });
@@ -91,7 +91,7 @@ class GoImageService {
   }
 
   /**
-   * PornPics — Chrome scrape, cached 1hr
+   * PornPics - Chrome scrape, cached 1hr
    */
   async searchPornPics(query, count = 10) {
     const res = await this.client.get('/api/scrape/pornpics', { params: { query, count } });
@@ -99,7 +99,7 @@ class GoImageService {
   }
 
   /**
-   * Audio — yt-dlp download, cached 24hr
+   * Audio - yt-dlp download, cached 24hr
    */
   async searchAudio(query) {
     const res = await this.client.get('/api/scrape/audio', { params: { query } });
@@ -107,7 +107,7 @@ class GoImageService {
   }
 
   /**
-   * VS Battles powerscale search — Chrome, cached 24hr
+   * VS Battles powerscale search - Chrome, cached 24hr
    */
   async searchPowerscale(query) {
     const res = await this.client.get('/api/scrape/powerscale', { params: { query } });
@@ -115,7 +115,7 @@ class GoImageService {
   }
 
   /**
-   * VS Battles powerscale page fetch — Chrome, cached 24hr
+   * VS Battles powerscale page fetch - Chrome, cached 24hr
    */
   async getPowerscalePage(url) {
     const res = await this.client.get('/api/scrape/powerscale/fetch', { params: { url } });
@@ -123,7 +123,7 @@ class GoImageService {
   }
 
   /**
-   * Anikai watch link — Chrome, cached 24hr
+   * Anikai watch link - Chrome, cached 24hr
    */
   async searchAnikai(title) {
     const res = await this.client.get('/api/scrape/anikai', { params: { title } });
@@ -131,7 +131,7 @@ class GoImageService {
   }
 
   /**
-   * Anime Corner news — Chrome, cached 30min
+   * Anime Corner news - Chrome, cached 30min
    */
   async getAnimeNews() {
     const res = await this.client.get('/api/scrape/news');
@@ -139,7 +139,7 @@ class GoImageService {
   }
 
   /**
-   * Card GIF — heavy FFmpeg pipeline, cached 24hr
+   * Card GIF - heavy FFmpeg pipeline, cached 24hr
    */
   async generateCardGif(images, title = '') {
     const res = await this.client.post('/api/cards/gif', { images, title }, { responseType: 'arraybuffer' });

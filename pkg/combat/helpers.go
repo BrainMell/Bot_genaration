@@ -18,7 +18,7 @@ func newPngEncode(w io.Writer, img image.Image) error {
 	return png.Encode(w, img)
 }
 
-// timeNow returns the current time — wrapped so it can be stubbed in tests.
+// timeNow returns the current time - wrapped so it can be stubbed in tests.
 func timeNow() time.Time {
 	return time.Now()
 }

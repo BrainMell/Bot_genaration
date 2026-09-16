@@ -20,7 +20,7 @@ const (
 	CELL_SIZE  = 60
 )
 
-// LudoRequest — POST /api/ludo. PlayerName / IsCurrentTurn are optional
+// LudoRequest - POST /api/ludo. PlayerName / IsCurrentTurn are optional
 // (2026-09-16 redesign); older payloads from the Node side still render.
 type LudoRequest struct {
 	Players []struct {
@@ -43,7 +43,7 @@ type LudoRequest struct {
 
 // ── Colour system (2026-09-16 redesign) ──────────────────────────────────
 // Root cause of the old "mismatched colours": alphaColor() built ILLEGAL
-// alpha-premultiplied color.RGBA values (e.g. R=255 with A=89 — premultiplied
+// alpha-premultiplied color.RGBA values (e.g. R=255 with A=89 - premultiplied
 // R must be <= A). Go's compositor garbles those into random hues
 // (red→cyan, green→orange, yellow→purple). All translucent fills now use
 // color.NRGBA, which is the correct non-premultiplied type.
@@ -101,7 +101,7 @@ var Bases = map[string][4][2]int{
 	"blue":   {{10, 2}, {10, 4}, {12, 2}, {12, 4}},
 }
 
-// Quadrant anchor (top-left cell of each 6x6 base) per colour — red TL,
+// Quadrant anchor (top-left cell of each 6x6 base) per colour - red TL,
 // green TR, yellow BR, blue BL (matches start order red→green→yellow→blue).
 var QuadrantOrigin = map[string][2]int{
 	"red":    {0, 0},
@@ -132,7 +132,7 @@ func RenderBoard(c *gin.Context) {
 	dc.SetColor(Parchment)
 	dc.Clear()
 
-	// soft vignette for depth (NRGBA — correct translucency)
+	// soft vignette for depth (NRGBA - correct translucency)
 	vig := gg.NewLinearGradient(0, 0, BOARD_SIZE, BOARD_SIZE)
 	vig.AddColorStop(0, color.NRGBA{80, 55, 30, 26})
 	vig.AddColorStop(0.5, color.NRGBA{80, 55, 30, 0})
@@ -219,7 +219,7 @@ func RenderBoard(c *gin.Context) {
 		drawStar(dc, float64(pos[1]*CELL_SIZE)+CELL_SIZE/2, float64(pos[0]*CELL_SIZE)+CELL_SIZE/2, 15, deepOf(colorName))
 	}
 
-	// 6. Center finish — triangle per side MATCHES each colour's home column
+	// 6. Center finish - triangle per side MATCHES each colour's home column
 	//    (red left, green top, yellow right, blue bottom)
 	center := 7.5 * CELL_SIZE
 	t := CELL_SIZE * 1.5
@@ -448,7 +448,7 @@ func tintOf(name string) color.NRGBA {
 	}
 }
 
-// translucent MUST return NRGBA — RGBA is premultiplied and illegal for
+// translucent MUST return NRGBA - RGBA is premultiplied and illegal for
 // arbitrary (r,g,b,a) combos (the original colour-mismatch bug).
 func translucent(c color.RGBA, a float64) color.NRGBA {
 	return color.NRGBA{c.R, c.G, c.B, uint8(a * 255)}

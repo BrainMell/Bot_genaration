@@ -1,7 +1,7 @@
 package combat
 
 // ============================================
-// 🎨 CARDSTYLE THEME SYSTEM — 2026-09-16 (phase 8)
+// 🎨 CARDSTYLE THEME SYSTEM - 2026-09-16 (phase 8)
 // ============================================
 // Owner rule: "cardstyle should be a CARD SYSTEM THEME, not merely an
 // isolated card recolor". A player's `.j cardstyle <n>` drives EVERY
@@ -10,14 +10,14 @@ package combat
 // Ten visual identities, one shared geometry. Each theme owns:
 //   palette (bg/panel/ink/accent/seal), frame construction, and a
 //   signature background motif. Card KINDS keep their own composition
-//   ("same universe, different purpose") — a RANK card and an ALLOCATE
+//   ("same universe, different purpose") - a RANK card and an ALLOCATE
 //   card in style 1 look related but are not clones.
 //
 // Style 7 (Royal Decree) is the canonical baked-art baseline: it keeps
 // the bg_*.png art path so the default look is untouched. Styles 1-6
 // and 8-10 render programmatically through drawPortraitShell().
 //
-// NOTE: this is a presentation layer ONLY — it never changes payload
+// NOTE: this is a presentation layer ONLY - it never changes payload
 // semantics. New themes must set every color role (the decree palette
 // documents the role meanings).
 
@@ -60,7 +60,7 @@ type cardTheme struct {
 
 // decreeTheme = the exact ink palette the baked Royal Decree art uses.
 // When a card has no theme (style 0/7) the renderer still needs these
-// roles for the ink swaps — values are byte-identical to today's literals.
+// roles for the ink swaps - values are byte-identical to today's literals.
 func decreeTheme() cardTheme {
 	return cardTheme{
 		ID: 7, Name: "Royal Decree",
@@ -81,9 +81,9 @@ func decreeTheme() cardTheme {
 
 func n(r, g, b, a uint8) color.NRGBA { return color.NRGBA{R: r, G: g, B: b, A: a} }
 
-// cardThemes — the ten identities. 7 is omitted (baked baseline).
+// cardThemes - the ten identities. 7 is omitted (baked baseline).
 var cardThemes = map[int]*cardTheme{
-	1: { // STONEKEEP — dwarven fortress: granite, iron, chiseled edges
+	1: { // STONEKEEP - dwarven fortress: granite, iron, chiseled edges
 		ID: 1, Name: "Stonekeep", FrameStyle: 1,
 		Bg: n(84, 86, 92, 255), Bg2: n(58, 60, 66, 255),
 		Panel: n(172, 174, 178, 255), PanelEd: n(30, 32, 36, 70),
@@ -98,7 +98,7 @@ var cardThemes = map[int]*cardTheme{
 		Seal:   n(40, 42, 48, 255), SealTx: n(220, 226, 236, 255),
 		Caption: n(66, 70, 78, 255),
 	},
-	2: { // GOLDEN ARCANUM — arcane athanæum: indigo, ritual gold
+	2: { // GOLDEN ARCANUM - arcane athanæum: indigo, ritual gold
 		ID: 2, Name: "Golden Arcanum", FrameStyle: 2,
 		Bg: n(22, 18, 44, 255), Bg2: n(36, 28, 66, 255),
 		Panel: n(40, 33, 70, 255), PanelEd: n(0, 0, 0, 90),
@@ -113,7 +113,7 @@ var cardThemes = map[int]*cardTheme{
 		Seal:   n(120, 90, 28, 255), SealTx: n(244, 220, 140, 255),
 		Caption: n(186, 172, 132, 255),
 	},
-	3: { // RETRO COURT — victorian playbill: sepia halftone, burgundy rules
+	3: { // RETRO COURT - victorian playbill: sepia halftone, burgundy rules
 		ID: 3, Name: "Retro Court", FrameStyle: 3,
 		Bg: n(206, 188, 152, 255), Bg2: n(222, 206, 170, 255),
 		Panel: n(238, 224, 188, 255), PanelEd: n(120, 96, 70, 50),
@@ -128,7 +128,7 @@ var cardThemes = map[int]*cardTheme{
 		Seal:   n(122, 44, 58, 255), SealTx: n(244, 226, 190, 255),
 		Caption: n(112, 88, 64, 255),
 	},
-	4: { // WOODMERE — tavern hearth: carved oak, warm amber
+	4: { // WOODMERE - tavern hearth: carved oak, warm amber
 		ID: 4, Name: "Woodmere", FrameStyle: 9,
 		Bg: n(88, 58, 34, 255), Bg2: n(66, 42, 24, 255),
 		Panel: n(226, 192, 142, 255), PanelEd: n(60, 38, 20, 80),
@@ -143,7 +143,7 @@ var cardThemes = map[int]*cardTheme{
 		Seal:   n(112, 70, 34, 255), SealTx: n(244, 210, 140, 255),
 		Caption: n(116, 82, 50, 255),
 	},
-	5: { // EMBLEM NOIR — secret society: matte black, gold mark, red wax
+	5: { // EMBLEM NOIR - secret society: matte black, gold mark, red wax
 		ID: 5, Name: "Emblem Noir", FrameStyle: 4,
 		Bg: n(14, 14, 16, 255), Bg2: n(24, 24, 28, 255),
 		Panel: n(30, 30, 34, 255), PanelEd: n(0, 0, 0, 120),
@@ -158,7 +158,7 @@ var cardThemes = map[int]*cardTheme{
 		Seal:   n(148, 30, 40, 255), SealTx: n(244, 214, 140, 255),
 		Caption: n(158, 154, 146, 255),
 	},
-	6: { // HOLO GACHA — collection vault: pastel holo, soft sparkles
+	6: { // HOLO GACHA - collection vault: pastel holo, soft sparkles
 		ID: 6, Name: "Holo Gacha", FrameStyle: 5,
 		Bg: n(186, 224, 220, 255), Bg2: n(222, 196, 238, 255),
 		Panel: n(250, 247, 252, 255), PanelEd: n(160, 140, 190, 60),
@@ -173,7 +173,7 @@ var cardThemes = map[int]*cardTheme{
 		Seal:   n(222, 120, 160, 255), SealTx: n(255, 245, 250, 255),
 		Caption: n(130, 120, 152, 255),
 	},
-	8: { // NEON ARCADE — arcade cabinet: night grid, magenta/cyan glow
+	8: { // NEON ARCADE - arcade cabinet: night grid, magenta/cyan glow
 		ID: 8, Name: "Neon Arcade", FrameStyle: 6,
 		Bg: n(10, 12, 28, 255), Bg2: n(18, 22, 48, 255),
 		Panel: n(16, 20, 44, 255), PanelEd: n(0, 0, 0, 110),
@@ -188,7 +188,7 @@ var cardThemes = map[int]*cardTheme{
 		Seal:   n(255, 64, 160, 255), SealTx: n(255, 240, 250, 255),
 		Caption: n(128, 168, 208, 255),
 	},
-	9: { // RUNE MONOLITH — ancient stone: basalt, carved glyphs, ember
+	9: { // RUNE MONOLITH - ancient stone: basalt, carved glyphs, ember
 		ID: 9, Name: "Rune Monolith", FrameStyle: 7,
 		Bg: n(44, 50, 46, 255), Bg2: n(30, 34, 32, 255),
 		Panel: n(66, 74, 68, 255), PanelEd: n(0, 0, 0, 100),
@@ -203,7 +203,7 @@ var cardThemes = map[int]*cardTheme{
 		Seal:   n(180, 70, 26, 255), SealTx: n(250, 214, 150, 255),
 		Caption: n(156, 166, 152, 255),
 	},
-	10: { // CRIMSON COURT — vampire court: velvet damask, ornate gold
+	10: { // CRIMSON COURT - vampire court: velvet damask, ornate gold
 		ID: 10, Name: "Crimson Court", FrameStyle: 8,
 		Bg: n(66, 12, 22, 255), Bg2: n(44, 8, 16, 255),
 		Panel: n(96, 22, 34, 255), PanelEd: n(0, 0, 0, 110),
@@ -220,7 +220,7 @@ var cardThemes = map[int]*cardTheme{
 	},
 }
 
-// resolveTheme — nil for style 0 (unset) and 7 (Royal Decree baked art).
+// resolveTheme - nil for style 0 (unset) and 7 (Royal Decree baked art).
 func resolveTheme(style int) *cardTheme {
 	if style <= 0 || style == 7 || style > 10 {
 		return nil
@@ -269,7 +269,7 @@ func themeBottomLabelFor(kind string) string {
 	return ""
 }
 
-// drawPortraitShell — full themed backdrop for the 600x1000 family.
+// drawPortraitShell - full themed backdrop for the 600x1000 family.
 func drawPortraitShell(dc *gg.Context, th *cardTheme, kind string) {
 	// 1. page base: vertical gradient
 	lg := gg.NewLinearGradient(0, 0, 0, portraitH)
@@ -362,7 +362,7 @@ func drawPortraitShell(dc *gg.Context, th *cardTheme, kind string) {
 	dc.Stroke()
 }
 
-// drawThemeFrame — per-theme frame construction around a rect.
+// drawThemeFrame - per-theme frame construction around a rect.
 func drawThemeFrame(dc *gg.Context, th *cardTheme, x, y, w, h float64) {
 	switch th.FrameStyle {
 	case 1: // stone: beveled light/dark edges + corner rivets

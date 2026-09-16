@@ -163,7 +163,7 @@ func main() {
                 mode = "full"
         }
 
-        fmt.Printf("🧬 Image Generation Microservice (Go Core) — Mode: %s\n", mode)
+        fmt.Printf("🧬 Image Generation Microservice (Go Core) - Mode: %s\n", mode)
 
         if err := os.MkdirAll("downloads", 0755); err != nil {
                 log.Fatalf("failed to create downloads dir: %v", err)
@@ -229,7 +229,7 @@ func main() {
         api.POST("/cards/transaction", economy.GenerateTransactionCard)
         api.POST("/cards/profile", profile.GenerateProfileCard)
         api.POST("/cards/gif", cards.GenerateCardGif)
-        // NEW 2026-09-15 PERF: Go-side WhatsApp preview thumbnails — replaces
+        // NEW 2026-09-15 PERF: Go-side WhatsApp preview thumbnails - replaces
         // the bot's 400-900ms jimp full-image decode with a ~10ms localhost
         // call on every image send (see utils.ThumbHandler).
         api.POST("/thumb", utils.ThumbHandler)

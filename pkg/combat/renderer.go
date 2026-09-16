@@ -50,7 +50,7 @@ func cropToVisibleBounds(img image.Image) image.Image {
 		}
 	}
 	if maxX < 0 || maxY < 0 {
-		return img // fully transparent — return as-is
+		return img // fully transparent - return as-is
 	}
 	// 💡 FIX: Always use NewRGBA (0,0 origin), NOT SubImage.
 	// SubImage returns offset bounds which cause DrawImage to draw at
@@ -70,8 +70,8 @@ const (
 	// 💡 FIX 2026-08-07: Horizon line + ground zone (Spec 1A).
 	// Sky zone: Y=0 to HORIZON_Y. No sprite feet may be placed here.
 	// Ground zone: HORIZON_Y to GROUND_BOTTOM_Y. All sprite feet go here.
-	HORIZON_Y       = 309 // 45% of CANVAS_H — sky/ground boundary
-	GROUND_BOTTOM_Y = 515 // 75% of CANVAS_H — top of UI panel
+	HORIZON_Y       = 309 // 45% of CANVAS_H - sky/ground boundary
+	GROUND_BOTTOM_Y = 515 // 75% of CANVAS_H - top of UI panel
 	MAIN_FEET_Y     = 505 // main player/enemy feet (above UI panel top at 469... wait)
 	BACK_FEET_Y     = 410 // summon/background entity feet (higher = further away)
 )
@@ -90,7 +90,7 @@ func GenerateCombatImage(c *gin.Context) {
 			req.Action.TargetSide, req.Action.TargetIndex,
 			req.CombatType)
 	} else {
-		log.Printf("[combat-render] Action is nil — turn crystal falls back to player[0]. combatType=%s players=%d enemies=%d summons=%d",
+		log.Printf("[combat-render] Action is nil - turn crystal falls back to player[0]. combatType=%s players=%d enemies=%d summons=%d",
 			req.CombatType, len(req.Players), len(req.Enemies), len(req.Summons))
 	}
 
@@ -112,7 +112,7 @@ func GenerateCombatImage(c *gin.Context) {
 	}
 
 	// FIX 2026-09-11 R2 (owner directive: montage_E_4 style): the duel
-	// arena is now spark_5.png — the bright open beach arena. The Node
+	// arena is now spark_5.png - the bright open beach arena. The Node
 	// client sends spark_5 for PvP too; this guard covers direct callers. Previously PvP without an
 	// explicit background fell through to getRankBackground(req.Rank) - and the
 	// Node client hardcodes spark_1.png (grassland) when no backgroundPath is
@@ -154,7 +154,7 @@ func GenerateCombatImage(c *gin.Context) {
 	dc.Fill()
 
 	// 💡 2026-09-11 (owner directive): REMOVE the ground-ellipse turn
-	// indicator — it read as a big colored blob under the sprite.
+	// indicator - it read as a big colored blob under the sprite.
 	// Replacement: a floating crystal drawn ABOVE the active unit's head.
 	// Crystals are QUEUED here and painted in a dedicated pass AFTER the
 	// nameplate pills so they hover on top of HP bars / name tags.
@@ -164,7 +164,7 @@ func GenerateCombatImage(c *gin.Context) {
 	}
 	crystalSrc, crystalLoadErr := utils.LoadImage(filepath.Join(assetsPath, "rpgasset", "ui", "crystal.png"))
 	if crystalLoadErr != nil {
-		log.Printf("[combat-render] turn crystal asset missing (%v) — turn indicator disabled", crystalLoadErr)
+		log.Printf("[combat-render] turn crystal asset missing (%v) - turn indicator disabled", crystalLoadErr)
 	}
 	queueTurnCrystal := func(cx, headTopY, spriteH float64) {
 		crystalQueue = append(crystalQueue, struct {
@@ -181,7 +181,7 @@ func GenerateCombatImage(c *gin.Context) {
 		return req.Action.AttackerSide == side && req.Action.AttackerIndex == index
 	}
 
-	// 2. Mobs / Enemies — slot table (EnemySlots) + crop-then-resize-by-height.
+	// 2. Mobs / Enemies - slot table (EnemySlots) + crop-then-resize-by-height.
 	// Determine avg level for sprite selection
 	avgLevel := 1
 	if len(req.Players) > 0 {
@@ -262,7 +262,7 @@ func GenerateCombatImage(c *gin.Context) {
 		}
 		eSprite = imaging.Resize(eSprite, 0, targetH, imaging.NearestNeighbor)
 
-		// Side-based facing — enemies on RIGHT side face LEFT
+		// Side-based facing - enemies on RIGHT side face LEFT
 		if flipForSide(filepath.Base(spritePath), false) {
 			eSprite = imaging.FlipH(eSprite)
 		}
@@ -272,7 +272,7 @@ func GenerateCombatImage(c *gin.Context) {
 			eSprite = utils.TintImage(eSprite, color.RGBA{80, 0, 80, 180})
 		}
 
-		// Position from EnemySlots table — no inline math.
+		// Position from EnemySlots table - no inline math.
 		slot := slotFor(EnemySlots, i)
 		feetX := slot.X
 		feetY := slot.Y
@@ -299,7 +299,7 @@ func GenerateCombatImage(c *gin.Context) {
 
 	// Draw Mobs
 	for _, mob := range mobQueue {
-		// Shadow (drawn FIRST, under everything) — at feet position
+		// Shadow (drawn FIRST, under everything) - at feet position
 		utils.DrawShadow(dc, mob.x+float64(mob.img.Bounds().Dx())/2, mob.y+float64(mob.img.Bounds().Dy())-2, float64(mob.img.Bounds().Dx())*0.6, 0.85)
 		// 💡 TURN INDICATOR: floating crystal above the attacker's head.
 		if isAttacker("enemy", mob.origIndex) {
@@ -309,7 +309,7 @@ func GenerateCombatImage(c *gin.Context) {
 		// Sprite
 		dc.DrawImage(mob.img, int(mob.x), int(mob.y))
 
-		// ENEMY HP BAR — 💡 FIX 2026-09-11 (audit): the bare hp5 sliver
+		// ENEMY HP BAR - 💡 FIX 2026-09-11 (audit): the bare hp5 sliver
 		// floated with no track and shrank to a 1px red hairline at low HP
 		// ("HP bar texture too low/too small"). Now: fixed-width dark
 		// track + border, hp5 fill clipped to remaining HP inside it.
@@ -325,7 +325,7 @@ func GenerateCombatImage(c *gin.Context) {
 			}
 		}
 
-		// Nameplate pill above HP bar — queued for the collision pass
+		// Nameplate pill above HP bar - queued for the collision pass
 		cx := mob.x + float64(mob.img.Bounds().Dx())/2
 		pillQueue = append(pillQueue, pillItem{cx: cx, bottomY: hpBarTopY - 2, name: mob.name})
 	}
@@ -366,7 +366,7 @@ func GenerateCombatImage(c *gin.Context) {
 				sSprite = utils.TintImage(sSprite, color.RGBA{80, 0, 80, 180})
 			}
 
-			// Position from SummonSlots table — no inline math.
+			// Position from SummonSlots table - no inline math.
 			slot := slotFor(SummonSlots, i)
 			summonFeetX := slot.X
 			summonFeetY := slot.Y
@@ -380,7 +380,7 @@ func GenerateCombatImage(c *gin.Context) {
 			// Shadow at feet
 			utils.DrawShadow(dc, summonFeetX, summonFeetY-2, float64(sSpriteW)*0.6, 0.85)
 
-			// Turn indicator — floating crystal above head
+			// Turn indicator - floating crystal above head
 			if isAttacker("summon", i) {
 				queueTurnCrystal(summonFeetX, sy, float64(sSpriteH))
 			}
@@ -409,7 +409,7 @@ func GenerateCombatImage(c *gin.Context) {
 				}
 			}
 
-			// Nameplate pill above HP bar — queued for the collision pass
+			// Nameplate pill above HP bar - queued for the collision pass
 			summonName := summon.Name
 			if summonName == "" {
 				summonName = summon.Species
@@ -421,7 +421,7 @@ func GenerateCombatImage(c *gin.Context) {
 	// FIX (2026-08-16): Regular PvP summon rendering -- split by ownerIndex.
 	if req.CombatType == "PVP" && !(req.CombatType == "PVP" && len(req.Players) >= 2 && req.Players[0].Mode == "summon" && req.Players[0].Species != "" && req.Players[1].Mode == "summon" && req.Players[1].Species != "") && len(req.Summons) > 0 {
 		// FIX 2026-09-11: right summon sat at x=820 while its owner stood at
-		// x=800 — the slime painted straight over the master's face (E4).
+		// x=800 - the slime painted straight over the master's face (E4).
 		// Slots moved OUTWARD of both owners (owners at 220/800).
 		pvpSummonSlots := []struct{ x, y float64 }{
 			{110, 420},
@@ -559,7 +559,7 @@ func GenerateCombatImage(c *gin.Context) {
 			drawX := pos.x - sW/2
 			drawY := pos.y - sH
 
-			// Shadow at feet — wide flat ellipse (looks like ground shadow, doesn't overlap panel)
+			// Shadow at feet - wide flat ellipse (looks like ground shadow, doesn't overlap panel)
 			// rx = 60% of sprite width (wide), ry = 12px (flat). Total height = 24px.
 			utils.DrawShadowEllipse(dc, float64(pos.x), float64(pos.y)-2, float64(sW)*0.6, 12, 0.85)
 
@@ -625,7 +625,7 @@ func GenerateCombatImage(c *gin.Context) {
 			panelImg = imaging.FlipH(panelImg)
 			dc.DrawImage(panelImg, normX(-145), normY(113))
 		}
-		// Heart icon — mirrored position (right side of right panel)
+		// Heart icon - mirrored position (right side of right panel)
 		heartImg, err := utils.LoadImage(uiPath("heart.png"))
 		if err == nil {
 			heartImg = imaging.Resize(heartImg, 38, 47, imaging.NearestNeighbor)
@@ -642,7 +642,7 @@ func GenerateCombatImage(c *gin.Context) {
 	drawImage(uiPath("banner.png"), -582, -410, 800, 160)
 
 	// 💡 FIX 2026-08-08: Text name labels on ALL PvP panels (1v1 + summon).
-	// Portraits removed for all PvP — text label replaces them.
+	// Portraits removed for all PvP - text label replaces them.
 	// Placement spec:
 	//   - Horizontally centered within EACH panel's own width (panel-center, not canvas-center)
 	//   - Vertically centered in the top strip (between panel top border and scroll-divider line)
@@ -740,7 +740,7 @@ func GenerateCombatImage(c *gin.Context) {
 		// INSIDE the left state panel (x≈34, y≈500) where the oversized head
 		// covered the panel title and the HP/MP bars crossed the face
 		// (pixel-verified in 9 of 41 audit scenes; worst on AVATAR where the hat
-		// covered the whole panel). PvP panels are text-only and clean — PvE now
+		// covered the whole panel). PvP panels are text-only and clean - PvE now
 		// matches. The dead PvP-P2 portrait sub-block (unreachable behind the
 		// != PVP guard) is removed with it.
 		_ = assetsPath
@@ -752,7 +752,7 @@ func GenerateCombatImage(c *gin.Context) {
 		//   - PvE: player formation on battlefield
 		if req.CombatType == "PVP" && !(req.CombatType == "PVP" && len(req.Players) >= 2 && req.Players[0].Mode == "summon" && req.Players[0].Species != "" && req.Players[1].Mode == "summon" && req.Players[1].Species != "") {
 			// 💡 FIX 2026-08-08: Unified PvP positioning with PvE.
-			// BEFORE: PvP used X=300/690 with sprite width=160 — player 1 at X=300
+			// BEFORE: PvP used X=300/690 with sprite width=160 - player 1 at X=300
 			// overlapped the left UI panel (X=-22 to 431). PvP summon sprites were
 			// 160px (different from PvE's 103px). These separate constants caused
 			// the "fixed in PvE but not PvP" pattern.
@@ -799,7 +799,7 @@ func GenerateCombatImage(c *gin.Context) {
 				drawX := feetX - sW/2
 				drawY := feetY - sH
 
-				// Shadow at feet — wide flat ellipse (looks like ground shadow, doesn't overlap panel)
+				// Shadow at feet - wide flat ellipse (looks like ground shadow, doesn't overlap panel)
 				utils.DrawShadowEllipse(dc, float64(feetX), float64(feetY)-2, float64(sW)*0.6, 12, 0.85)
 
 				if isAtk {
@@ -821,10 +821,10 @@ func GenerateCombatImage(c *gin.Context) {
 			}
 
 			// 💡 FIX 2026-08-08: PvP-1v1 positions match PvP-summon (symmetric, away from center).
-			// Player 1 (left): X=220 — same as PvP-summon left position.
+			// Player 1 (left): X=220 - same as PvP-summon left position.
 			//   Was X=500 (almost at canvas center 512, looked like "in the middle").
-			// Player 2 (right): X=800 — same as PvP-summon right position.
-			// Feet Y: 450 — raised from 465 to clear shadow from panel.
+			// Player 2 (right): X=800 - same as PvP-summon right position.
+			// Feet Y: 450 - raised from 465 to clear shadow from panel.
 			//   Shadow extends 16px below feet (radius_y=18, center at feetY-2).
 			//   At Y=465, shadow bottom=481, overlapped panel top (469) by 12px.
 			//   At Y=445, shadow bottom=461, 8px clear of panel top. ✅
@@ -920,7 +920,7 @@ func GenerateCombatImage(c *gin.Context) {
 				})
 			}
 
-			// Sort by feet Y (back to front — lower Y = further back = drawn first).
+			// Sort by feet Y (back to front - lower Y = further back = drawn first).
 			sort.Slice(playerQueue, func(i, j int) bool {
 				return playerQueue[i].feetY < playerQueue[j].feetY
 			})
@@ -1024,7 +1024,7 @@ func GenerateCombatImage(c *gin.Context) {
 		}
 	}
 
-	// 💡 2026-09-11: Floating turn-crystal pass — painted LAST so the crystal
+	// 💡 2026-09-11: Floating turn-crystal pass - painted LAST so the crystal
 	// hovers over HP bars and nameplates, never underneath them. Anchored
 	// above the head with clearance for the name pill (pillH) that sits on
 	// the HP bar. Replaces the removed ground-ellipse indicator.
@@ -1046,7 +1046,7 @@ func GenerateCombatImage(c *gin.Context) {
 			cx := cq.cx
 			cy := bottom - ch/2
 			// Soft glow halo (outer faint, inner brighter)
-			// 💡 color.NRGBA (straight alpha) — color.RGBA with channel > alpha
+			// 💡 color.NRGBA (straight alpha) - color.RGBA with channel > alpha
 			// is an INVALID premultiplied color and overflows the src-over
 			// composite into garbage saturated rings (the old "green circle"
 			// bug was the same overflow on the golden ellipse).
@@ -1130,7 +1130,7 @@ func normY(y int) int { return y + OFF_Y }
 // to 1px and floated with no track at low HP.
 func drawOverheadHPBar(dc *gg.Context, x, y, w, h float64, pct float64, fillImg image.Image) {
 	// 💡 ROUND-4 FIX (owner: "HP bar texture too low"): the hp5.png texture is
-	// a PANEL segment sprite — only ~26% of its pixels are opaque, so the
+	// a PANEL segment sprite - only ~26% of its pixels are opaque, so the
 	// overhead bar read as an empty dark sliver even at FULL HP. The fill is
 	// now DRAWN directly: continuous red->orange gradient at full opacity
 	// plus a 1px gloss line. Always readable at any HP value.

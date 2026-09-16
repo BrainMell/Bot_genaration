@@ -136,7 +136,7 @@ func ScrapePowerscalePage(c *gin.Context) {
 		return
 	}
 
-	// Safety check — only allow vsbattles URLs
+	// Safety check - only allow vsbattles URLs
 	if !strings.Contains(pageURL, "vsbattles.fandom.com/wiki/") {
 		c.JSON(400, gin.H{"error": "invalid url"})
 		return

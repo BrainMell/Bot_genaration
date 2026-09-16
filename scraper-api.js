@@ -153,7 +153,7 @@ api.get('/pinterest', async (req, res) => {
 });
 
 // ── PornPics Scraper ──────────────────────────────────────────────────
-// Uses direct HTTP fetch — site blocks Chrome from datacenter IPs but
+// Uses direct HTTP fetch - site blocks Chrome from datacenter IPs but
 // accepts plain requests with proper headers.
 api.get('/pornpics', async (req, res) => {
     const { query, count = 10 } = req.query;
@@ -271,7 +271,7 @@ api.get(['/rule34', '/rule34/deep'], async (req, res) => {
 });
 
 // ── Powerscale Search ──────────────────────────────────────────────────
-// Uses Fandom's MediaWiki API instead of scraping the search page —
+// Uses Fandom's MediaWiki API instead of scraping the search page -
 // much more reliable, no browser needed, returns clean JSON.
 api.get('/powerscale', async (req, res) => {
     const { query } = req.query;
@@ -319,7 +319,7 @@ api.get('/powerscale', async (req, res) => {
 // vsbattles.fandom.com/wiki/* now serves a Cloudflare "Just a moment..."
 // interstitial to headless browsers, so the old puppeteer scrape silently
 // returned empty fields. api.php is exempt and returns the full rendered
-// HTML — extract from that first; the browser path below stays as fallback.
+// HTML - extract from that first; the browser path below stays as fallback.
 function vsbDecodeEntities(s) {
     return String(s || '')
         .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => { try { return String.fromCodePoint(parseInt(h, 16)); } catch (e) { return ' '; } })
@@ -382,7 +382,7 @@ function vsbExtractFromHtml(html, pageName, pageUrl) {
         const re = new RegExp(field + '\\s*:\\s*([^\\n]+)', 'i');
         const mm = text.match(re);
         if (mm) {
-            // VS Battles renders tabber forms side by side ("2-A | 2-A | ...") —
+            // VS Battles renders tabber forms side by side ("2-A | 2-A | ...") -
             // the first segment is the base form, which is what players want.
             let val = mm[1].trim().split('|')[0].trim();
             val = val.replace(/\[[^\]]*\]/g, '').replace(/\([^)]*\)/g, '').trim();

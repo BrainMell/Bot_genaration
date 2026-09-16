@@ -17,7 +17,7 @@ SCRAPER_PID=$!
 # Give Node a moment to bind to its port before Go starts proxying
 sleep 2
 
-# Start the Go server (foreground — keeps container alive)
+# Start the Go server (foreground - keeps container alive)
 echo "⚙️  Starting Go image service..."
 ./image-service
 

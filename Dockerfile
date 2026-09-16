@@ -64,7 +64,7 @@ WORKDIR /app
 # Copy Go binary
 COPY --from=builder /build/image-service .
 
-# Copy assets (fonts, images, etc.) — required for card generation
+# Copy assets (fonts, images, etc.) - required for card generation
 COPY --from=builder /build/assets ./assets
 
 # Copy Node.js scraper files

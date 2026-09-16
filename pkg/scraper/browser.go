@@ -36,7 +36,7 @@ func CloseBrowser() {
 // connectBrowserless connects Rod to Browserless v2 by first fetching
 // /json/version to get the real CDP WebSocket debugger URL, then connecting
 // Rod to that URL. This is the correct approach per the Browserless docs for
-// Go libraries — direct wss:// connections fail due to WebSocket handshake
+// Go libraries - direct wss:// connections fail due to WebSocket handshake
 // incompatibilities between Rod's nhooyr.io/websocket and Browserless v2.
 func connectBrowserless(token string) {
 	fmt.Println("[BROWSER] Fetching Browserless CDP endpoint via /json/version...")
@@ -54,7 +54,7 @@ func connectBrowserless(token string) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		panic(fmt.Sprintf("[BROWSER] ❌ /json/version returned HTTP %d — check your BROWSERLESS_TOKEN", resp.StatusCode))
+		panic(fmt.Sprintf("[BROWSER] ❌ /json/version returned HTTP %d - check your BROWSERLESS_TOKEN", resp.StatusCode))
 	}
 
 	var versionData struct {
@@ -88,7 +88,7 @@ func connectBrowserless(token string) {
 
 // connectLocal launches a local headless Chromium (fallback for local dev).
 func connectLocal() {
-	fmt.Println("[BROWSER] BROWSERLESS_TOKEN not set — launching local Chromium (dev mode).")
+	fmt.Println("[BROWSER] BROWSERLESS_TOKEN not set - launching local Chromium (dev mode).")
 
 	u := launcher.New().
 		Headless(true).

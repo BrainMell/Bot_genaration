@@ -389,7 +389,7 @@ func searchStickersKlipy(query string) ([]string, error) {
 }
 
 // =============================================================================
-// VS BATTLES - Official MediaWiki API (no Chrome — Render-safe)
+// VS BATTLES - Official MediaWiki API (no Chrome - Render-safe)
 // =============================================================================
 
 func SearchVSBattles(c *gin.Context) {
@@ -525,7 +525,7 @@ func GetVSBattlesDetail(c *gin.Context) {
 }
 
 // =============================================================================
-// RULE34 - Gelbooru DAPI (no Chrome — Render-safe)
+// RULE34 - Gelbooru DAPI (no Chrome - Render-safe)
 // This is the lightweight version. The deep Rod scrape lives in rule34.go
 // and is registered as ScrapeRule34 on the Codespace mode.
 // =============================================================================

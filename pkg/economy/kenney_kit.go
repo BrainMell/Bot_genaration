@@ -1,6 +1,6 @@
 package economy
 
-// kenney_kit.go — shared drawing kit for the Kenney-style money cards.
+// kenney_kit.go - shared drawing kit for the Kenney-style money cards.
 // Faithful port of the owner-approved redesigns (download/money_cards/*.png):
 // bevel depth buttons, autofit text, face-centered labels, EMV chip, coin.
 
@@ -76,7 +76,7 @@ func textCenter(dc *gg.Context, s string, cx, cy float64, col color.RGBA) {
         dc.DrawStringAnchored(s, cx, cy, 0.5, 0.5)
 }
 
-// faceCY — Kenney depth buttons: bright face is the top 87.5%, so the visual
+// faceCY - Kenney depth buttons: bright face is the top 87.5%, so the visual
 // center of the face sits at y0 + 0.4375*h.
 func faceCY(y0, h float64) float64 { return y0 + h*0.4375 }
 
@@ -131,7 +131,7 @@ func cornerR(h float64) float64 {
         return r
 }
 
-// kenButtonFlat — solid face + darker bottom depth strip.
+// kenButtonFlat - solid face + darker bottom depth strip.
 func kenButtonFlat(dc *gg.Context, x, y, w, h float64, set kenSet) {
         r := cornerR(h)
         bevel := h * 0.125
@@ -143,7 +143,7 @@ func kenButtonFlat(dc *gg.Context, x, y, w, h float64, set kenSet) {
         dc.Fill()
 }
 
-// kenButtonBorder — colored depth + light face + colored ring (badge/title style).
+// kenButtonBorder - colored depth + light face + colored ring (badge/title style).
 func kenButtonBorder(dc *gg.Context, x, y, w, h float64, set kenSet) {
         r := cornerR(h)
         bevel := h * 0.125
@@ -201,12 +201,12 @@ func drawCoin(dc *gg.Context, cx, cy, r float64, symbol string) {
 
 // ---- header (name plate + accent badge + chip) ----
 func drawHead(dc *gg.Context, name string, badge string, accent kenSet) {
-        // name plate — Grey flat, dark text
+        // name plate - Grey flat, dark text
         npw, nph, npx, npy := 320.0, 64.0, 66.0, 62.0
         kenButtonFlat(dc, npx, npy, npw, nph, knGrey)
         loadFit(dc, fontFuture(), 32, name, npw-60, 12)
         textLM(dc, name, npx+30, faceCY(npy, nph), rgb(36, 40, 64))
-        // rank / info badge — accent border style, width measured from text
+        // rank / info badge - accent border style, width measured from text
         badge = sanitize(badge)
         loadFit(dc, fontFutureNarrow(), 20, badge, 10000, 20)
         tw, _ := dc.MeasureString(badge)
@@ -292,12 +292,12 @@ func groupDigits(s string) string {
         return s
 }
 
-// formatFull — full comma-grouped integer, e.g. 10145678 -> "10,145,678".
+// formatFull - full comma-grouped integer, e.g. 10145678 -> "10,145,678".
 func formatFull(n float64) string {
         return groupDigits(fmt.Sprintf("%.0f", n))
 }
 
-// formatSigned — "+1,234" / "-1,234".
+// formatSigned - "+1,234" / "-1,234".
 func formatSigned(n float64) string {
         s := formatFull(n)
         if n >= 0 {
@@ -306,7 +306,7 @@ func formatSigned(n float64) string {
         return s
 }
 
-// sanitize — keep printable ASCII + middle dot so the Kenney fonts never
+// sanitize - keep printable ASCII + middle dot so the Kenney fonts never
 // render tofu boxes for nicknames/items coming from WhatsApp.
 func sanitize(s string) string {
         var b strings.Builder
@@ -345,11 +345,11 @@ func txStyle(t string) txAccent {
         }
 }
 
-// drawAmountLine — big value + gold ZENI suffix, centered as a group.
+// drawAmountLine - big value + gold ZENI suffix, centered as a group.
 func drawAmountLine(dc *gg.Context, amount string, cy float64, col color.RGBA, maxAmountW float64) {
         amount = sanitize(amount)
         // measure ZENI first (narrow face), then fit + draw the amount (Future face),
-        // then draw ZENI — order matters because the face is shared state.
+        // then draw ZENI - order matters because the face is shared state.
         loadFit(dc, fontFutureNarrow(), 26, "ZENI", 200, 12)
         zw, _ := dc.MeasureString("ZENI")
         loadFit(dc, fontFuture(), 70, amount, maxAmountW, 20)

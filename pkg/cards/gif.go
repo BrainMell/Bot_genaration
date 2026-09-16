@@ -543,7 +543,7 @@ func GenerateCardGridImage(inputs []CardInput, title string) ([]byte, error) {
                         }
                 }
 
-                // Placeholder for failed downloads — no gaps in grid
+                // Placeholder for failed downloads - no gaps in grid
                 if !imgDrawn {
                         dc.Push()
                         dc.SetHexColor("#1a1d28")
@@ -556,7 +556,7 @@ func GenerateCardGridImage(inputs []CardInput, title string) ([]byte, error) {
                         }
                 }
 
-                // Card border — colored by tier
+                // Card border - colored by tier
                 tierColor := tierColors[input.Tier]
                 if tierColor == "" {
                         tierColor = "#2a2f3d"
@@ -595,7 +595,7 @@ func GenerateCardGridImage(inputs []CardInput, title string) ([]byte, error) {
                         if err := dc.LoadFontFace(fontMediumPath, 11); err == nil {
                                 dc.SetHexColor("#ffffff")
                                 name := input.Name
-                                // Truncate to fit — MeasureString returns (w, h)
+                                // Truncate to fit - MeasureString returns (w, h)
                                 maxW := float64(cardW - 8)
                                 w, _ := dc.MeasureString(name)
                                 for w > maxW && len(name) > 3 {
@@ -610,7 +610,7 @@ func GenerateCardGridImage(inputs []CardInput, title string) ([]byte, error) {
                 }
         }
 
-        // Encode as JPEG (quality 85) — 5-10x smaller than PNG, fine for photos
+        // Encode as JPEG (quality 85) - 5-10x smaller than PNG, fine for photos
         var buf bytes.Buffer
         err := jpeg.Encode(&buf, dc.Image(), &jpeg.Options{Quality: 85})
         if err != nil {
@@ -634,7 +634,7 @@ func GenerateCardGif(c *gin.Context) {
                 return
         }
 
-        // Max 12 cards (3×4 grid) — keeps memory under 3MB on 500MB servers
+        // Max 12 cards (3×4 grid) - keeps memory under 3MB on 500MB servers
         maxImages := 12
         if len(req.Images) > maxImages {
                 req.Images = req.Images[:maxImages]
@@ -680,7 +680,7 @@ func GenerateCardGif(c *gin.Context) {
         }
         defer os.RemoveAll(tempDir)
 
-        // SEQUENTIAL downloads — parallel downloads exhaust the connection
+        // SEQUENTIAL downloads - parallel downloads exhaust the connection
         // pool on 0.1 CPU servers, causing most downloads to timeout.
         // Sequential with a short timeout per card is faster overall
         // because no retries are needed.
@@ -692,7 +692,7 @@ func GenerateCardGif(c *gin.Context) {
                 err := downloadFile(client, urlInput.URL, filePath)
                 if err != nil {
                         fmt.Printf("[Cards] Download failed [%d]: %v\n", i, err)
-                        // Don't skip — use empty path so placeholder renders
+                        // Don't skip - use empty path so placeholder renders
                         localInputs[i] = CardInput{
                                 Path: "",
                                 Name: urlInput.Name,

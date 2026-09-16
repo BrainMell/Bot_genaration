@@ -1,6 +1,6 @@
 package economy
 
-// craft_renderer.go — RPG-style card for item-creation types
+// craft_renderer.go - RPG-style card for item-creation types
 // (CRAFT / BREW / COOK / FORGE). Deliberately NOT the Kenney money look:
 // lamoot wood + gold frame + parchment panel + game-icons type emblem,
 // owner-approved mock download/craft_cards/MOCK_*.png.
@@ -35,13 +35,13 @@ func craftMed() string       { return craftAsset("MedievalSharp.ttf") }
 func drawRPGCraft(dc *gg.Context, req TransactionCardRequest, txType string) {
 	bg, err := loadPNG(craftAsset("bg_" + txType + ".png"))
 	if err != nil {
-		log.Printf("craft bg missing (%v) — falling back to plain base", err)
+		log.Printf("craft bg missing (%v) - falling back to plain base", err)
 		drawBase(dc)
 	} else {
 		dc.DrawImage(bg, 0, 0)
 	}
 
-	// nickname — gold Cinzel on the leather plate (plate is baked)
+	// nickname - gold Cinzel on the leather plate (plate is baked)
 	name := sanitize(req.Nickname)
 	if name == "" {
 		name = "Adventurer"
@@ -49,7 +49,7 @@ func drawRPGCraft(dc *gg.Context, req TransactionCardRequest, txType string) {
 	loadFit(dc, craftCinzel(), 30, name, 240, 12)
 	textLM(dc, name, 90, 84, rgb(214, 170, 82))
 
-	// item name — dark ink Cinzel Decorative on the parchment
+	// item name - dark ink Cinzel Decorative on the parchment
 	item := sanitize(req.ItemName)
 	if item == "" {
 		item = "Unknown Item"
@@ -76,7 +76,7 @@ func drawRPGCraft(dc *gg.Context, req TransactionCardRequest, txType string) {
 		textCenter(dc, qs, cx, cy-1, rgb(250, 210, 120))
 	}
 
-	// caption — req.Details override (FISH passes flavor), else ".j <type> <item>"
+	// caption - req.Details override (FISH passes flavor), else ".j <type> <item>"
 	cap := sanitize(req.Details)
 	if cap == "" {
 		cap = sanitize(fmt.Sprintf(".j %s %s", strings.ToLower(txType), item))
@@ -94,13 +94,13 @@ func drawRPGCraft(dc *gg.Context, req TransactionCardRequest, txType string) {
 func drawRPGDecree(dc *gg.Context, req TransactionCardRequest) {
 	bg, err := loadPNG(craftAsset("bg_DECREE.png"))
 	if err != nil {
-		log.Printf("decree bg missing (%v) — falling back to plain base", err)
+		log.Printf("decree bg missing (%v) - falling back to plain base", err)
 		drawBase(dc)
 	} else {
 		dc.DrawImage(bg, 0, 0)
 	}
 
-	// nickname — gold Cinzel on the leather plate
+	// nickname - gold Cinzel on the leather plate
 	name := sanitize(req.Nickname)
 	if name == "" {
 		name = "Adventurer"
@@ -108,7 +108,7 @@ func drawRPGDecree(dc *gg.Context, req TransactionCardRequest) {
 	loadFit(dc, craftCinzel(), 30, name, 240, 12)
 	textLM(dc, name, 90, 84, rgb(214, 170, 82))
 
-	// big rank name — dark ink Cinzel Decorative center
+	// big rank name - dark ink Cinzel Decorative center
 	rankName := sanitize(req.ItemName)
 	if rankName == "" {
 		rankName = "RANK UP"
@@ -165,8 +165,8 @@ func drawRPGDecree(dc *gg.Context, req TransactionCardRequest) {
 		textCenter(dc, seal, cx, cy-1, rgb(250, 210, 120))
 	}
 
-	// caption (fixed flavor — the ledger already carries the ranks).
-	// Dark ink: the decree bg is BRIGHT parchment — the wood-card tan vanishes.
+	// caption (fixed flavor - the ledger already carries the ranks).
+	// Dark ink: the decree bg is BRIGHT parchment - the wood-card tan vanishes.
 	cap := "keep rising - the guild watches"
 	loadFit(dc, craftMed(), 22, cap, 800, 12)
 	textCenter(dc, cap, 500, 552, rgb(122, 88, 46))

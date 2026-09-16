@@ -429,7 +429,7 @@ func drawGearSlot(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, sl
 	dc.DrawRoundedRectangle(x, y, w, h, 4)
 	dc.Fill()
 
-	// 2. Durability fill bar — rises from bottom, height = durPct% of box
+	// 2. Durability fill bar - rises from bottom, height = durPct% of box
 	// durPct -1 = empty slot (no bar drawn)
 	if durPct >= 0 && hasItem {
 		var barColor color.RGBA
@@ -490,7 +490,7 @@ func drawGearSlot(dc *gg.Context, fontLabel, fontVal font.Face, x, y float64, sl
 	dc.SetColor(color.RGBA{120, 120, 150, 255})
 	dc.DrawString(slotIcon+" "+slotLabel, x+8, y+16)
 
-	// 5. Item name (bottom) — always renders on top of the bar fill
+	// 5. Item name (bottom) - always renders on top of the bar fill
 	dc.SetFontFace(fontVal)
 	if !hasItem {
 		dc.SetColor(color.RGBA{70, 70, 95, 255})

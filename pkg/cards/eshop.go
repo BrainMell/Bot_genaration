@@ -20,7 +20,7 @@ import (
 )
 
 // =============================================================================
-// ESHOP DECK RENDERER — 4x4 grid of event card images
+// ESHOP DECK RENDERER - 4x4 grid of event card images
 // =============================================================================
 
 const (
@@ -48,7 +48,7 @@ type EShopCard struct {
 
 // EShopDeckRequest is the payload for the eShop deck render endpoint
 type EShopDeckRequest struct {
-        Title    string      `json:"title"`    // e.g. "EVENT SHOP — TOKEN EVENT"
+        Title    string      `json:"title"`    // e.g. "EVENT SHOP - TOKEN EVENT"
         Cards    []EShopCard `json:"cards"`    // up to 16 cards
         Currency string      `json:"currency"` // e.g. "🎫 Tokens"
 }

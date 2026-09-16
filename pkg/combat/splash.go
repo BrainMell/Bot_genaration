@@ -1,10 +1,10 @@
 package combat
 
 // ============================================
-// 🐉 BOSS SPLASH RENDERER — parchment redesign 2026-09-12
+// 🐉 BOSS SPLASH RENDERER - parchment redesign 2026-09-12
 // ============================================
 // Owner complaint: the boss introduction card was still the OLD dark-gradient
-// full-screen design — completely off from the new lamoot wood+gold+parchment
+// full-screen design - completely off from the new lamoot wood+gold+parchment
 // family (BREW / HUNT / FISH / ROYAL DECREE). Rebuilt in that family.
 //
 // Static art baked in assets/rpgasset/ui/craft/bg_BOSS.png (build_boss_bg.py):
@@ -20,7 +20,7 @@ package combat
 //   engine test-lock: {sprite: "enemies/x.png", name, flavorText, rank, floor}
 // Tier drives the arena glow accent + wax seal letter:
 //   S/SS/SSS/TRIAL/DRAGON/RAID/ABYSS/GOD (+ "???" maintenance default).
-// NOTE: no gg Clip() — same clip-state leak as hunt.go; the glow is painted in
+// NOTE: no gg Clip() - same clip-state leak as hunt.go; the glow is painted in
 // an offscreen window-sized context so every scene pixel stays bounded.
 
 import (
@@ -37,7 +37,7 @@ import (
         "github.com/gin-gonic/gin"
 )
 
-// tier accent (arena glow) — carried over from the old design's per-tier identity
+// tier accent (arena glow) - carried over from the old design's per-tier identity
 var bossTierAccent = map[string][3]float64{
         "S":      {1.0, 0.30, 0.30},
         "SS":     {0.70, 0.40, 1.0},
@@ -63,14 +63,14 @@ var bossTierLabel = map[string]string{
         "???":    "???",
 }
 
-// wax seal letter (short — must fit the r26 seal like hunt rank letters)
+// wax seal letter (short - must fit the r26 seal like hunt rank letters)
 var bossTierSeal = map[string]string{
         "S": "S", "SS": "SS", "SSS": "SSS",
         "TRIAL": "T", "DRAGON": "D", "RAID": "R",
         "ABYSS": "A", "GOD": "G", "???": "?",
 }
 
-// boss window geometry — MUST match bg_BOSS.png bake (build_boss_bg.py)
+// boss window geometry - MUST match bg_BOSS.png bake (build_boss_bg.py)
 const (
         bossSceneX = 130.0
         bossSceneY = 185.0
@@ -80,7 +80,7 @@ const (
 
 // trimTransparent crops fully-transparent borders (alpha <= threshold).
 // Boss sprites like boss_3_N.png are 256x512 canvases with the visible boss
-// only in the bottom ~227x180 — without trimming, Fit() sees the whole canvas
+// only in the bottom ~227x180 - without trimming, Fit() sees the whole canvas
 // and renders the boss tiny (~90px). QA round 1 found exactly that.
 func trimTransparent(img image.Image, threshold uint8) image.Image {
         b := img.Bounds()
@@ -112,7 +112,7 @@ func trimTransparent(img image.Image, threshold uint8) image.Image {
                 }
         }
         if maxX < minX || maxY < minY {
-                return img // fully transparent — draw as-is
+                return img // fully transparent - draw as-is
         }
         return imaging.Crop(img, image.Rect(minX, minY, maxX+1, maxY+1))
 }
@@ -192,7 +192,7 @@ func GenerateBossSplash(c *gin.Context) {
         sceneBottom := bossSceneY + bossSceneH - 3
         dc.DrawImage(scene.Image(), int(bossSceneX), int(bossSceneY))
 
-        // ── boss sprite — centered, bottom-anchored, Lanczos (HD art) ──
+        // ── boss sprite - centered, bottom-anchored, Lanczos (HD art) ──
         spriteRef := req.SpriteFilename
         if spriteRef == "" {
                 spriteRef = req.Sprite
@@ -202,7 +202,7 @@ func GenerateBossSplash(c *gin.Context) {
                 spritePath := filepath.Join(assetsPath, "rpgasset", "enemies", spriteRef)
                 if spriteImg, err := utils.LoadImage(spritePath); err == nil {
                         // trim transparent padding, then menace-upscale small bosses
-                        // (old design rendered at 450w regardless — bosses must loom)
+                        // (old design rendered at 450w regardless - bosses must loom)
                         spriteImg = trimTransparent(spriteImg, 8)
                         bt := spriteImg.Bounds()
                         if bt.Dx() < 300 || bt.Dy() < 170 {
@@ -242,7 +242,7 @@ func GenerateBossSplash(c *gin.Context) {
                 dc.DrawStringAnchored(flavor, 500, 474, 0.5, 0.5)
         }
 
-        // ── wax tier seal (70,546) r26 — same treatment as hunt rank seal ──
+        // ── wax tier seal (70,546) r26 - same treatment as hunt rank seal ──
         cx, cy, r := 70.0, 546.0, 26.0
         dc.SetColor(color.NRGBA{R: 128, G: 28, B: 40, A: 245})
         dc.DrawCircle(cx, cy, r)
@@ -259,7 +259,7 @@ func GenerateBossSplash(c *gin.Context) {
         dc.SetRGB(250.0/255.0, 210.0/255.0, 120.0/255.0)
         dc.DrawStringAnchored(sealLetter, cx, cy-1, 0.5, 0.5)
 
-        // 💡 2026-09-15 PERF: honor ?fmt=jpeg — the bot requests fmt=jpeg; media
+        // 💡 2026-09-15 PERF: honor ?fmt=jpeg - the bot requests fmt=jpeg; media
         // upload time scales with bytes and this canvas is fully opaque.
         utils.RespondImage(c, dc.Image())
 }

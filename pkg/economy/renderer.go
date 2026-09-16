@@ -1,6 +1,6 @@
 package economy
 
-// renderer.go — /api/cards/economy (balance card), Kenney redesign.
+// renderer.go - /api/cards/economy (balance card), Kenney redesign.
 // Owner-approved design: download/money_cards/MONEY1_balance_kenney.png
 
 import (
@@ -108,7 +108,7 @@ func GenerateEconomyCard(c *gin.Context) {
                 dc.Fill()
         }
 
-        // 💡 2026-09-15 PERF: honor ?fmt=jpeg — the bot requests fmt=jpeg; media
+        // 💡 2026-09-15 PERF: honor ?fmt=jpeg - the bot requests fmt=jpeg; media
         // upload time scales with bytes and this card canvas is fully opaque.
         utils.RespondImage(c, dc.Image())
 }

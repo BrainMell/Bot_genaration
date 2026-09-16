@@ -1,7 +1,7 @@
 package combat
 
 // ============================================
-// 🏹 HUNTING CARD RENDERER — parchment redesign 2026-09-12
+// 🏹 HUNTING CARD RENDERER - parchment redesign 2026-09-12
 // ============================================
 // Owner complaint: old card showed placeholder sprites ("rabbit" = pink bat,
 // "deer" = earth golem, "bear" = troll) and flipped the player unconditionally
@@ -18,7 +18,7 @@ package combat
 //   - caption strip y552                           → drawn by us
 //
 // Animals now use real LPC art (bluecarrou LPC Animals 2022 + PixelFarm bunny,
-// CC-BY-SA/GPL — see docs/asset_credits.md): rabbit_lpc / deer_lpc / bear_lpc.
+// CC-BY-SA/GPL - see docs/asset_credits.md): rabbit_lpc / deer_lpc / bear_lpc.
 // Payload unchanged: {playerName, playerClass, biome, animal, animalSprite,
 //                     item, itemRarity, xp, zeni, rank}
 
@@ -72,7 +72,7 @@ var huntLedgerRarityColor = map[string]string{
 	"MYTHIC":    "#880E4F",
 }
 
-// hunt window geometry — MUST match bg_HUNT.png bake (build_hfd_bgs.py)
+// hunt window geometry - MUST match bg_HUNT.png bake (build_hfd_bgs.py)
 const (
 	huntSceneX = 130.0
 	huntSceneY = 185.0
@@ -82,7 +82,7 @@ const (
 
 func huntAsset(name string) string { return utils.GetAssetPath("rpgasset", "ui", "craft/"+name) }
 
-// huntSanitize — printable ASCII + middle dot only (same rule as economy.sanitize);
+// huntSanitize - printable ASCII + middle dot only (same rule as economy.sanitize);
 // WhatsApp nicknames can carry emoji that Cinzel would render as tofu.
 func huntSanitize(s string) string {
 	var b []rune
@@ -151,7 +151,7 @@ func GenerateHuntCard(c *gin.Context) {
 	dc.DrawStringAnchored(name, 90, 84, 0, 0.5)
 
 	// ── scene window: forest + player (left, facing RIGHT) + animal (right, facing LEFT) ──
-	// NOTE: no gg Clip() here — clip state leaked in this gg version and erased the
+	// NOTE: no gg Clip() here - clip state leaked in this gg version and erased the
 	// ledger/seal/caption drawn afterwards. Every scene element is pixel-bounded to
 	// the window rect by construction (Fill produces exactly WxH; sprites are
 	// bottom-anchored at y=397 with height ≤ 192, x-ranges 190..846).
@@ -167,7 +167,7 @@ func GenerateHuntCard(c *gin.Context) {
 	dc.DrawRectangle(huntSceneX, huntSceneY, huntSceneW, huntSceneH)
 	dc.Fill()
 
-	// player sprite — FIX: flip ONLY when native facing is LEFT (was unconditional FlipH)
+	// player sprite - FIX: flip ONLY when native facing is LEFT (was unconditional FlipH)
 	playerFile := "Fighter1.png"
 	if req.PlayerClass != "" {
 		if sprites, ok := CharacterSprites[req.PlayerClass]; ok && len(sprites) > 0 {
@@ -193,7 +193,7 @@ func GenerateHuntCard(c *gin.Context) {
 		}
 	}
 	if aImg, err := utils.LoadImage(filepath.Join(assetsPath, "rpgasset", "enemies", animalFile)); err == nil {
-		// LPC frames are tiny (29..63px) and imaging.Fit never upscales —
+		// LPC frames are tiny (29..63px) and imaging.Fit never upscales -
 		// integer-scale with NEAREST first so the pixel art stays crisp.
 		b0 := aImg.Bounds()
 		aw0, ah0 := b0.Dx(), b0.Dy()
@@ -222,7 +222,7 @@ func GenerateHuntCard(c *gin.Context) {
 	if animalLabel == "" {
 		animalLabel = "CREATURE"
 	}
-	tag := animalLabel + " — CAPTURED"
+	tag := animalLabel + " - CAPTURED"
 	huntFitText(dc, huntAsset("Cinzel.ttf"), 18, tag, 400, 12)
 	tagW, _ := dc.MeasureString(tag)
 	dc.SetColor(color.RGBA{8, 8, 8, 150})
@@ -290,7 +290,7 @@ func GenerateHuntCard(c *gin.Context) {
 	if face, err := utils.LoadFont(huntAsset("MedievalSharp.ttf"), 22); err == nil {
 		dc.SetFontFace(face)
 		dc.SetRGB(176.0/255.0, 140.0/255.0, 96.0/255.0)
-		dc.DrawStringAnchored("the wilds yield — sell at HQ or craft with it", 500, 552, 0.5, 0.5)
+		dc.DrawStringAnchored("the wilds yield - sell at HQ or craft with it", 500, 552, 0.5, 0.5)
 	}
 
 	buf, ctype, err := utils.EncodeImageToBufferFormat(dc.Image(), c.Query("fmt"), 90)

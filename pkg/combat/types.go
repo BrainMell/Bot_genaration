@@ -26,7 +26,7 @@ type Enemy struct {
         SpriteIndex int    `json:"spriteIndex"`
         // 💡 FIX 2026-09-11 (facing audit): per-enemy level. The Node client has
         // always sent `level`, but this struct dropped it, so the sprite fallback
-        // buckets selected mobs by the PARTY's average level — a level-12 party
+        // buckets selected mobs by the PARTY's average level - a level-12 party
         // fighting level-40 ice wolves got water-tier sprites for every mob
         // (enemy sprite ↔ name mismatch). Renderers now use enemy.Level for the
         // element/tier bucket, falling back to party avg for legacy payloads.
@@ -66,7 +66,7 @@ type Action struct {
 }
 
 // CombatRequest is the payload sent from Node.js.
-// Action is optional — when present, the renderer can produce an animated
+// Action is optional - when present, the renderer can produce an animated
 // MP4 instead of a static PNG. When absent, behavior is unchanged.
 type CombatRequest struct {
         Players    []Player `json:"players"`
@@ -75,6 +75,6 @@ type CombatRequest struct {
         CombatType string   `json:"combatType"`
         Rank       string   `json:"rank"`
         Background string   `json:"background"`
-        Action     *Action  `json:"action,omitempty"` // optional — drives the animation
-        Floor      int      `json:"floor,omitempty"`  // 💡 Abyss floor number — when >0, banner shows "FLOOR N" instead of rank
+        Action     *Action  `json:"action,omitempty"` // optional - drives the animation
+        Floor      int      `json:"floor,omitempty"`  // 💡 Abyss floor number - when >0, banner shows "FLOOR N" instead of rank
 }

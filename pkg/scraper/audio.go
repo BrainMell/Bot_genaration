@@ -1,30 +1,30 @@
 package scraper
 
-// Audio pipeline v3 (2026-09-14) — owner: ".j audio either finds a 30sec
+// Audio pipeline v3 (2026-09-14) - owner: ".j audio either finds a 30sec
 // preview or the wrong song, and YouTube tooling is blocked".
 //
 // Root causes in v1: (a) YouTube search via an r.jina.ai text dump took the
-// FIRST watch?v= match — often an unrelated video; (b) SoundCloud's public
+// FIRST watch?v= match - often an unrelated video; (b) SoundCloud's public
 // API now returns 30-SECOND PREVIEWS for most tracks (verified: the official
 // "Starboy (feat. Daft Punk)" upload resolves to dur=30.0); (c) YouTube is
 // bot-blocked on both datacenter IPs ("Sign in to confirm you're not a bot").
 //
 // v3 chain (verified end-to-end on 2026-09-14):
-//  1. Deezer public API — authoritative match: official title, artist,
+//  1. Deezer public API - authoritative match: official title, artist,
 //     canonical duration, album art. Anchor for every later check.
-//  2. JioSaavn — cascade + scored ranking; accepted only when the pick
+//  2. JioSaavn - cascade + scored ranking; accepted only when the pick
 //     matches the Deezer artist and duration (±12s). Excellent 320kbps
 //     source for regional/catalog music, a minefield of covers for
-//     international hits — the Deezer anchor is what filters those.
+//     international hits - the Deezer anchor is what filters those.
 //  3. YouTube via WARP socks proxy (audio_proxy.conf / AUDIO_PROXY_URL):
 //     ytsearch5 scored by duration (±15s), uploader match and title
 //     tokens, downloaded with player_client=tv_simply or mweb (the
-//     clients that still serve a usable audio format through WARP —
+//     clients that still serve a usable audio format through WARP -
 //     web_embedded went video-only in 2026, tv bot-checks). Top-3
 //     candidates are attempted before giving up. ".audio <YouTube URL>"
 //     bypasses search and downloads the exact linked video (v3.1).
 //     Direct-IP YouTube is dead on both boxes.
-//  4. SoundCloud — last resort, post-download duration guard rejects
+//  4. SoundCloud - last resort, post-download duration guard rejects
 //     30s previews.
 //
 // Every candidate is ffprobe-verified after download: rejected if shorter
@@ -85,7 +85,7 @@ func execCtx(d time.Duration) (context.Context, context.CancelFunc) {
         return context.WithTimeout(context.Background(), d)
 }
 
-// childEnv — pm2 sets NODE_CHANNEL_FD (and related vars) in the service
+// childEnv - pm2 sets NODE_CHANNEL_FD (and related vars) in the service
 // environment. Leaked into child processes, they break deno (yt-dlp's JS
 // challenge solver: "Failed to open IPC channel from NODE_CHANNEL_FD") and
 // with it all PO-token-protected YouTube formats. Strip them for every
@@ -153,7 +153,7 @@ func audioDuration(path string) float64 {
         return d
 }
 
-// durationSane — reject previews and wildly wrong cuts.
+// durationSane - reject previews and wildly wrong cuts.
 func durationSane(got float64, want int) bool {
         if got < 1 {
                 return false
@@ -167,12 +167,12 @@ func durationSane(got float64, want int) bool {
 var badTitleRe = regexp.MustCompile(`(?i)(\bkaraoke\b|\binstrumental\b|\bcover\b|\bremix\b|\bsped\b|\bslowed\b|\breverb\b|\bnightcore\b|\btribute\b|\blullaby\b|\b8\s*-?\s*d\b|\b(?:9|12|15|16)\s*-?\s*d\s*(?:audio|mix|version)?\b|\blofi\b|\blo-fi\b|\bringtone\b|\bmashup\b|\breaction\b|\blesson\b|\btutorial\b|\b1 hour\b|\b10 minutes\b)`)
 
 // ---------------------------------------------------------------------------
-// Deezer — authoritative match
+// Deezer - authoritative match
 // ---------------------------------------------------------------------------
 
 var deezerHTTP = &http.Client{Timeout: 8 * time.Second}
 
-// deezerClient — api.deezer.com is NOT reachable from every box's network;
+// deezerClient - api.deezer.com is NOT reachable from every box's network;
 // when a WARP proxy is configured (Box2), route Deezer through it too.
 func deezerClient() *http.Client {
         if p := audioProxyURL(); p != "" {
@@ -263,7 +263,7 @@ func saavnSearch(q string, n int) []saavnSong {
         return out.Results
 }
 
-// decryptSaavnURL — JioSaavn media URLs are DES-ECB encrypted with the
+// decryptSaavnURL - JioSaavn media URLs are DES-ECB encrypted with the
 // well-known static key "38346591", base64 wrapped, then percent-encoded.
 func decryptSaavnURL(enc string) (string, error) {
         block, err := des.NewCipher([]byte("38346591"))
@@ -431,12 +431,12 @@ func saavnPickBest(query string, dz *deezerTrack) *saavnSong {
                 }
         }
         if best != nil && bestScore < 25 {
-                return nil // nothing credible — don't waste a download on junk
+                return nil // nothing credible - don't waste a download on junk
         }
         return best
 }
 
-// saavnTrusted — a JioSaavn pick is trusted as the FIRST choice only when
+// saavnTrusted - a JioSaavn pick is trusted as the FIRST choice only when
 // the credited artists match the Deezer anchor (or are unverifiable).
 // JioSaavn's search is polluted with regional covers of international hits;
 // this gate is what sends those queries to the YouTube/WARP source instead.
@@ -504,14 +504,14 @@ func ytdlpJSON(args ...string) (map[string]interface{}, error) {
         return nil, fmt.Errorf("no json metadata in yt-dlp output")
 }
 
-// ytProbeCandidates — resolve ytsearch results (metadata only, no download).
+// ytProbeCandidates - resolve ytsearch results (metadata only, no download).
 // Tolerates partial failures: yt-dlp may exit non-zero after printing some
-// candidate JSON (shared-IP throttling) — parse whatever was printed.
+// candidate JSON (shared-IP throttling) - parse whatever was printed.
 func ytProbeCandidates(searchQuery string, n int, proxy string) []map[string]interface{} {
         ctx, cancel := execCtx(60 * time.Second)
         defer cancel()
         // --flat-playlist: search-API results only (id/title/uploader/duration)
-        // — no per-video player calls, no challenge solving, ~5s total. This
+        // - no per-video player calls, no challenge solving, ~5s total. This
         // keeps the download as the ONLY heavy YouTube interaction; probing
         // via full extraction used to burn ~15 innertube calls and throttle
         // the shared WARP IP right before the download.
@@ -623,7 +623,7 @@ func ytDownload(id string, mp3Path string, proxy string) error {
 // ytURLRe matches watch/shorts/embed/youtu.be links and captures the 11-char id.
 var ytURLRe = regexp.MustCompile(`(?:youtube\.com/(?:watch\?(?:[^#]*&)?v=|shorts/|embed/)|youtu\.be/)([A-Za-z0-9_-]{11})`)
 
-// ytProbeVideo — metadata-only extraction for one video id.
+// ytProbeVideo - metadata-only extraction for one video id.
 func ytProbeVideo(id string, proxy string) (map[string]interface{}, error) {
         ctx, cancel := execCtx(45 * time.Second)
         defer cancel()
@@ -648,10 +648,10 @@ func ytProbeVideo(id string, proxy string) (map[string]interface{}, error) {
         return nil, fmt.Errorf("no json metadata")
 }
 
-// scProbeCandidates — SoundCloud search, metadata only. SoundCloud is NOT
+// scProbeCandidates - SoundCloud search, metadata only. SoundCloud is NOT
 // bot-blocked on either box (no proxy needed), making it the independent
 // fallback when YouTube/WARP is throttled. Note: some official uploads are
-// HLS-gated and fail as "DRM protected" — hence try-multiple-candidates.
+// HLS-gated and fail as "DRM protected" - hence try-multiple-candidates.
 func scProbeCandidates(searchQuery string, n int) []map[string]interface{} {
         ctx, cancel := execCtx(45 * time.Second)
         defer cancel()
@@ -726,7 +726,7 @@ func extractYouTubeID(s string) string {
         return ""
 }
 
-// ytFormatsHealthy — YouTube strips media formats (leaving storyboards only)
+// ytFormatsHealthy - YouTube strips media formats (leaving storyboards only)
 // when it throttles an IP instead of returning an explicit error, so a
 // doomed download only shows up as a 40s hang. Probe the top candidate's
 // format list with two clients; any real mp4/webm/m4a row means the IP can
@@ -762,7 +762,7 @@ func ytFormatsHealthy(id string, proxy string) bool {
 	return false
 }
 
-// warpRotate — restart the wireproxy service that provides the WARP socks
+// warpRotate - restart the wireproxy service that provides the WARP socks
 // endpoint. Cloudflare issues a fresh edge IP on reconnect, which clears
 // YouTube's per-IP format throttling (verified 2026-09-14: throttled IP
 // served storyboards-only via tv_simply; after rotation format 18 returned).
@@ -801,7 +801,7 @@ func ScrapeAudio(c *gin.Context) {
                 return
         }
         fmt.Printf("[Audio v3] Searching for: %s\n", query)
-        // v3.1: direct URL mode — ".audio <YouTube URL>" downloads exactly the
+        // v3.1: direct URL mode - ".audio <YouTube URL>" downloads exactly the
         // linked video (no search, no Deezer/Saavn guessing).
         forceYtID := extractYouTubeID(query)
         if forceYtID != "" {
@@ -832,11 +832,11 @@ func ScrapeAudio(c *gin.Context) {
                         dz = deezerMatch(query)
                 }
                 if dz != nil {
-                        fmt.Printf("[Audio v3] deezer anchor: %s — %s (%ds)\n", dz.Title, dz.Artist.Name, dz.Duration)
+                        fmt.Printf("[Audio v3] deezer anchor: %s - %s (%ds)\n", dz.Title, dz.Artist.Name, dz.Duration)
                 } else if forceYtID == "" {
                         fmt.Printf("[Audio v3] no deezer anchor, matching on query alone\n")
                 }
-                // Attempt 1: JioSaavn (320kbps; Deezer-anchored scoring) — trusted
+                // Attempt 1: JioSaavn (320kbps; Deezer-anchored scoring) - trusted
                 // only when the credited artist matches the Deezer anchor. An
                 // untrusted pick is kept as the last-resort fallback below.
                 var saavnFallback *saavnSong
@@ -856,16 +856,16 @@ func ScrapeAudio(c *gin.Context) {
                                         }
                                 } else {
                                         saavnFallback = song
-                                        fmt.Printf("[Audio v3] saavn artist mismatch (%s != %s) — deferring to YouTube\n",
+                                        fmt.Printf("[Audio v3] saavn artist mismatch (%s != %s) - deferring to YouTube\n",
                                                 strings.TrimSpace(saavnArtistDisplay(song)), dz.Artist.Name)
                                 }
                         }
                 }
-                // Attempt 2: YouTube via WARP proxy — v3.1: tv_simply/mweb clients
+                // Attempt 2: YouTube via WARP proxy - v3.1: tv_simply/mweb clients
                 // (web_embedded went video-only), explicit bestaudio selection, and
                 // the TOP-3 scored candidates are attempted before giving up.
                 // v3.1b: if every candidate fails (shared-IP throttle signature
-                // — YouTube strips formats instead of erroring), rotate the
+                // - YouTube strips formats instead of erroring), rotate the
                 // WARP exit IP and retry the whole branch once. Time-budgeted
                 // so the Node-side 180s HTTP timeout is never hit.
                 proxy := audioProxyURL()
@@ -913,7 +913,7 @@ func ScrapeAudio(c *gin.Context) {
                                                 ranked = ranked[:3]
                                         }
                                 }
-                                // v3.1c: health gate — a throttled WARP IP serves
+                                // v3.1c: health gate - a throttled WARP IP serves
                                 // storyboards-only format lists; rotating the WARP
                                 // session lands a fresh edge IP. If even the fresh
                                 // IP is degenerate, skip straight to the fallbacks
@@ -921,10 +921,10 @@ func ScrapeAudio(c *gin.Context) {
                                 if len(ranked) > 0 {
                                         topID := strOr(ranked[0].m["id"], "")
                                         if topID != "" && !ytFormatsHealthy(topID, proxy) {
-                                                fmt.Printf("[Audio v3] yt formats degenerate (throttled IP) — rotating\n")
+                                                fmt.Printf("[Audio v3] yt formats degenerate (throttled IP) - rotating\n")
                                                 warpRotate()
                                                 if !ytFormatsHealthy(topID, proxy) {
-                                                        fmt.Printf("[Audio v3] yt still degenerate after rotation — skipping yt branch\n")
+                                                        fmt.Printf("[Audio v3] yt still degenerate after rotation - skipping yt branch\n")
                                                         ytThrottled = true
                                                         break
                                                 }
@@ -962,7 +962,7 @@ func ScrapeAudio(c *gin.Context) {
                         }
                 }
 
-                // Attempt 3: SoundCloud — post-download preview guard. Skipped
+                // Attempt 3: SoundCloud - post-download preview guard. Skipped
                 // when the YouTube probe already resolved candidates (download
                 // failures are transient; SoundCloud only adds preview junk).
                 if source == "unknown" && forceYtID == "" && (!ytProbeHadCandidates || ytThrottled) {
@@ -1013,12 +1013,12 @@ func ScrapeAudio(c *gin.Context) {
                 // Last resort: better an untrusted-but-plausible Saavn pick (cover
                 // or regional variant, artist shown in the caption) than nothing.
                 if source == "unknown" && forceYtID == "" && saavnFallback != nil && time.Since(reqStart) <= 165*time.Second {
-                        fmt.Printf("[Audio v3] all primary sources failed — using saavn fallback (not cached)\n")
+                        fmt.Printf("[Audio v3] all primary sources failed - using saavn fallback (not cached)\n")
                         if m, err := saavnDownloadAndConvert(saavnFallback, mp3Path); err == nil {
                                 meta = m
                                 source = "JioSaavn"
                                 isPreview = false
-                                // v3.1c: never persist the untrusted fallback — the
+                                // v3.1c: never persist the untrusted fallback - the
                                 // next identical query deserves a fresh shot at the
                                 // primary sources instead of 48h of the same cover.
                                 fallbackOnly = true
@@ -1052,7 +1052,7 @@ func ScrapeAudio(c *gin.Context) {
                         os.WriteFile(metaPath, b, 0644)
                 }
         }
-        fmt.Printf("[Audio v3] ready: %s | source=%s | %s — %s\n", mp3Path, source, meta.Title, meta.Author)
+        fmt.Printf("[Audio v3] ready: %s | source=%s | %s - %s\n", mp3Path, source, meta.Title, meta.Author)
         scheme := "http"
         if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
                 scheme = "https"
@@ -1142,7 +1142,7 @@ func saavnDownloadAndConvert(s *saavnSong, mp3Path string) (AudioMetadata, error
         }, nil
 }
 
-// pruneAudioCache — keep the downloads dir from growing forever: delete
+// pruneAudioCache - keep the downloads dir from growing forever: delete
 // audio artifacts older than 48h. Best-effort; runs in background.
 func pruneAudioCache() {
         entries, err := filepath.Glob("downloads/*")

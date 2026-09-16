@@ -1,27 +1,27 @@
 package combat
 
 // ============================================
-// 🎴 R6 CARD REDESIGNS — 2026-09-14 (owner feedback round)
+// 🎴 R6 CARD REDESIGNS - 2026-09-14 (owner feedback round)
 // ============================================
 // Owner: equipment card "showing dual" (the r5 two-plate grid) → completely
 // fresh design, same family/assets, different orientation+layout; skill tree
 // still "trash" → a layout that actually fits an RPG skill-tree UI; abilities
 // needs its own dedicated card instead of the shared r5 board.
 //
-//   SKILLTREE (r6) — 1200x1000 on bg_TREE2.png (bg_TREE extended 200px).
+//   SKILLTREE (r6) - 1200x1000 on bg_TREE2.png (bg_TREE extended 200px).
 //     Dark "constellation chart" panel inside the parchment inset: class
 //     root medallion at the bottom, branch spines fanning up-left/up/up-
 //     right through tier rows, quadratic-bezier links that GLOW along the
 //     learned path, medallion nodes in 4 states, branch header chips, tier
 //     badges, star-field backdrop, legend. PoE-style, but wood+gold family.
 //
-//   EQUIP (r6) — 1500x1000 LANDSCAPE armory wall. Left: hero panel with the
+//   EQUIP (r6) - 1500x1000 LANDSCAPE armory wall. Left: hero panel with the
 //     player's class sprite on a shadowed stage + SLOTS/AVG TIER/DAMAGED
-//     chips. Right: single-column gear rack — one wide horizontal strip per
+//     chips. Right: single-column gear rack - one wide horizontal strip per
 //     slot (tier-ringed medallion, slot label, item, tier pill, durability
 //     bar). No grid of plates anywhere.
 //
-//   ABILITIES (r6) — 1000x1400 arc-scroll grimoire. Wooden scroll rods top
+//   ABILITIES (r6) - 1000x1400 arc-scroll grimoire. Wooden scroll rods top
 //     + bottom, unrolled parchment body, swallowtail ribbon group banners,
 //     wax-seal number medallions, level pips beside every ability name,
 //     cost/CD line under it, effect column right. Shares nothing with the
@@ -39,10 +39,10 @@ import (
 )
 
 // ═══════════════════════════════════════════════════════════════════════
-// SKILLTREE R6 — 1200x1000 constellation tree
+// SKILLTREE R6-1200x1000 constellation tree
 // ═══════════════════════════════════════════════════════════════════════
 
-// treeStyleR6 — node styling tuned for the DARK panel (the r5 palette was
+// treeStyleR6 - node styling tuned for the DARK panel (the r5 palette was
 // built for parchment; pale inks vanished on it).
 type treeStyleR6 struct {
         fill color.NRGBA
@@ -73,7 +73,7 @@ func r6segLocked(a, b string) bool {
         return a == "locked" || b == "locked"
 }
 
-// r6quadLink — quadratic-bezier connector with casing + core + midpoint
+// r6quadLink - quadratic-bezier connector with casing + core + midpoint
 // diamond when energized.
 func r6quadLink(dc *gg.Context, x0, y0, x2, y2, bias float64, energized, locked bool) {
         cx := (x0+x2)/2 + bias
@@ -115,7 +115,7 @@ func r6quadLink(dc *gg.Context, x0, y0, x2, y2, bias float64, energized, locked 
         }
 }
 
-// r6medallion — a skill node on the dark panel.
+// r6medallion - a skill node on the dark panel.
 func r6medallion(dc *gg.Context, x, y, r float64, st treeStyleR6, initials, progress string) {
         switch st.glow {
         case 2:
@@ -162,7 +162,7 @@ func r6medallion(dc *gg.Context, x, y, r float64, st treeStyleR6, initials, prog
 }
 
 func renderSkillTreeCard(c *gin.Context, req *portraitRequest) {
-        // R6 — 2026-09-14 (owner: "current one is trash … find a style/layout
+        // R6-2026-09-14 (owner: "current one is trash … find a style/layout
         // that actually fits an RPG skill-tree"). Rooted constellation tree on a
         // dark panel: class root at the bottom, branch spines fan upward, links
         // glow along the learned path. Canvas grew to 1200x1000 (bg_TREE2) so
@@ -525,7 +525,7 @@ func renderSkillTreeCard(c *gin.Context, req *portraitRequest) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// EQUIP R6 — 1500x1000 landscape armory wall
+// EQUIP R6-1500x1000 landscape armory wall
 // ═══════════════════════════════════════════════════════════════════════
 
 func renderEquipCard(c *gin.Context, req *portraitRequest) {
@@ -612,7 +612,7 @@ func renderEquipCard(c *gin.Context, req *portraitRequest) {
         dc.SetRGB(176.0 / 255.0, 140.0 / 255.0, 96.0 / 255.0)
         dc.DrawStringAnchored("repair at .j blacksmith", 265, 806, 0.5, 0.5)
 
-        // ── RIGHT gear rack — one wide strip per slot ──
+        // ── RIGHT gear rack - one wide strip per slot ──
         rowH, gap := 78.0, 2.5
         y := 202.0
         for i, s := range slots {
@@ -661,7 +661,7 @@ func renderEquipCard(c *gin.Context, req *portraitRequest) {
                         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 12, slotLabel, 130, 8)
                         dc.SetRGB(140.0 / 255.0, 120.0 / 255.0, 90.0 / 255.0)
                         dc.DrawStringAnchored(slotLabel, 590, y+19, 0, 0.5)
-                        emptyTxt := "NOT EQUIPPED — use .j equip"
+                        emptyTxt := "NOT EQUIPPED - use .j equip"
                         portraitFitText(dc, portraitAsset("MedievalSharp.ttf"), 15, emptyTxt, 400, 10)
                         dc.SetRGB(140.0 / 255.0, 120.0 / 255.0, 90.0 / 255.0)
                         dc.DrawStringAnchored(emptyTxt, 590, y+44, 0, 0.5)
@@ -775,10 +775,10 @@ func renderEquipCard(c *gin.Context, req *portraitRequest) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// ABILITIES R6 — 1000x1400 arc-scroll grimoire
+// ABILITIES R6-1000x1400 arc-scroll grimoire
 // ═══════════════════════════════════════════════════════════════════════
 
-// r6rod — wooden scroll rod with gold end caps.
+// r6rod - wooden scroll rod with gold end caps.
 func r6rod(dc *gg.Context, cy float64) {
         dc.SetColor(portraitCol(86, 54, 28, 255))
         dc.DrawRoundedRectangle(40, cy-28, 920, 56, 26)
@@ -803,7 +803,7 @@ func r6rod(dc *gg.Context, cy float64) {
         }
 }
 
-// r6parseLv — pull "Lv.4/5" off the front of a sub line; returns cur, max
+// r6parseLv - pull "Lv.4/5" off the front of a sub line; returns cur, max
 // and the remainder ("· ⚡18 · CD2" with the separator trimmed).
 func r6parseLv(sub string) (int, int, string) {
         if !strings.HasPrefix(sub, "Lv.") {
@@ -822,7 +822,7 @@ func r6parseLv(sub string) (int, int, string) {
         return cur, mx, tail
 }
 
-// r6diamond — small rotated-square ornament.
+// r6diamond - small rotated-square ornament.
 func r6diamond(dc *gg.Context, x, y, r float64, col color.NRGBA) {
         dc.MoveTo(x, y-r)
         dc.LineTo(x+r, y)
@@ -835,7 +835,7 @@ func r6diamond(dc *gg.Context, x, y, r float64, col color.NRGBA) {
 
 func renderAbilitiesCard(c *gin.Context, req *portraitRequest) {
         // QA r2 (owner: "fix the alignment issues with all the cards"):
-        // the scroll was a fixed 1000x1400 — a 4-ability grimoire left
+        // the scroll was a fixed 1000x1400 - a 4-ability grimoire left
         // ~70% dead parchment. Height now follows the content.
         natH := 246.0
         if strings.TrimSpace(req.DocQuote) != "" {
@@ -1060,7 +1060,7 @@ func renderAbilitiesCard(c *gin.Context, req *portraitRequest) {
                                         tailX = 186 + w + 14
                                 }
                         }
-                        // effect runes (phases 4-6): DejaVu glyphs only — the
+                        // effect runes (phases 4-6): DejaVu glyphs only - the
                         // Cinzel/MedievalSharp faces have no symbol coverage.
                         if it.Runes != "" {
                                 if face, ferr := utils.LoadFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16); ferr == nil {

@@ -1,6 +1,6 @@
 package economy
 
-// transaction_renderer.go — /api/cards/transaction, Kenney redesign.
+// transaction_renderer.go - /api/cards/transaction, Kenney redesign.
 // Owner-approved designs: MONEY2_transfer_kenney.png / MONEY3_withdraw_kenney.png
 // Extended to DEPOSIT (from->to, blue), CRAFT/BREW/COOK/FORGE (item plate).
 
@@ -60,7 +60,7 @@ func GenerateTransactionCard(c *gin.Context) {
                 return
         }
 
-        // DECREE — bright-parchment rank-up card (royal decree family)
+        // DECREE - bright-parchment rank-up card (royal decree family)
         if txType == "DECREE" {
                 dc := gg.NewContext(TRANS_W, TRANS_H)
                 drawRPGDecree(dc, req)
@@ -132,7 +132,7 @@ func GenerateTransactionCard(c *gin.Context) {
                         textRM(dc, row.value, 900, cy, rgb(20, 22, 30))
                         y += 76
                 }
-                // no caption here — the approved mock ends with the WALLET row
+                // no caption here - the approved mock ends with the WALLET row
 
         default: // CRAFT / BREW / COOK / FORGE and unknown types
                 item := sanitize(req.ItemName)

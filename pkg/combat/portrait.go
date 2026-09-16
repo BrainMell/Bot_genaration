@@ -1,14 +1,14 @@
 package combat
 
 // ============================================
-// 🖼️ PORTRAIT EVENT CARDS — 2026-09-12
+// 🖼️ PORTRAIT EVENT CARDS - 2026-09-12
 // ============================================
 // Owner ask: "add more rpg image cards, with the same assets but a different
 // orientation". Same lamoot wood+gold+parchment family as CRAFT/HUNT/FISH/
 // DECREE/BOSS, but 600x1000 PORTRAIT (WhatsApp shows portrait art taller in
 // chat). Two kinds:
 //
-//   DUEL  — PvP duel result (pvpSystem.finishDuel):
+//   DUEL  - PvP duel result (pvpSystem.finishDuel):
 //     baked bg_DUEL.png: banner "DUEL RESOLVED", leather name plate
 //       (60,132)-(330,186), scene window (55,208)-(545,642), spoils panel
 //       (55,662)-(545,902) with label + divider y712.
@@ -17,26 +17,26 @@ package combat
 //       facing LEFT), VICTOR/DEFEATED pills, ledger rows y=746 step 44,
 //       wax seal (70,935) r26 = winner level, caption (305,936).
 //     2026-09-12: +forfeit flag -> a third "BY FORFEIT" pill centred between
-//       VICTOR/DEFEATED (owner: "no card on forfeit" — forfeits now render
+//       VICTOR/DEFEATED (owner: "no card on forfeit" - forfeits now render
 //       this card too, stamped).
 //
-//   QUEST — dungeon completion tally (guildAdventure.endAdventure):
+//   QUEST - dungeon completion tally (guildAdventure.endAdventure):
 //     baked bg_QUEST.png: banner "QUEST COMPLETE", name plate, tally panel
 //       (55,208)-(545,832) with "THE TALLY" + dividers y266/y492 +
 //       "PARTY SPOILS" (85,520).
 //     we paint: party name (84,159), stat rows y=304 step 38, per-player
 //       rows y=556 step 64, wax seal = dungeon rank, caption = narration.
 //
-//   TRIAL — evolution/ascension (2026-09-12, owner: same assets, different
-//     orientation). baked bg_TRIAL.png — SAME 600x1000 geometry as QUEST
+//   TRIAL - evolution/ascension (2026-09-12, owner: same assets, different
+//     orientation). baked bg_TRIAL.png - SAME 600x1000 geometry as QUEST
 //     (plate (60,132)-(330,186), panel (55,208)-(545,832), dividers y266/
 //     y492, lower label "THE REWARD" (85,520)) but banner "EVOLUTION",
 //     panel label "THE ASCENSION". Renders through the SAME stat-row code
 //     path as QUEST (Ledger = WAS/NOW/TIER, Players = reward rows),
 //     seal = tier letter, caption = flavour.
 //
-//   RANK — 2026-09-14, owner: "make the .rank an image card and include
-//     your level and xp left to progress". baked bg_RANK.png — SAME
+//   RANK - 2026-09-14, owner: "make the .rank an image card and include
+//     your level and xp left to progress". baked bg_RANK.png - SAME
 //     geometry as QUEST/TRIAL (banner "ADVENTURER", panel (55,208)-(545,832),
 //     dividers y266/y492, lower label "THE STANDING" (85,520)). Top section
 //     (y266..y492) paints the RECORD: big LEVEL line, rank pill, XP bar
@@ -45,18 +45,18 @@ package combat
 //     (y556 step 64, max 4, label/value). seal = rank letter, caption.
 //     Node caller: progressionCommands.handleRankCommand.
 //
-//   END (victory/defeat) — 2026-09-14, owner: "update the victory and
+//   END (victory/defeat) - 2026-09-14, owner: "update the victory and
 //     defeat image cards with the style". Replaces the old gradient
 //     GenerateEndScreen. baked bg_VICTORY.png / bg_DEFEAT.png clone the
 //     DUEL geometry: banner VICTORY/DEFEATED, plate (player name), scene
 //     window (55,208)-(545,642) (arena + player sprite LEFT + enemy sprite
-//     RIGHT — vivid winner / faded loser), corner pills VICTOR+SLAIN /
+//     RIGHT - vivid winner / faded loser), corner pills VICTOR+SLAIN /
 //     FALLEN+VICTORIOUS, spoils ledger y746 step 44 (victory: zeni/xp/
-//     spoils/depth — defeat: slain-by/rank/recovered), seal = rank letter
+//     spoils/depth - defeat: slain-by/rank/recovered), seal = rank letter
 //     (victory) or fallen-at level (defeat), caption. HTTP handler:
 //     renderer.go GenerateEndScreen -> WriteEndCard (this file).
 //
-// NOTE: no gg Clip() anywhere — clip state leaks in this gg version and
+// NOTE: no gg Clip() anywhere - clip state leaks in this gg version and
 // erases later draws (same bug as hunt/boss QA rounds).
 
 import (
@@ -77,7 +77,7 @@ import (
 // portraitCol builds an NRGBA color (shorthand for the wax/pill palettes).
 func portraitCol(r, g, b, a uint8) color.NRGBA { return color.NRGBA{R: r, G: g, B: b, A: a} }
 
-// geometry — MUST match build_portrait_bgs.py bake contract
+// geometry - MUST match build_portrait_bgs.py bake contract
 const (
         portraitW          = 600.0
         portraitH          = 1000.0
@@ -127,7 +127,7 @@ func portraitFade(img image.Image, factor float64) image.Image {
 func portraitFighterSprite(class string, index int, maxW, maxH int, facing string) image.Image {
         file := ""
         // 2026-09-12 QA r1: callers send display-case class names ("Fighter",
-        // "Scout") but the registry keys are UPPERCASE — normalize or sprites
+        // "Scout") but the registry keys are UPPERCASE - normalize or sprites
         // silently vanish (window stays bare arena).
         key := strings.ToUpper(strings.TrimSpace(class))
         if sprites, ok := CharacterSprites[key]; ok && len(sprites) > 0 {
@@ -143,7 +143,7 @@ func portraitFighterSprite(class string, index int, maxW, maxH int, facing strin
         img = trimTransparent(img, 8)
         b := img.Bounds()
         if b.Dx() < maxW/2 && b.Dy() < maxH/2 {
-                // tiny canvas — integer upscale first so pixel art stays crisp
+                // tiny canvas - integer upscale first so pixel art stays crisp
                 scale := maxW / 2 / b.Dx()
                 if s2 := maxH / 2 / b.Dy(); s2 < scale {
                         scale = s2
@@ -217,7 +217,7 @@ func portraitPill(dc *gg.Context, text string, x, y float64, rightAnchor bool, f
         dc.DrawStringAnchored(text, x, y, ax, 0.5)
 }
 
-// portraitPillCentred — pill centred on x (used for the BY FORFEIT stamp).
+// portraitPillCentred - pill centred on x (used for the BY FORFEIT stamp).
 func portraitPillCentred(dc *gg.Context, text string, x, y float64, fill, txt color.NRGBA) {
         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 18, text, 220, 12)
         tw, _ := dc.MeasureString(text)
@@ -228,7 +228,7 @@ func portraitPillCentred(dc *gg.Context, text string, x, y float64, fill, txt co
         dc.DrawStringAnchored(text, x, y, 0.5, 0.5)
 }
 
-// portraitRow — generic label/value ledger row.
+// portraitRow - generic label/value ledger row.
 type portraitRow struct {
         Label string `json:"label"`
         Value string `json:"value"`
@@ -241,7 +241,7 @@ type portraitPlayerRow struct {
         Zeni string `json:"zeni"`
 }
 
-// portraitNode — one skill node on the SKILLTREE card (r4).
+// portraitNode - one skill node on the SKILLTREE card (r4).
 type portraitNode struct {
         Name  string `json:"name"`
         Cur   int    `json:"cur"`
@@ -261,7 +261,7 @@ type portraitBuilding struct {
 }
 
 // r5 kinds (2026-09-14): SHOP + EQUIP + ABILITIES payloads.
-// portraitEntry — one generic row (shop item, ability line).
+// portraitEntry - one generic row (shop item, ability line).
 type portraitEntry struct {
         Title string `json:"title"`
         Icon  string `json:"icon"`
@@ -270,7 +270,7 @@ type portraitEntry struct {
         Runes string `json:"runes"` // effect runes (DejaVu-safe symbols, phases 4-6)
 }
 
-// portraitSlot — one equipment plate on the EQUIP armory board.
+// portraitSlot - one equipment plate on the EQUIP armory board.
 type portraitSlot struct {
         Slot      string  `json:"slot"`
         Icon      string  `json:"icon"`
@@ -282,7 +282,7 @@ type portraitSlot struct {
         Empty     bool    `json:"empty"`
 }
 
-// portraitProgress — one PROGRESSION bar on the RANK card (r6, 2026-09-14):
+// portraitProgress - one PROGRESSION bar on the RANK card (r6, 2026-09-14):
 // a requirement to progress, rendered as a filled progress bar.
 type portraitProgress struct {
         Label     string `json:"label"`
@@ -292,14 +292,14 @@ type portraitProgress struct {
         ValueText string `json:"valueText"`
 }
 
-// portraitGroup — a titled section of ability rows (ABILITIES grimoire).
+// portraitGroup - a titled section of ability rows (ABILITIES grimoire).
 type portraitGroup struct {
         Name  string          `json:"name"`
         Sub   string          `json:"sub"`
         Items []portraitEntry `json:"items"`
 }
 
-// portraitRequest — payload for /api/cards/portrait (all kinds).
+// portraitRequest - payload for /api/cards/portrait (all kinds).
 type portraitRequest struct {
         Kind        string              `json:"kind"`
         Nickname    string              `json:"nickname"`
@@ -341,7 +341,7 @@ type portraitRequest struct {
         PlayerIndex int                `json:"playerIndex"`
         PartyText   string             `json:"partyText"`
         // ALLOCATE (2026-09-15, owner: "use the style/assets with different
-        // orientation used across the entire rpg") — stat-point allocation as
+        // orientation used across the entire rpg") - stat-point allocation as
         // a bg_ALLOCATE portrait family card (600x1000, same bake geometry).
         PointsBig    string `json:"pointsBig"`
         Pill         string `json:"pill"`
@@ -350,7 +350,7 @@ type portraitRequest struct {
         SpentLeft    string `json:"spentLeft"`
         // r5 kinds (2026-09-14): SHOP / EQUIP / ABILITIES
         Entries []portraitEntry `json:"entries"`
-        // phase 8 (2026-09-16): player's cardstyle — 1-10, 0/unset = Royal
+        // phase 8 (2026-09-16): player's cardstyle - 1-10, 0/unset = Royal
         // Decree baked art. RANK/ALLOCATE render through the themed shell.
         Style       int    `json:"style"`
         // ABILITIES codex identity + pagination (2026-09-16, phases 4-6)
@@ -364,7 +364,7 @@ type portraitRequest struct {
 
 // GeneratePortraitCard renders DUEL / QUEST portrait event cards (600x1000)
 // plus the r4 kinds (QUESTSTART/RAID 1000x600, GUILDINFO 800x800,
-// SKILLTREE 1200x800, SKILLUP 600x1000 — see eventcards.go).
+// SKILLTREE 1200x800, SKILLUP 600x1000 - see eventcards.go).
 func GeneratePortraitCard(c *gin.Context) {
         var req portraitRequest
         if err := c.ShouldBindJSON(&req); err != nil {
@@ -386,7 +386,7 @@ func GeneratePortraitCard(c *gin.Context) {
         case "SKILLUP":
                 renderSkillUpCard(c, &req)
                 return
-        // r5 kinds (2026-09-14): SHOP + EQUIP + ABILITIES — see eventcards.go
+        // r5 kinds (2026-09-14): SHOP + EQUIP + ABILITIES - see eventcards.go
         case "SHOP":
                 renderShopCard(c, &req)
                 return
@@ -507,7 +507,7 @@ func GeneratePortraitCard(c *gin.Context) {
                         dc.DrawStringAnchored(portraitSanitize(req.XPLeft), 515, 452, 1, 0.5)
                 }
 
-                // ── THE STANDING (lower section) — 3×2 compact grid ──
+                // ── THE STANDING (lower section) - 3×2 compact grid ──
                 // 2026-09-14 r6 (owner: "add the requirements back … as a
                 // progress bar / progress section"): the 8 single-column rows
                 // became a 3×2 grid (XP|GP, totals, commands|achievements),
@@ -533,7 +533,7 @@ func GeneratePortraitCard(c *gin.Context) {
                         }
                 }
 
-                // ── PROGRESSION — the requirements to advance, as bars ──
+                // ── PROGRESSION - the requirements to advance, as bars ──
                 // Owner r6: "make the requirements into a progress bar /
                 // progress section so it clearly shows what you've completed
                 // and what you still need to progress". Level / quests /
@@ -622,7 +622,7 @@ func GeneratePortraitCard(c *gin.Context) {
                         portraitCaption(dc, portraitSanitize(req.Caption))
                 }
         } else if req.Kind == "ALLOCATE" {
-                // ── THE POINTS (top section, y266..y492) — mirrors RANK's RECORD ──
+                // ── THE POINTS (top section, y266..y492) - mirrors RANK's RECORD ──
                 big := strings.ToUpper(portraitSanitize(req.PointsBig))
                 if big == "" {
                         big = "0 POINTS"
@@ -681,7 +681,7 @@ func GeneratePortraitCard(c *gin.Context) {
                         dc.DrawStringAnchored(portraitSanitize(req.SpentLeft), 515, 452, 1, 0.5)
                 }
 
-                // ── THE ALLOCATION (lower section) — 7 stat rows ──
+                // ── THE ALLOCATION (lower section) - 7 stat rows ──
                 rowY := 540.0
                 for i, row := range req.Rows {
                         if i >= 7 {
@@ -708,7 +708,7 @@ func GeneratePortraitCard(c *gin.Context) {
                 portraitCaption(dc, portraitSanitize(req.Caption))
                 } else if req.Kind == "ABYSS_ENTRY" || req.Kind == "ABYSS_RESULT" {
                 // ── THE ABYSS v2 (2026-09-15, owner rejected the v1 olive
-                // re-grade "at allllll") — bg_ABYSS bake v2: family frame
+                // re-grade "at allllll") - bg_ABYSS bake v2: family frame
                 // intact, interior rebuilt as the DESCENT SHAFT (stone
                 // walls, depth ruler F1-F200, converging platforms, slate
                 // ledger). Go draws: hero y255, pill y327, glowing floor
@@ -816,7 +816,7 @@ func GeneratePortraitCard(c *gin.Context) {
                         dc.DrawStringAnchored(portraitSanitize(req.SpentLeft), 515, 552, 1, 0.5)
                 }
 
-                // ── THE LEDGER (baked slate panel) — up to 6 rows ──
+                // ── THE LEDGER (baked slate panel) - up to 6 rows ──
                 rowY := 634.0
                 for i, row := range req.Rows {
                         if i >= 6 {
@@ -827,7 +827,7 @@ func GeneratePortraitCard(c *gin.Context) {
                         dc.DrawStringAnchored(portraitSanitize(row.Label), 85, rowY, 0, 0.5)
                         val := portraitSanitize(row.Value)
                         if val == "" {
-                                val = "—"
+                                val = "-"
                         }
                         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 19, val, 210, 10)
                         dc.SetRGB(207.0/255.0, 232.0/255.0, 226.0/255.0)
@@ -838,7 +838,7 @@ func GeneratePortraitCard(c *gin.Context) {
                 portraitCaption(dc, portraitSanitize(req.Caption))
         } else if req.Kind == "QUEST" || req.Kind == "TRIAL" {
                 // QA r3: TRIAL's bake (THE ASCENSION / THE REWARD) has
-                // more room than bg_QUEST — spread rows to kill the
+                // more room than bg_QUEST - spread rows to kill the
                 // 400-800 dead zone.
                 statY0, statStep := questStatY0, questStatStep
                 playY0, playStep := questPlayerY0, questPlayerStep
@@ -917,7 +917,7 @@ func GeneratePortraitCard(c *gin.Context) {
                 portraitPill(dc, "DEFEATED", duelSceneX+duelSceneW-62, duelSceneY+26, true,
                         portraitCol(8, 8, 8, 150), portraitCol(232, 116, 97, 255))
                 if req.Forfeit {
-                        // 2026-09-12 owner: "no card on forfeit" — forfeit endings carry
+                        // 2026-09-12 owner: "no card on forfeit" - forfeit endings carry
                         // the same card, stamped BY FORFEIT between the corner pills.
                         portraitPillCentred(dc, "BY FORFEIT", duelSceneX+duelSceneW/2, duelSceneY+26,
                                 portraitCol(96, 18, 28, 175), portraitCol(250, 210, 120, 255))
@@ -949,7 +949,7 @@ func GeneratePortraitCard(c *gin.Context) {
         c.Data(200, ctype, buf)
 }
 
-// EndCardPayload — victory/defeat end screen, rendered by WriteEndCard.
+// EndCardPayload - victory/defeat end screen, rendered by WriteEndCard.
 // Legacy fields (text/victory/gold/xp/items) kept for old callers; the
 // player/enemy/rank/floor/background/caption fields are optional enrichment
 // sent by combatIntegration.renderCombatEnd. Everything degrades gracefully:
@@ -977,7 +977,7 @@ type EndCardPayload struct {
 // portraitEnemySprite resolves + trims + fits an enemy sprite for the END
 // scene window. Tiny canvases (beholder-class sprites can be ~30px) are
 // upscaled to at least 60% of the width budget so the enemy READS on the
-// card (QA r1: ABYSS WARDEN rendered ~55px — invisible).
+// card (QA r1: ABYSS WARDEN rendered ~55px - invisible).
 func portraitEnemySprite(name string, level, index int, isBoss bool, maxW, maxH int) image.Image {
         path := GetEnemySpritePath(name, level, index, isBoss, "assets")
         img, err := utils.LoadImage(path)
@@ -996,7 +996,7 @@ func portraitEnemySprite(name string, level, index int, isBoss bool, maxW, maxH 
         return imaging.Fit(img, maxW, maxH, imaging.NearestNeighbor)
 }
 
-// WriteEndCard — 2026-09-14 redesign of the victory/defeat end screen
+// WriteEndCard - 2026-09-14 redesign of the victory/defeat end screen
 // (owner: "update the victory and defeat image cards with the style").
 // Lamoot wood+gold+parchment portrait family on bg_VICTORY/bg_DEFEAT:
 // scene window with vivid winner + faded loser, corner pills, spoils

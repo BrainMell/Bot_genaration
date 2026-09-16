@@ -1,7 +1,7 @@
 package combat
 
 // ============================================
-// 🎴 EVENT CARDS R4 — 2026-09-14
+// 🎴 EVENT CARDS R4-2026-09-14
 // ============================================
 // Owner: "add a starting image card to quest starting … add an image card to
 // the guild info command, make the skill tree an image card too, and make
@@ -12,26 +12,26 @@ package combat
 // Four new kinds on the lamoot wood+gold+parchment family, each with a
 // DIFFERENT canvas + arrangement:
 //
-//   QUESTSTART / RAID — 1000x600 landscape (bg_QSTART / bg_RAID).
+//   QUESTSTART / RAID - 1000x600 landscape (bg_QSTART / bg_RAID).
 //     Split arrangement: LEFT scene window (55,190)-(505,530) with the
 //     dungeon environment + hero sprite; RIGHT contract panel with 5 rows.
 //     seal (70,556) r24, caption (620,556).
 //
-//   GUILDINFO — 800x800 SQUARE (bg_GUILD). Crest ring (400,215) r100 with a
+//   GUILDINFO - 800x800 SQUARE (bg_GUILD). Crest ring (400,215) r100 with a
 //     heraldic shield painted inside (emblem color + guild initial), plate
 //     (230,330)-(570,384), motto line y410, charter panel (60,425)-(740,690)
 //     rows y512 step 46, level pill + XP bar y658-676, three building rings
 //     (baked, cx 220/400/580 cy 722) with name + L## painted inside.
 //     seal (70,748) r24, caption (620,748).
 //
-//   SKILLTREE — 1200x800 ULTRAWIDE (bg_TREE). Full parchment inset
+//   SKILLTREE - 1200x800 ULTRAWIDE (bg_TREE). Full parchment inset
 //     (40,190)-(1160,705) hosts a real RPG skill tree: branch headers,
 //     trunk connectors down to a class root medallion, circular skill
 //     medallions in 4 states (maxed/learned/open/locked), cur/max pips
 //     inside each node. Class plate (85,120)-(455,174); skill-point pill
 //     top-right. seal (70,742) r24, caption (640,745).
 //
-//   SKILLUP — 600x1000 PORTRAIT (bg_SKILLUP). Giant skill medallion in the
+//   SKILLUP - 600x1000 PORTRAIT (bg_SKILLUP). Giant skill medallion in the
 //     baked ring (300,385) r150 with tier-colored accents, skill name y566,
 //     level pips y604, THE PATH panel rows y724 step 46.
 //     seal (70,935) r26 (portrait standard), caption (305,936).
@@ -51,7 +51,7 @@ import (
         "github.com/gin-gonic/gin"
 )
 
-// sealAt — wax seal at an arbitrary anchor (portraitWaxSeal is pinned to
+// sealAt - wax seal at an arbitrary anchor (portraitWaxSeal is pinned to
 // the portrait consts; these cards have their own anchors).
 func sealAt(dc *gg.Context, text string, x, y, r float64) {
         if text == "" {
@@ -76,7 +76,7 @@ func sealAt(dc *gg.Context, text string, x, y, r float64) {
         dc.DrawStringAnchored(text, x, y-1, 0.5, 0.5)
 }
 
-// captionAt — flavour caption at an arbitrary anchor. Same truncation rule
+// captionAt - flavour caption at an arbitrary anchor. Same truncation rule
 // as portraitCaption (fit-shrink gives up at minSize and would still draw).
 func captionAt(dc *gg.Context, text string, x, y, maxW float64) {
         if text == "" {
@@ -91,15 +91,15 @@ func captionAt(dc *gg.Context, text string, x, y, maxW float64) {
         dc.DrawStringAnchored(text, x, y, 0.5, 0.5)
 }
 
-// darkPill — the DUEL corner-pill styling, usable anywhere.
+// darkPill - the DUEL corner-pill styling, usable anywhere.
 func darkPill(dc *gg.Context, text string, x, y float64, rightAnchor bool) {
         portraitPill(dc, text, x, y, rightAnchor,
                 portraitCol(8, 8, 8, 150), portraitCol(250, 210, 120, 255))
 }
 
-// drawRows — generic label/value ledger rows (panel ink palette).
+// drawRows - generic label/value ledger rows (panel ink palette).
 // 2026-09-14 QA: a long value ("WHISPERING FOREST") collided with a long
-// label ("ENVIRONMENT") — the value now fits into the width LEFT over
+// label ("ENVIRONMENT") - the value now fits into the width LEFT over
 // after the measured label, instead of a fixed 300px box.
 func drawRows(dc *gg.Context, rows []portraitRow, xLabel, xValue, y0, step float64, max int, size int) {
         y := y0
@@ -124,7 +124,7 @@ func drawRows(dc *gg.Context, rows []portraitRow, xLabel, xValue, y0, step float
         }
 }
 
-// tierAccent — accent color for skill tiers (medallion ring + pips).
+// tierAccent - accent color for skill tiers (medallion ring + pips).
 func tierAccent(tier int, ascended bool) color.NRGBA {
         if ascended {
                 return portraitCol(200, 60, 80, 255)
@@ -141,7 +141,7 @@ func tierAccent(tier int, ascended bool) color.NRGBA {
         }
 }
 
-// initialLetters — up to 2 uppercase initials from a name ("Power Slash" -> PS).
+// initialLetters - up to 2 uppercase initials from a name ("Power Slash" -> PS).
 func initialLetters(name string) string {
         letters := ""
         lastWasBreak := true
@@ -164,8 +164,8 @@ func initialLetters(name string) string {
         return letters
 }
 
-// drawSceneWindow — fill (x,y,w,h) with an environment asset + mood overlay.
-// 2026-09-14 QA: the old error path painted a FLAT near-black rectangle —
+// drawSceneWindow - fill (x,y,w,h) with an environment asset + mood overlay.
+// 2026-09-14 QA: the old error path painted a FLAT near-black rectangle -
 // an instant "broken card" look whenever the env asset name was wrong.
 // The fallback is now a moody forest-night gradient with a vignette,
 // which reads as intentional art while staying dark enough for sprites.
@@ -199,7 +199,7 @@ func drawSceneWindow(dc *gg.Context, envFile string, x, y, w, h float64) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// QUESTSTART / RAID — 1000x600 landscape
+// QUESTSTART / RAID - 1000x600 landscape
 // ─────────────────────────────────────────────────────────────────
 func renderQuestStartCard(c *gin.Context, req *portraitRequest, raid bool) {
         dc := gg.NewContext(1000, 600)
@@ -245,7 +245,7 @@ func renderQuestStartCard(c *gin.Context, req *portraitRequest, raid bool) {
         cap := req.Caption
         if cap == "" {
                 if raid {
-                        cap = "the horns sound — assemble"
+                        cap = "the horns sound - assemble"
                 } else {
                         cap = "the gate groans open"
                 }
@@ -255,7 +255,7 @@ func renderQuestStartCard(c *gin.Context, req *portraitRequest, raid bool) {
         utils.RespondImage(c, dc.Image())
 }
 
-// GUILDINFO — 800x800 square
+// GUILDINFO - 800x800 square
 func renderGuildInfoCard(c *gin.Context, req *portraitRequest) {
         dc := gg.NewContext(800, 800)
         if bgImg, err := utils.LoadImage(portraitAsset("bg_GUILD.png")); err == nil {
@@ -292,7 +292,7 @@ func renderGuildInfoCard(c *gin.Context, req *portraitRequest) {
         dc.SetLineWidth(4)
         shield()
         dc.Stroke()
-        // initial letter with dark drop (gg has no stroked text — paint twice)
+        // initial letter with dark drop (gg has no stroked text - paint twice)
         initial := initialLetters(name)
         if len(initial) > 1 {
                 initial = initial[:1]
@@ -320,7 +320,7 @@ func renderGuildInfoCard(c *gin.Context, req *portraitRequest) {
                 dc.DrawStringAnchored("\""+motto+"\"", 400, 410, 0.5, 0.5)
         }
 
-        // charter rows (panel 60,425 - 740,690) — QA r1: pulled up to
+        // charter rows (panel 60,425 - 740,690) - QA r1: pulled up to
         // y498/step 44 so row 4 clears the XP bar at y658.
         drawRows(dc, req.Rows, 90, 710, 498, 44, 4, 21)
 
@@ -357,7 +357,7 @@ func renderGuildInfoCard(c *gin.Context, req *portraitRequest) {
         dc.DrawRoundedRectangle(185, 658, 525, 18, 8)
         dc.Stroke()
 
-        // building rings (baked at cx 220/400/580, cy 722): QA r1 — the
+        // building rings (baked at cx 220/400/580, cy 722): QA r1 - the
         // ring interiors sit on DARK wood, so the dark parchment ink was
         // unreadable. Dark backing + light gold text now.
         ringX := [3]float64{220, 400, 580}
@@ -383,7 +383,7 @@ func renderGuildInfoCard(c *gin.Context, req *portraitRequest) {
         }
 
         sealAt(dc, portraitSanitize(req.SealText), 70, 748, 24)
-        // QA r1: bottom-right is building-ring territory — only draw a
+        // QA r1: bottom-right is building-ring territory - only draw a
         // caption when the caller explicitly provides one. QA r2 (2026-09-14):
         // nudged x 620→655 so the text clears the Vault ring's lower edge.
         if req.Caption != "" {
@@ -393,11 +393,11 @@ func renderGuildInfoCard(c *gin.Context, req *portraitRequest) {
         utils.RespondImage(c, dc.Image())
 }
 
-// SKILLUP — 600x1000 portrait
+// SKILLUP - 600x1000 portrait
 // ─────────────────────────────────────────────────────────────────
 func renderSkillUpCard(c *gin.Context, req *portraitRequest) {
         dc := gg.NewContext(600, 1000)
-        // phase 8: themed SKILLUP — same geometry as bg_SKILLUP.png bake.
+        // phase 8: themed SKILLUP - same geometry as bg_SKILLUP.png bake.
         _themed := resolveTheme(req.Style)
         if _themed != nil {
                 drawPortraitShell(dc, _themed, "SKILLUP")
@@ -514,21 +514,21 @@ func renderSkillUpCard(c *gin.Context, req *portraitRequest) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// R5 BOARDS — 2026-09-14 (owner: shop card before shop text, .j
+// R5 BOARDS - 2026-09-14 (owner: shop card before shop text, .j
 // equipment with tier + durability, .j abilities as a card)
 //
-//   SHOP      — 900x1400 TALL supply board, 2 cols × 8 rows.
-//   EQUIP     — 800x1100 TALL armory board, 9 slot plates (2 cols),
+//   SHOP      - 900x1400 TALL supply board, 2 cols × 8 rows.
+//   EQUIP     - 800x1100 TALL armory board, 9 slot plates (2 cols),
 //               tier pill + durability bar per item. Distinct from the
 //               600x1000 portrait family on purpose.
-//   ABILITIES — 1000x1400 TALL grimoire, grouped ability rows.
+//   ABILITIES - 1000x1400 TALL grimoire, grouped ability rows.
 //
 // None of these have a baked bg_*.png yet, so they paint the SAME
 // lamoom wood+gold+parchment family procedurally via paintRpgBoard()
 // (dark walnut planks, double gold frame, banner chip, name plate).
 // ═══════════════════════════════════════════════════════════════════
 
-// paintRpgBoard — shared wood+frame+banner background for the r5 boards.
+// paintRpgBoard - shared wood+frame+banner background for the r5 boards.
 // Returns the y where the content grid may start.
 func paintRpgBoard(dc *gg.Context, w, h float64, banner, nickname string) float64 {
         // walnut planks
@@ -576,7 +576,7 @@ func paintRpgBoard(dc *gg.Context, w, h float64, banner, nickname string) float6
         return 180
 }
 
-// paintRpgBoardThemed — phase 8 (2026-09-16): the same board geometry as
+// paintRpgBoardThemed - phase 8 (2026-09-16): the same board geometry as
 // paintRpgBoard, driven by a cardTheme. Keep zone positions byte-identical
 // so callers don't need to know which variant ran.
 func paintRpgBoardThemed(dc *gg.Context, w, h float64, banner, nickname string, th *cardTheme) float64 {
@@ -621,7 +621,7 @@ func paintRpgBoardThemed(dc *gg.Context, w, h float64, banner, nickname string, 
         return 180
 }
 
-// tierPillCol — item tier accent (mirrors Node EQUIP_TIER_ORDER 1..6).
+// tierPillCol - item tier accent (mirrors Node EQUIP_TIER_ORDER 1..6).
 func tierPillCol(tier int) color.NRGBA {
         switch {
         case tier <= 1:
@@ -639,7 +639,7 @@ func tierPillCol(tier int) color.NRGBA {
         }
 }
 
-// initialMedallion — circle with up to 2 initials (used where we have no
+// initialMedallion - circle with up to 2 initials (used where we have no
 // icon font for emoji: initials keep the parchment family consistent).
 func initialMedallion(dc *gg.Context, x, y, r float64, name string, ring color.NRGBA) {
         dc.SetColor(portraitCol(24, 16, 10, 235))
@@ -660,7 +660,7 @@ func initialMedallion(dc *gg.Context, x, y, r float64, name string, ring color.N
 }
 
 // ─────────────────────────────────────────────────────────────────
-// SHOP — 900x1400 supply board (pre-raid shop)
+// SHOP - 900x1400 supply board (pre-raid shop)
 // ─────────────────────────────────────────────────────────────────
 func renderShopCard(c *gin.Context, req *portraitRequest) {
         entries := req.Entries
@@ -673,7 +673,7 @@ func renderShopCard(c *gin.Context, req *portraitRequest) {
                 rows = 1
         }
         // QA r3 (owner: "fix the alignment issues with all the cards"):
-        // the board was a fixed 900x1400 — a 4-entry stock left ~1000px
+        // the board was a fixed 900x1400 - a 4-entry stock left ~1000px
         // of dead walnut under the grid. Height follows the entry count.
         cellH, gapY := 118.0, 16.0
         H := 205.0 + float64(rows)*(cellH+gapY) + 76.0
@@ -750,7 +750,7 @@ func renderShopCard(c *gin.Context, req *portraitRequest) {
         utils.RespondImage(c, dc.Image())
 }
 
-// trimFloat — "12" not "12.000000", keep one decimal when fractional.
+// trimFloat - "12" not "12.000000", keep one decimal when fractional.
 func trimFloat(v float64) string {
         if v == float64(int(v)) {
                 return fmt.Sprintf("%d", int(v))

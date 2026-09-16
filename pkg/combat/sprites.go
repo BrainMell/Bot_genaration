@@ -45,7 +45,7 @@ var CharacterSprites = map[string][]string{
 	"BARD":         {"acolyte.png"},
 	"ARTIFICER":    {"apprentice1.png", "apprentice2.png", "apprentice3.png", "apprentice4.png"},
 	"AVATAR":       {"elementalist (1).png", "elementalist (2).png", "elementalist (3).png", "elementalist (4).png"},
-	// Ascended classes — mapped to closest thematic sprites
+	// Ascended classes - mapped to closest thematic sprites
 	"DRAGON_GOD":     {"DoomSlayer1.png", "DoomSlayer2.png"},
 	"DRAGON_LORD":    {"Warlord1.png", "warlord2.png", "warlord3.png"},
 	"KAGE":           {"ninja (1).png", "ninja (2).png", "ninja (3).png", "ninja (4).png", "ninja (5).png"},
@@ -59,7 +59,7 @@ var CharacterSprites = map[string][]string{
 // The renderer uses this to decide whether to flip a sprite so
 // ALL players face RIGHT (toward enemies) in PvE.
 var SpriteFacing = map[string]string{
-	// 💡 ROUND-4 RE-AUDIT 2026-09-11 — FULL REPLACEMENT of the round-3 table.
+	// 💡 ROUND-4 RE-AUDIT 2026-09-11 - FULL REPLACEMENT of the round-3 table.
 	// WHY: the owner proved round 3 was wrong IN PRODUCTION (his Scout stood
 	// back-to-the-opponent in live PvP). Root cause: round 3 systematically
 	// inverted many entries (scout1-4.png are RIGHT-facing art but were
@@ -215,7 +215,7 @@ var SpriteFacing = map[string]string{
 	// ── Boss N/S pairs. The _S variants are MIRRORED art of the _N variants,
 	// so their facing is OPPOSITE. Verified visually on contact sheets:
 	// boss_11 scythe swaps sides N->S; boss_12 same. boss_0 spiders are
-	// symmetric front art (round 3 said LEFT — wrong, never flips now).
+	// symmetric front art (round 3 said LEFT - wrong, never flips now).
 	"boss_0_N.png":  "CENTER",
 	"boss_0_S.png":  "CENTER",
 	"boss_10_N.png": "CENTER",
@@ -244,7 +244,7 @@ var SpriteFacing = map[string]string{
 	"boss_9_S.png":  "CENTER",
 
 	// ── Extracted MOB battle frames (2026-09-11). The *_single.png files were
-	// MULTI-FRAME GRIDS (3x5 poses per file) — rendering them whole was the
+	// MULTI-FRAME GRIDS (3x5 poses per file) - rendering them whole was the
 	// "enemies are entire spritesheets" bug. They are now frame-extracted to
 	// *_frame.png; facing classified visually on the audit sheet.
 	"goblin_frame.png":   "LEFT",
@@ -260,7 +260,7 @@ var SpriteFacing = map[string]string{
 	"bat_frame.png":      "RIGHT",
 	"boar_still.png":     "RIGHT",
 
-	// hunt animals (LPC family, 2026-09-12) — single frames, native facing
+	// hunt animals (LPC family, 2026-09-12) - single frames, native facing
 	// verified per-file: rabbit hops RIGHT; deer & bear are LEFT-profile art
 	"rabbit_lpc.png": "RIGHT",
 	"deer_lpc.png":   "LEFT",
@@ -272,7 +272,7 @@ var SpriteFacing = map[string]string{
 	"hybrides (1).png": "LEFT",
 
 	// ── summon pngs (sparklinlabs). Round-4 fixes: dragon.png head is on the
-	// LEFT (was RIGHT — visually verified); rest re-confirmed.
+	// LEFT (was RIGHT - visually verified); rest re-confirmed.
 	"bat.png":          "LEFT",
 	"boar.png":         "RIGHT",
 	"boglurk.png":      "LEFT",
@@ -340,25 +340,25 @@ var EnemyNameSprites = map[string]string{
 	//
 	// Each numbered sprite file (fire (5).png, water (4).png, mutated (1).png, etc.)
 	// is a DISTINCT enemy mob, not a "variation." The element prefix = the enemy's
-	// family/type (fire-type, water-type, mutated-type — the naturally-infected
+	// family/type (fire-type, water-type, mutated-type - the naturally-infected
 	// creature families from the lore). The number = which specific species.
 	//
 	// Every enemy name below maps to exactly ONE unique sprite file.
 	// No two enemies share the same file. No collisions. No generic fallbacks.
 	//
 	// SPRITE INVENTORY (30 files, all verified single-frame 64x96):
-	//   fire:   (5), (6), (7), (8), (11)            — 5 files
-	//   water:  (4), (6), (7)                       — 3 files
-	//   earth:  (1), (2), (3), (4), (5)             — 5 files
-	//   ice:    (1), (2), (3)                       — 3 files
-	//   mutated:(1), (2), (3), (4), (5), (6), (7)   — 7 files
-	//   hybrides:(1), (2), (3), (4), (5), (6), (7)  — 7 files
+	//   fire:   (5), (6), (7), (8), (11)            - 5 files
+	//   water:  (4), (6), (7)                       - 3 files
+	//   earth:  (1), (2), (3), (4), (5)             - 5 files
+	//   ice:    (1), (2), (3)                       - 3 files
+	//   mutated:(1), (2), (3), (4), (5), (6), (7)   - 7 files
+	//   hybrides:(1), (2), (3), (4), (5), (6), (7)  - 7 files
 	//   TOTAL: 30 unique sprites
 	//
 	// ENEMY NAMES: 84 total (from classEncounters.js + Abyss pools)
 	// Since we have 84 names and 30 sprites, some names must share a sprite.
-	// But we assign them by FAMILY — fire enemies get fire sprites, water
-	// enemies get water sprites, etc. — so visually they always match their
+	// But we assign them by FAMILY - fire enemies get fire sprites, water
+	// enemies get water sprites, etc. - so visually they always match their
 	// element type, and within a family each name gets a different number
 	// when possible. Bosses use their own dedicated boss_N_N/S.png sprites
 	// (handled separately in BossNameSprites).
@@ -530,9 +530,9 @@ var BossSprites = map[string][]string{
 // BossNameSprites maps a boss's display name (UPPERCASED) to a specific
 // sprite filename. Lookup is case-insensitive. When a boss name matches,
 // this specific sprite is used instead of the level-based CALAMITY bucket
-// rotation — so each named boss always renders with the same distinct image.
+// rotation - so each named boss always renders with the same distinct image.
 //
-// 💡 FIX (Item #9 — boss sprites not distinct): Expanded from 13 entries
+// 💡 FIX (Item #9 - boss sprites not distinct): Expanded from 13 entries
 // to cover ALL 40+ named bosses in classEncounters.js. Previously, bosses
 // not in this map fell through to `calamaties[spriteIndex % 6]`, so many
 // bosses shared the same sprite. Now every named boss has a deterministic,
@@ -540,15 +540,15 @@ var BossSprites = map[string][]string{
 //
 // Sprite pool (48 total in assets/rpgasset/enemies/):
 //
-//	calamaties (1-6).png      — 6 calamity-tier sprites (S/SS/SSS bosses, trials)
-//	highlevelbosses (7-13).png — 7 high-level sprites (A/S bosses, some trials)
-//	midlevelbosses (1-7).png   — 7 mid-level sprites (F-E-D-C-B bosses)
-//	mutated (1-7).png          — 7 mutated-tier sprites (B/A bosses)
-//	hybrides (1-7).png         — 7 hybrid-tier sprites (SS bosses)
-//	earth (1-5).png            — 5 earth-themed sprites
-//	fire (5,6,7,8,11).png      — 5 fire-themed sprites
-//	ice (1,2,3).png            — 3 ice-themed sprites
-//	water (4,6,7).png          — 3 water-themed sprites
+//	calamaties (1-6).png      - 6 calamity-tier sprites (S/SS/SSS bosses, trials)
+//	highlevelbosses (7-13).png - 7 high-level sprites (A/S bosses, some trials)
+//	midlevelbosses (1-7).png   - 7 mid-level sprites (F-E-D-C-B bosses)
+//	mutated (1-7).png          - 7 mutated-tier sprites (B/A bosses)
+//	hybrides (1-7).png         - 7 hybrid-tier sprites (SS bosses)
+//	earth (1-5).png            - 5 earth-themed sprites
+//	fire (5,6,7,8,11).png      - 5 fire-themed sprites
+//	ice (1,2,3).png            - 3 ice-themed sprites
+//	water (4,6,7).png          - 3 water-themed sprites
 //
 // Mapping strategy:
 //   - Rank bosses (S/SS/SSS) → calamaties sprites (visually epic)
@@ -557,7 +557,7 @@ var BossSprites = map[string][]string{
 //   - Trial bosses → assigned thematically (fire→fire, water→water, etc.)
 //   - Special bosses (dragon→fire-themed, undead→mutated, etc.)
 var BossNameSprites = map[string]string{
-	// ═══ S/SS/SSS-rank dungeon bosses — use new boss_N sprites from SpriteAssets ═══
+	// ═══ S/SS/SSS-rank dungeon bosses - use new boss_N sprites from SpriteAssets ═══
 	"PRIMORDIAL CHAOS": "boss_0_N.png",
 	"ELDER CHAOS":      "boss_1_N.png",
 	"VOID TITAN":       "boss_2_N.png",
@@ -565,10 +565,10 @@ var BossNameSprites = map[string]string{
 	"MUTATION PRIME":   "boss_4_N.png",
 	"ELEMENTAL ARCHON": "boss_5_N.png",
 
-	// ═══ Mid-level bosses — use new boss sprites ═══
+	// ═══ Mid-level bosses - use new boss sprites ═══
 	"THE INFECTED COLOSSUS": "boss_6_N.png",
 	"INFECTED COLOSSUS":     "boss_6_N.png",
-	// 💡 FIX 2026-09-11: F-tier abyss boss had NO mapping — always fell to the
+	// 💡 FIX 2026-09-11: F-tier abyss boss had NO mapping - always fell to the
 	// generic level rotation (same blob as every other unmapped low boss).
 	"MUTATED OVERSEER":   "midlevelbosses (4).png",
 	"CORRUPTED GUARDIAN": "boss_7_N.png",
@@ -578,7 +578,7 @@ var BossNameSprites = map[string]string{
 	"FROST GHOUL":        "boss_12_N.png",
 	"GLACIAL BEAST":      "boss_13_N.png",
 
-	// ═══ High-level bosses — use new boss sprites + old highlevelbosses ═══
+	// ═══ High-level bosses - use new boss sprites + old highlevelbosses ═══
 	"MAGMA BRUTE":     "boss_0_S.png",
 	"HELLFIRE DEMON":  "boss_1_S.png",
 	"ABYSSAL HORROR":  "boss_2_S.png",
@@ -654,17 +654,17 @@ func GetCharacterSpriteFile(class string, index int, assetsPath string) string {
 // Falls back to the original level-based bucket rotation when no name match
 // is found (so unnamed / generic bosses still render correctly).
 //
-// The JS bot already sends enemy.name in the combat payload — it was just
+// The JS bot already sends enemy.name in the combat payload - it was just
 // being ignored. Now it's the primary lookup key for bosses.
 func GetEnemySpritePath(name string, level int, index int, isBoss bool, assetsPath string) string {
 	var filename string
 	if isBoss {
 		// 1) Name-based lookup first (case-insensitive). If this boss has
-		//    a specific sprite mapped in BossNameSprites, use it — no
+		//    a specific sprite mapped in BossNameSprites, use it - no
 		//    level/index rotation, so the boss always renders identically.
 		if name != "" {
 			// 💡 FIX 2026-09-11: strip decorative prefixes. Abyss bosses are
-			// sent as "⚡ STONE HULK" — the raw ToUpper key missed every
+			// sent as "⚡ STONE HULK" - the raw ToUpper key missed every
 			// BossNameSprites entry and fell to generic rotation (pixel-
 			// diff verified: ⚡-bosses rendered the fallback blob).
 			upperName := sanitizeNameKey(name)
@@ -697,7 +697,7 @@ func GetEnemySpritePath(name string, level int, index int, isBoss bool, assetsPa
 		filename = list[index%len(list)]
 	} else {
 		// 💡 FIX 2026-08-07 (P4.4): Name-based lookup for non-boss enemies.
-		// Check EnemyNameSprites first — if this enemy name has a specific
+		// Check EnemyNameSprites first - if this enemy name has a specific
 		// sprite mapped, use it. Falls back to level-based rotation if no match.
 		if name != "" {
 			upperName := sanitizeNameKey(name)
@@ -756,7 +756,7 @@ func GetEnvironmentPath(bgName string, assetsPath string) string {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 💡 Summoner System — Summon Sprites
+// 💡 Summoner System - Summon Sprites
 // ─────────────────────────────────────────────────────────────
 // Maps summon species to sprite filenames.
 // Checks summons/digimon/ first (cached Digimon API sprites),
@@ -827,7 +827,7 @@ var SummonSprites = map[string]string{
 
 // GetSummonSpritePath returns the sprite file path for a summon species.
 // Checks multiple folders in priority order:
-// 1. summons/sparklinlabs/ (NEW: sparklinlabs monster sprites — .png first, then .gif)
+// 1. summons/sparklinlabs/ (NEW: sparklinlabs monster sprites - .png first, then .gif)
 // 2. summons/digimon/ (cached Digimon API sprites, transparent PNGs)
 // 3. summons/ (SD sprites like Ifrit/Leviathan/Shiva)
 // 4. summons/retromon/ (Retromon monster sprites)
@@ -835,7 +835,7 @@ var SummonSprites = map[string]string{
 // summonDirIndex is a lazy, case-insensitive per-directory file index.
 // 💡 FIX 2026-09-11 (facing audit BUG #2): the summon lookup was case-sensitive
 // while Node sends species ids in arbitrary case ("Atrox" vs retromon/Atrox.png
-// resolved, but "atrox" missed and fell through to the generic slime fallback —
+// resolved, but "atrox" missed and fell through to the generic slime fallback -
 // EVERY lowercase retromon rendered as the same giant teal slime in battle).
 // The Node side (summonSprites.js) has always been case-insensitive; the Go
 // renderer now matches that behavior.
@@ -872,7 +872,7 @@ func GetSummonSpritePath(species string, assetsPath string) string {
 	species = strings.ToLower(strings.TrimSpace(species))
 	summonsRoot := filepath.Join(assetsPath, "rpgasset", "summons")
 
-	// 0. sparklinlabs (primary summon sprites — .png first, then _idle.gif)
+	// 0. sparklinlabs (primary summon sprites - .png first, then _idle.gif)
 	if p, ok := summonDirLookup(filepath.Join(summonsRoot, "sparklinlabs"), species+".png"); ok {
 		return p
 	}
@@ -1089,7 +1089,7 @@ var SummonSpriteFacing = map[string]string{
 	"leviathan_water.png": "LEFT",
 	"ifrit_fire.png":      "LEFT",
 	"ifrit_nofire.png":    "LEFT",
-	// Ship sprites are rotated, not flipped — facing doesn't apply
+	// Ship sprites are rotated, not flipped - facing doesn't apply
 	"ship_cruiser_idle.gif": "CENTER",
 	"ship_fighter_idle.gif": "CENTER",
 	"ship_squid_idle.gif":   "CENTER",
@@ -1097,7 +1097,7 @@ var SummonSpriteFacing = map[string]string{
 	// 💡 FIX 2026-08-08 #3: .png entries for species where the .png art faces a
 	// DIFFERENT direction than the _idle.gif art. GetSummonSpritePath loads .png
 	// first (priority), so without these entries the facing map lookup fails and
-	// defaults to CENTER — causing sprites to not be flipped when they should be.
+	// defaults to CENTER - causing sprites to not be flipped when they should be.
 	// Only species where .png facing ≠ .gif facing need entries here.
 	// (Verified by pixel analysis: all other .png files match their .gif facing.)
 	"giant.png": "RIGHT", // giant_idle.gif = LEFT, but giant.png faces RIGHT
@@ -1106,7 +1106,7 @@ var SummonSpriteFacing = map[string]string{
 // 💡 FIX 2026-08-07: Side-based facing rule (Spec 1C).
 // Replaces ShouldFlipForPvE + ShouldFlipForPvPRight with a single function.
 // Left-side entities must face RIGHT; Right-side entities must face LEFT.
-// CENTER (symmetric) sprites are NOT flipped — harmless either way, and
+// CENTER (symmetric) sprites are NOT flipped - harmless either way, and
 // avoids flipping mislabeled CENTER sprites that actually face a direction.
 //
 // flipForSide returns true if the sprite needs horizontal flipping to face
@@ -1136,7 +1136,7 @@ func ShouldFlipForPvPRight(filename string) bool {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // sanitizeNameKey normalizes an entity display name into a sprite-lookup key.
-// The bot decorates display names — Abyss bosses arrive as "⚡ STONE HULK" —
+// The bot decorates display names - Abyss bosses arrive as "⚡ STONE HULK" -
 // so the raw ToUpper key missed every BossNameSprites/EnemyNameSprites entry
 // and fell through to the generic level-based rotation. Stripping everything
 // except letters/digits/space/hyphen/apostrophe/'&' makes the lookup immune
@@ -1154,16 +1154,16 @@ func sanitizeNameKey(name string) string {
 		}
 	}, upper)
 	// 💡 Trim AFTER stripping: dropping a leading glyph (e.g. "⚡ ") leaves
-	// the separator space at the start — " THE INFECTED..." never matched.
+	// the separator space at the start - " THE INFECTED..." never matched.
 	return strings.TrimSpace(cleaned)
 }
 
 // spriteFamilies groups single-frame mob sprites by element family.
 // Used by DedupeEnemySprites so two enemies in the SAME encounter never
 // render the identical sprite (e.g. FLAME and YOUNG DRAKE both map to
-// "fire (5).png" — they used to appear as identical twins side by side).
+// "fire (5).png" - they used to appear as identical twins side by side).
 // Boss-dedicated files (boss_N_N/S, midlevelbosses, highlevelbosses,
-// calamaties) are intentionally NOT families — a named boss must always
+// calamaties) are intentionally NOT families - a named boss must always
 // keep its own sprite.
 var spriteFamilies = map[string][]string{
 	"fire":     {"fire (5).png", "fire (6).png", "fire (7).png", "fire (8).png", "fire (11).png"},
@@ -1212,7 +1212,7 @@ func DedupeEnemySprites(resolved []string) []string {
 			}
 		}
 		if !swapped {
-			used[f] = true // family exhausted — keep the twin
+			used[f] = true // family exhausted - keep the twin
 		}
 	}
 	return out

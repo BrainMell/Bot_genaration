@@ -15,7 +15,7 @@ import (
 )
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  HYBRID GRID RENDERER — static grid styling + animated cards on top
+//  HYBRID GRID RENDERER - static grid styling + animated cards on top
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // Added 2026-07-27. Rewritten 2026-07-27 to match static grid styling exactly.
@@ -33,9 +33,9 @@ import (
 // Result: the hybrid grid looks EXACTLY like the static grid, but animated
 // cards (T6/S/E) cycle through their GIF frames in place.
 //
-// 💡 FIX 2026-09-10 — "animated cards render as stills in .jk coll / .jk deck":
+// 💡 FIX 2026-09-10 - "animated cards render as stills in .jk coll / .jk deck":
 //   - The old 5MB download cap rejected MOST real shoob GIFs (probe of 14
-//     T6/S GIFs: 700KB–39.6MB, median ~15MB). Rejected cards silently fell
+//     T6/S GIFs: 700KB-39.6MB, median ~15MB). Rejected cards silently fell
 //     back to the static background frame → still images. Cap raised to 45MB.
 //   - The shared 8s HTTP client timed out on big GIFs → animated path now
 //     uses a dedicated 30s client.
@@ -46,7 +46,7 @@ import (
 //     (GIF8/RIFF/EBML only), and if ffmpeg still fails we return the styled
 //     background PNG instead of a 500.
 
-// HybridCardInput — same as CollCardInput but the Animated field is honored.
+// HybridCardInput - same as CollCardInput but the Animated field is honored.
 type HybridCardInput struct {
 	URL      string `json:"url" binding:"required"`
 	Name     string `json:"name"`
@@ -54,7 +54,7 @@ type HybridCardInput struct {
 	Animated bool   `json:"animated"`
 }
 
-// downloadedCard — internal struct tracking each card's local file + animation flag.
+// downloadedCard - internal struct tracking each card's local file + animation flag.
 type downloadedCard struct {
 	Path     string
 	Animated bool
@@ -71,7 +71,7 @@ type HybridGridRequest struct {
 	FPS      int               `json:"fps"`      // frames per second, default 10
 }
 
-// Layout constants — MUST match collection_grid.go exactly so the hybrid grid
+// Layout constants - MUST match collection_grid.go exactly so the hybrid grid
 // looks identical to the static grid. These are referenced for overlay positioning.
 const (
 	HYBRID_CARD_W    = 240 // = COLL_CARD_W
@@ -82,13 +82,13 @@ const (
 	HYBRID_LABEL_H   = 25  // = COLL_LABEL_H
 )
 
-// maxAnimatedDownloadBytes — for animated GIFs / WebMs, abort the download if it
+// maxAnimatedDownloadBytes - for animated GIFs / WebMs, abort the download if it
 // exceeds this size.
 //
 // 💡 RAISED 2026-09-10 (was 5MB): the 5MB cap was set when T6 GIFs were
 // believed to be "1.5MB to 10MB", but a real sample of 14 shoob.gg T6/S GIFs
 // probed at 712KB / 2.2MB / 2.5MB / 5.7MB / 9.4MB / 11.4MB / 14.7MB / 18.9MB /
-// 20.3MB / 25MB / 31.9MB / 39.6MB — i.e. MOST animated cards blew the old cap.
+// 20.3MB / 25MB / 31.9MB / 39.6MB - i.e. MOST animated cards blew the old cap.
 // Every rejected card rendered as a still image in .jk coll / .jk deck.
 // 45MB covers the full observed range with headroom.
 //
@@ -113,7 +113,7 @@ func isAnimatedURL(url string) bool {
 //   - WebM: EBML header 0x1A45DFA3
 //
 // Files that are really JPEG/PNG (tier-heuristic "animated" cards with static
-// bodies) return false and are rendered as static — keeping them out of the
+// bodies) return false and are rendered as static - keeping them out of the
 // ffmpeg overlay chain, where one undecodable input aborts the whole render.
 func hasAnimatedMagic(path string) bool {
 	f, err := os.Open(path)
@@ -225,7 +225,7 @@ func GenerateHybridGrid(c *gin.Context) {
 	defer os.RemoveAll(tempDir)
 
 	// ── STEP 1: Download all cards (4-way parallel) ──────────────────────────
-	// 💡 PERF FIX 2026-09-10: downloads used to be strictly sequential — a
+	// 💡 PERF FIX 2026-09-10: downloads used to be strictly sequential - a
 	// deck holding ~200MB of GIFs spent 60s+ downloading alone and blew
 	// the bot's HTTP timeout (→ static fallback again). 4 concurrent
 	// workers cut wall time ~4x. Cards land in distinct slots, so the
@@ -233,7 +233,7 @@ func GenerateHybridGrid(c *gin.Context) {
 	// 💡 FIX 2026-09-11 (round 2): download EVERYTHING with the animated
 	// client (30s timeout + 45MB cap). An unflagged card can still BE
 	// animated (tier/URL heuristics miss e.g. animated 5-star cards whose
-	// URLs have no extension) — the old 8s no-cap static path timed out
+	// URLs have no extension) - the old 8s no-cap static path timed out
 	// or truncated on exactly those files.
 	animClient := &http.Client{Timeout: 30 * time.Second}
 	cards := make([]downloadedCard, len(req.Images))
@@ -260,7 +260,7 @@ func GenerateHybridGrid(c *gin.Context) {
 			// animated 5-star cards). Sniffing the actual bytes catches
 			// every GIF/WebM/animated-WebP regardless of tier or flag, and
 			// still keeps JPEG/PNG bodies out of the ffmpeg chain (the
-			// 2026-09-10 fix — one undecodable input aborts the render).
+			// 2026-09-10 fix - one undecodable input aborts the render).
 			isAnim := hasAnimatedMagic(filePath)
 			cards[i] = downloadedCard{
 				Path:     filePath,
@@ -286,12 +286,12 @@ func GenerateHybridGrid(c *gin.Context) {
 
 	// ── STEP 2: Generate styled static grid PNG (with ALL cards) ────────────
 	// This gives us: header, footer, tier borders, card names, tier badges,
-	// gradient header bar — everything the static grid has.
+	// gradient header bar - everything the static grid has.
 	// Animated GIFs will show their first frame in this static render.
 	//
 	// 💡 FIX 2026-09-10: pass the STEP 1 local files through CollCardInput.
 	// LocalPath so the renderer does NOT re-download every card (previously
-	// each card was fetched twice — brutal for decks holding 10-40MB GIFs).
+	// each card was fetched twice - brutal for decks holding 10-40MB GIFs).
 	collInputs := make([]CollCardInput, len(req.Images))
 	for i, input := range req.Images {
 		collInputs[i] = CollCardInput{
@@ -309,7 +309,7 @@ func GenerateHybridGrid(c *gin.Context) {
 		return
 	}
 
-	// Save the static PNG to disk — ffmpeg will read it as the background input.
+	// Save the static PNG to disk - ffmpeg will read it as the background input.
 	bgPath := filepath.Join(tempDir, "background.png")
 	if err := os.WriteFile(bgPath, bgPNG, 0644); err != nil {
 		c.JSON(500, gin.H{"error": "Failed to write background PNG"})
@@ -318,7 +318,7 @@ func GenerateHybridGrid(c *gin.Context) {
 	fmt.Printf("[HybridGrid] Static grid: %dx%d (%d bytes)\n", bgW, bgH, len(bgPNG))
 
 	// ── STEP 3: Check if any cards are animated ─────────────────────────────
-	// If none are animated, just return the static PNG — no need for ffmpeg.
+	// If none are animated, just return the static PNG - no need for ffmpeg.
 	// The bot will send it as an image (we return image/png content-type).
 	animCount := 0
 	for _, card := range cards {
@@ -328,7 +328,7 @@ func GenerateHybridGrid(c *gin.Context) {
 	}
 
 	if animCount == 0 {
-		fmt.Printf("[HybridGrid] No animated cards — returning static PNG (%d bytes, %dx%d)\n", len(bgPNG), bgW, bgH)
+		fmt.Printf("[HybridGrid] No animated cards - returning static PNG (%d bytes, %dx%d)\n", len(bgPNG), bgW, bgH)
 		c.Data(200, "image/png", bgPNG)
 		return
 	}
@@ -339,7 +339,7 @@ func GenerateHybridGrid(c *gin.Context) {
 	// Filtergraph: scale each animated input to card size, overlay at grid position
 	args := []string{"-y", "-loglevel", "error"}
 
-	// Background input — loop the static PNG for the full duration at the target fps
+	// Background input - loop the static PNG for the full duration at the target fps
 	args = append(args, "-loop", "1", "-framerate", fmt.Sprintf("%d", req.FPS),
 		"-t", fmt.Sprintf("%d", req.Duration), "-i", bgPath)
 
@@ -408,7 +408,7 @@ func GenerateHybridGrid(c *gin.Context) {
 	outputPath := filepath.Join(tempDir, "output.mp4")
 	args = append(args, outputPath)
 
-	fmt.Printf("[HybridGrid] Rendering %d cards (%d animated) — static grid + ffmpeg overlay, %ds @ %dfps\n",
+	fmt.Printf("[HybridGrid] Rendering %d cards (%d animated) - static grid + ffmpeg overlay, %ds @ %dfps\n",
 		len(cards), animCount, req.Duration, req.FPS)
 
 	// 💡 FIX 2026-09-11 (round 2): retry once before falling back. A 954MB
@@ -427,7 +427,7 @@ func GenerateHybridGrid(c *gin.Context) {
 		fmt.Printf("[HybridGrid] FFmpeg error (attempt %d/2): %v\nOutput: %s\n", attempt, ffErr, string(output))
 	}
 	if ffErr != nil {
-		// 💡 FIX 2026-09-10: don't 500 — the styled background PNG is already
+		// 💡 FIX 2026-09-10: don't 500 - the styled background PNG is already
 		// rendered and paid for. Returning it lets the bot send a proper
 		// static grid instantly instead of triggering a second full render.
 		c.Data(200, "image/png", bgPNG)
@@ -441,7 +441,7 @@ func GenerateHybridGrid(c *gin.Context) {
 	}
 
 	if len(data) < 100 {
-		c.JSON(500, gin.H{"error": "Output too small — render produced empty file"})
+		c.JSON(500, gin.H{"error": "Output too small - render produced empty file"})
 		return
 	}
 

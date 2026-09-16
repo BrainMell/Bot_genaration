@@ -1,4 +1,4 @@
-# 🚀 Go Image Service — Hugging Face Hybrid Architecture
+# 🚀 Go Image Service - Hugging Face Hybrid Architecture
 
 ## Overview
 
@@ -27,7 +27,7 @@ Bot → Render (24/7)
 
 ---
 
-## Part 1 — Hugging Face Setup
+## Part 1 - Hugging Face Setup
 
 ### Step 1: Create the Space
 1. Go to [huggingface.co/new-space](https://huggingface.co/new-space)
@@ -41,7 +41,7 @@ Bot → Render (24/7)
 
 ---
 
-## Part 2 — Render Setup
+## Part 2 - Render Setup
 
 ### Step 1: Deploy to Render
 1. Create a new **Web Service** on Render.
@@ -59,7 +59,7 @@ Bot → Render (24/7)
 
 ---
 
-## Part 3 — How Automation Works
+## Part 3 - How Automation Works
 
 - **Auto-Wake:** When a heavy request (like Pinterest) hits Render and the cache is empty, Render sends a `resume` signal to Hugging Face and waits for the Space to be healthy before forwarding the request.
 - **Auto-Pause:** The HF Space starts a 5-minute timer after every heavy request. If no new requests come in within 5 minutes, it sends itself a `pause` signal to stay within free tier limits.
@@ -67,7 +67,7 @@ Bot → Render (24/7)
 
 ---
 
-## Part 4 — Connect Your Bot
+## Part 4 - Connect Your Bot
 
 In your bot's `.env`:
 ```env
