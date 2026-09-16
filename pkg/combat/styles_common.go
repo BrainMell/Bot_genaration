@@ -5,9 +5,12 @@ package combat
 // Style 7 (Royal Decree) is the baked baseline and never routes here.
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"image"
+	_ "image/jpeg"
 	"strings"
 
 	"image-service/pkg/cardstyle"
@@ -77,7 +80,36 @@ func QAStyledRender(payload []byte) image.Image {
 	if err := json.Unmarshal(payload, &req); err != nil {
 		return nil
 	}
+	decodeEmblem(&req)
 	return renderStyledImage(req.Style, req.Kind, &req)
+}
+
+// decodeEmblem decodes req.Emblem (data URL or bare base64, png/jpeg) into
+// req.EmblemImg. Silently leaves EmblemImg nil on bad input - painters fall
+// back to the initial-letter crest.
+func decodeEmblem(req *portraitRequest) {
+	if req == nil || req.Emblem == "" || req.EmblemImg != nil {
+		return
+	}
+	raw := req.Emblem
+	if strings.HasPrefix(raw, "data:") {
+		if i := strings.Index(raw, ","); i >= 0 {
+			raw = raw[i+1:]
+		}
+	}
+	data, err := base64.StdEncoding.DecodeString(raw)
+	if err != nil {
+		return
+	}
+	img, _, derr := image.Decode(bytes.NewReader(data))
+	if derr != nil {
+		return
+	}
+	// keep memory sane - anything above 2048px is malicious/unwise
+	if b := img.Bounds(); b.Dx() > 2048 || b.Dy() > 2048 {
+		return
+	}
+	req.EmblemImg = img
 }
 
 // ── shared payload helpers ────────────────────────────────────────────

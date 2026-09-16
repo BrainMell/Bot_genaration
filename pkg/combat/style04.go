@@ -635,7 +635,11 @@ func s04GuildInfo(req *portraitRequest) *gg.Context {
 	// crest plaque
 	cy := y + 120.0
 	s04Page(dc, W/2-150, cy-70, 300, 190, p)
-	drawHeroFitted(dc, req, W/2, cy+2, 200, 110, *p)
+	if req.EmblemImg != nil {
+		cardstyle.FitEmblem(dc, req.EmblemImg, W/2, cy+2, 190, 100)
+	} else {
+		drawHeroFitted(dc, req, W/2, cy+2, 200, 110, *p)
+	}
 	cardstyle.Text(dc, cardstyle.FtCinzelDec, 18, strings.ToUpper(cardstyle.Sanitize(styledName(req))), W/2, cy+58, cardstyle.N(150, 78, 24, 255), 0.5, 0.5, 260, 11)
 
 	rows := req.Rows

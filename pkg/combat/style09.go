@@ -776,7 +776,16 @@ func s09GuildInfo(req *portraitRequest) *gg.Context {
 	dc.DrawCircle(sx+sw/2, ccy, 74)
 	dc.Fill()
 	cardstyle.EmberGlow(dc, sx+sw/2, ccy, 70, p.Accent)
-	cardstyle.Engrave(dc, cardstyle.FtCinzelDec, 56, firstRuneUpper(styledName(req)), sx+sw/2, ccy-2, cardstyle.Lighten(p.Ink, 16), cardstyle.Darken(p.Panel, 70), 0.5, 0.5, 120, 22)
+	if req.EmblemImg != nil {
+		dc.Push()
+		dc.DrawCircle(sx+sw/2, ccy, 60)
+		dc.Clip()
+		cardstyle.FitEmblem(dc, req.EmblemImg, sx+sw/2, ccy, 106, 106)
+		dc.Pop()
+		dc.ResetClip() // gg Pop() keeps the clip mask (found 2026-09-16)
+	} else {
+		cardstyle.Engrave(dc, cardstyle.FtCinzelDec, 56, firstRuneUpper(styledName(req)), sx+sw/2, ccy-2, cardstyle.Lighten(p.Ink, 16), cardstyle.Darken(p.Panel, 70), 0.5, 0.5, 120, 22)
+	}
 	if req.Motto != "" {
 		cardstyle.Engrave(dc, cardstyle.FtCinzel, 12, "\""+cardstyle.TruncateRunes(strings.ToUpper(cardstyle.Sanitize(req.Motto)), 56)+"\"", sx+sw/2, ccy+104, p.Muted, cardstyle.Darken(p.Panel, 60), 0.5, 0.5, sw-70, 9)
 	}

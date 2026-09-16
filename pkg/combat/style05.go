@@ -793,7 +793,11 @@ func s05GuildInfo(req *portraitRequest) *gg.Context {
 	bx, bw := 60.0, 210.0
 	by, bh := 132.0, H-132-84
 	s05Band(dc, bx, by, bw, bh, p)
-	s05Monogram(dc, bx+bw/2, by+110, firstRuneUpper(styledName(req)), 56, p)
+	if req.EmblemImg != nil {
+		cardstyle.FitEmblem(dc, req.EmblemImg, bx+bw/2, by+104, bw-50, 104)
+	} else {
+		s05Monogram(dc, bx+bw/2, by+110, firstRuneUpper(styledName(req)), 56, p)
+	}
 	cardstyle.Text(dc, cardstyle.FtInterSemi, 14, cardstyle.TruncateRunes(strings.ToUpper(cardstyle.Sanitize(styledName(req))), 16), bx+bw/2, by+160, p.Ink, 0.5, 0.5, bw-20, 9)
 	if req.Motto != "" {
 		cardstyle.Text(dc, cardstyle.FtInter, 10, "\""+cardstyle.TruncateRunes(strings.ToUpper(cardstyle.Sanitize(req.Motto)), 56)+"\"", bx+bw/2, by+186, p.Muted, 0.5, 0.5, bw-24, 8)

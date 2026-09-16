@@ -607,7 +607,16 @@ func s03GuildInfo(req *portraitRequest) *gg.Context {
 	dc.SetLineWidth(0.8)
 	dc.DrawCircle(W/2, y+64, 44)
 	dc.Stroke()
-	cardstyle.Text(dc, cardstyle.FtIMFell, 40, firstRuneUpper(styledName(req)), W/2, y+60, p.Accent, 0.5, 0.5, 80, 18)
+	if req.EmblemImg != nil {
+		dc.Push()
+		dc.DrawCircle(W/2, y+64, 42)
+		dc.Clip()
+		cardstyle.FitEmblem(dc, req.EmblemImg, W/2, y+64, 76, 76)
+		dc.Pop()
+		dc.ResetClip() // gg Pop() keeps the clip mask (found 2026-09-16)
+	} else {
+		cardstyle.Text(dc, cardstyle.FtIMFell, 40, firstRuneUpper(styledName(req)), W/2, y+60, p.Accent, 0.5, 0.5, 80, 18)
+	}
 	y += 142
 
 	s03SubHead(dc, 70, y, "THE CHARTER", p)

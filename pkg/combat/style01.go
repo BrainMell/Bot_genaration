@@ -624,7 +624,16 @@ func s01GuildInfo(req *portraitRequest) *gg.Context {
 		accent = cardstyle.N(hx.R, hx.G, hx.B, 255)
 	}
 	cardstyle.Shield(dc, W/2, 248, 150, 170, accent, cardstyle.Lighten(p.Panel, 60), 4)
-	cardstyle.Text(dc, cardstyle.FtCinzelDec, 52, firstRuneUpper(styledName(req)), W/2, 244, p.SealTx, 0.5, 0.5, 110, 24)
+	if req.EmblemImg != nil {
+		dc.Push()
+		dc.DrawCircle(W/2, 240, 62)
+		dc.Clip()
+		cardstyle.FitEmblem(dc, req.EmblemImg, W/2, 240, 116, 116)
+		dc.Pop()
+		dc.ResetClip() // gg Pop() keeps the clip mask (found 2026-09-16)
+	} else {
+		cardstyle.Text(dc, cardstyle.FtCinzelDec, 52, firstRuneUpper(styledName(req)), W/2, 244, p.SealTx, 0.5, 0.5, 110, 24)
+	}
 	name := styledName(req)
 	s01Slab(dc, W/2-280, 372, 560, 96, p)
 	cardstyle.Engrave(dc, cardstyle.FtCinzelDec, 26, strings.ToUpper(cardstyle.Sanitize(name)), W/2, 404, p.Ink, cardstyle.Lighten(p.Panel, 60), 0.5, 0.5, W-160, 14)

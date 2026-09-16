@@ -596,8 +596,14 @@ func s08GuildInfo(req *portraitRequest) *gg.Context {
 
 	// crest panel
 	s08HUDPanel(dc, W/2-150, y, 300, 220, p, "SIGIL")
-	drawHeroFitted(dc, req, W/2, y+120, 200, 130, *p)
-	cardstyle.Text(dc, cardstyle.FtPS2P, 14, firstRuneUpper(styledName(req)), W/2, y+180, cardstyle.HexA(0x40e0ff, 235), 0.5, 0.5, 90, 9)
+	if req.EmblemImg != nil {
+		cardstyle.FitEmblem(dc, req.EmblemImg, W/2, y+116, 190, 112)
+	} else {
+		drawHeroFitted(dc, req, W/2, y+120, 200, 130, *p)
+	}
+	if req.EmblemImg == nil {
+		cardstyle.Text(dc, cardstyle.FtPS2P, 14, firstRuneUpper(styledName(req)), W/2, y+180, cardstyle.HexA(0x40e0ff, 235), 0.5, 0.5, 90, 9)
+	}
 	name := styledName(req)
 	cardstyle.Text(dc, cardstyle.FtPS2P, 13, strings.ToUpper(cardstyle.Sanitize(name)), W/2, y+250, cardstyle.Hex(0xff9ecb), 0.5, 0.5, W-140, 9)
 	if req.Motto != "" {

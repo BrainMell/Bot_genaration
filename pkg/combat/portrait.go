@@ -364,6 +364,11 @@ type portraitRequest struct {
 	CtaSub   string          `json:"ctaSub"`
 	Slots    []portraitSlot  `json:"slots"`
 	Groups   []portraitGroup `json:"groups"`
+	// GUILDINFO (2026-09-17): uploaded guild emblem - data URL or bare
+	// base64 (png/jpeg), decoded once at dispatch into EmblemImg so every
+	// style painter (and the decree fallback) can draw the guild crest.
+	Emblem    string      `json:"emblem"`
+	EmblemImg image.Image `json:"-"`
 }
 
 // GeneratePortraitCard renders DUEL / QUEST portrait event cards (600x1000)
@@ -375,6 +380,7 @@ func GeneratePortraitCard(c *gin.Context) {
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
+	decodeEmblem(&req)
 	// 2026-09-16 v2 redesign: rebuilt per-style design systems
 	// (styles 1-6, 8-10). Style 0/7 keeps the canonical baked art.
 	if renderStyledCard(c, &req) {
