@@ -814,6 +814,9 @@ func renderAbilitiesCard(c *gin.Context, req *portraitRequest) {
         // the scroll was a fixed 1000x1400 — a 4-ability grimoire left
         // ~70% dead parchment. Height now follows the content.
         natH := 246.0
+        if strings.TrimSpace(req.DocQuote) != "" {
+                natH += 26
+        }
         for gi, g := range req.Groups {
                 if gi >= 6 {
                         break
@@ -872,7 +875,10 @@ func renderAbilitiesCard(c *gin.Context, req *portraitRequest) {
         for _, g := range req.Groups {
                 total += len(g.Items)
         }
-        title := "ABILITY GRIMOIRE"
+        title := strings.TrimSpace(req.DocTitle)
+        if title == "" {
+                title = "ABILITY GRIMOIRE"
+        }
         portraitFitText(dc, portraitAsset("CinzelDecBold.ttf"), 30, title, 620, 20)
         dc.SetRGB(52.0 / 255.0, 32.0 / 255.0, 16.0 / 255.0)
         dc.DrawStringAnchored(title, 500, 148, 0.5, 0.5)
@@ -880,6 +886,12 @@ func renderAbilitiesCard(c *gin.Context, req *portraitRequest) {
         dc.SetColor(portraitCol(170, 130, 60, 255))
         r6diamond(dc, 500-tw/2-34, 146, 6, portraitCol(170, 130, 60, 255))
         r6diamond(dc, 500+tw/2+34, 146, 6, portraitCol(170, 130, 60, 255))
+
+        if pageLabel := strings.TrimSpace(req.PageLabel); pageLabel != "" {
+                portraitFitText(dc, portraitAsset("Cinzel.ttf"), 15, pageLabel, 150, 10)
+                dc.SetColor(portraitCol(170, 130, 60, 230))
+                dc.DrawStringAnchored(pageLabel, 916, 118, 1, 0.5)
+        }
 
         classLine := strings.ToUpper(portraitSanitize(req.ClassName))
         if classLine == "" {
@@ -894,18 +906,36 @@ func renderAbilitiesCard(c *gin.Context, req *portraitRequest) {
         dc.SetRGB(120.0 / 255.0, 88.0 / 255.0, 40.0 / 255.0)
         dc.DrawStringAnchored(sub, 500, 190, 0.5, 0.5)
 
+        quoteY := 0.0
+        if quote := strings.TrimSpace(req.DocQuote); quote != "" {
+                quoteY = 1
+                q := portraitSanitize(quote)
+                portraitFitText(dc, portraitAsset("MedievalSharp.ttf"), 17, q, 780, 11)
+                dc.SetRGB(0.47, 0.34, 0.16)
+                dc.DrawStringAnchored(q, 500, 212, 0.5, 0.5)
+        }
+
+        divY := 214.0
+        groupStart := 246.0
+        if quoteY == 1 {
+                divY = 240.0
+                groupStart = 272.0
+        }
         dc.SetColor(portraitCol(170, 130, 60, 190))
         dc.SetLineWidth(1.5)
-        dc.DrawLine(150, 214, 850, 214)
+        dc.DrawLine(150, divY, 850, divY)
         dc.Stroke()
         dc.SetLineWidth(1)
-        dc.DrawLine(150, 219, 850, 219)
+        dc.DrawLine(150, divY+5, 850, divY+5)
         dc.Stroke()
-        r6diamond(dc, 500, 216, 4.5, portraitCol(170, 130, 60, 220))
+        r6diamond(dc, 500, divY+2, 4.5, portraitCol(170, 130, 60, 220))
 
         // ── groups ──
-        y := 246.0
+        y := groupStart
         abilityNo := 0
+        if req.StartNumber > 0 {
+                abilityNo = req.StartNumber - 1
+        }
         for gi, g := range req.Groups {
                 if gi >= 6 || y > H-220 {
                         break
@@ -997,10 +1027,23 @@ func renderAbilitiesCard(c *gin.Context, req *portraitRequest) {
                                 }
                         }
                         // cost / CD line
+                        tailX := 186.0
                         if tail != "" {
                                 portraitFitText(dc, portraitAsset("Cinzel.ttf"), 13, tail, 560, 8)
                                 dc.SetRGB(120.0 / 255.0, 88.0 / 255.0, 40.0 / 255.0)
                                 dc.DrawStringAnchored(tail, 186, y+41, 0, 0.5)
+                                if w, _ := dc.MeasureString(tail); w > 0 {
+                                        tailX = 186 + w + 14
+                                }
+                        }
+                        // effect runes (phases 4-6): DejaVu glyphs only — the
+                        // Cinzel/MedievalSharp faces have no symbol coverage.
+                        if it.Runes != "" {
+                                if face, ferr := utils.LoadFont("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16); ferr == nil {
+                                        dc.SetFontFace(face)
+                                        dc.SetRGB(0.58, 0.42, 0.15)
+                                        dc.DrawStringAnchored(it.Runes, tailX, y+41, 0, 0.5)
+                                }
                         }
 
                         // effect column (right)

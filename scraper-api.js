@@ -314,10 +314,118 @@ api.get('/powerscale', async (req, res) => {
     }
 });
 
+
+// ── FIX 2026-09-16: Cloudflare-proof VS Battles extraction ────────────
+// vsbattles.fandom.com/wiki/* now serves a Cloudflare "Just a moment..."
+// interstitial to headless browsers, so the old puppeteer scrape silently
+// returned empty fields. api.php is exempt and returns the full rendered
+// HTML — extract from that first; the browser path below stays as fallback.
+function vsbDecodeEntities(s) {
+    return String(s || '')
+        .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => { try { return String.fromCodePoint(parseInt(h, 16)); } catch (e) { return ' '; } })
+        .replace(/&#(\d+);/g, (_, d) => { try { return String.fromCodePoint(parseInt(d, 10)); } catch (e) { return ' '; } })
+        .replace(/&nbsp;|&#160;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#0?39;|&apos;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>');
+}
+
+function vsbExtractFromHtml(html, pageName, pageUrl) {
+    let body = html;
+    const ci = html.indexOf('id="mw-content-text"');
+    if (ci !== -1) body = html.slice(ci);
+
+    // image: infobox thumbnail first, else first clean static.wikia image
+    let imageURL = '';
+    const thumbA = /<img[^>]+(?:data-src|src)="([^"]+)"[^>]*class="[^"]*pi-image-thumbnail[^"]*"/i.exec(body);
+    const thumbB = /<img[^>]+class="[^"]*pi-image-thumbnail[^"]*"[^>]*(?:data-src|src)="([^"]+)"/i.exec(body);
+    const mimg = thumbA || thumbB;
+    if (mimg) imageURL = mimg[1];
+    if (!imageURL) {
+        // Prefer a reasonably-sized infobox image: skip icons/sprites/logos and
+        // tiny images (tabber form icons are often <100px wide).
+        const allRe = /<img[^>]+(?:data-src|src)="(https:\/\/static\.wikia\.nocookie\.net\/[^"]+)"[^>]*>/gi;
+        let am;
+        while ((am = allRe.exec(body))) {
+            const s = am[1];
+            const sl = s.toLowerCase();
+            if (sl.includes('wikia-visualization') || sl.includes('wiki-wordmark') || sl.includes('site-logo') || sl.includes('symbol') || sl.includes('favicon') || sl.includes('icon') || sl.includes('sprite')) continue;
+            const wRe = /width="(\d+)"/i.exec(am[0]);
+            if (wRe && parseInt(wRe[1], 10) < 120) continue;
+            imageURL = s;
+            break;
+        }
+    }
+    if (imageURL && imageURL.includes('/revision/')) imageURL = imageURL.split('/revision/')[0];
+
+    const text = vsbDecodeEntities(
+        body
+            .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+            .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+            .replace(/<sup[^>]*>[\s\S]*?<\/sup>/gi, '')
+            .replace(/<(br|\/p|\/div|\/li|\/h[1-6]|\/tr)[^>]*>/gi, '\n')
+            .replace(/<[^>]+>/g, ' ')
+    ).replace(/[ \t]+/g, ' ');
+
+    let summary = '';
+    const pm = body.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+    if (pm) {
+        summary = vsbDecodeEntities(pm[1].replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+        if (summary.length > 400) summary = summary.slice(0, 400) + '...';
+    }
+
+    const stats = {};
+    const statFields = ["Tier", "Attack Potency", "Speed", "Durability", "Stamina", "Range", "Striking Strength", "Lifting Strength", "Intelligence", "Standard Equipment"];
+    for (const field of statFields) {
+        const re = new RegExp(field + '\\s*:\\s*([^\\n]+)', 'i');
+        const mm = text.match(re);
+        if (mm) {
+            // VS Battles renders tabber forms side by side ("2-A | 2-A | ...") —
+            // the first segment is the base form, which is what players want.
+            let val = mm[1].trim().split('|')[0].trim();
+            val = val.replace(/\[[^\]]*\]/g, '').replace(/\([^)]*\)/g, '').trim();
+            if (val && val !== 'N/A' && val.length < 300) stats[field] = val;
+        }
+    }
+
+    return { name: pageName, imageUrl: imageURL, summary, stats, pageUrl: pageUrl };
+}
+
 // ── Powerscale Fetch ──────────────────────────────────────────────────
 api.get('/powerscale/fetch', async (req, res) => {
     const { url } = req.query;
     if (!url) return res.status(400).json({ error: 'URL required' });
+
+    // ── Fast path: MediaWiki API (Cloudflare-exempt, FIX 2026-09-16) ──
+    try {
+        const __mt = /\/wiki\/(.+)$/.exec(url || '');
+        if (__mt) {
+            const __title = decodeURIComponent(__mt[1].replace(/_/g, ' '));
+            const __api = `https://vsbattles.fandom.com/api.php?action=parse&page=${encodeURIComponent(__title)}&prop=text&format=json&redirects=1&disabletoc=1&disableeditsection=1`;
+            const __r = await fetch(__api, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'Accept': 'application/json',
+                },
+                signal: AbortSignal.timeout(20000),
+            });
+            if (__r.ok) {
+                const __j = await __r.json();
+                const __html = __j && __j.parse && __j.parse.text && __j.parse.text['*'];
+                if (__html && __html.length > 2000) {
+                    const __data = vsbExtractFromHtml(__html, (__j.parse && __j.parse.title) || __title, url);
+                    if (__data && __data.name && (Object.keys(__data.stats).length > 0 || __data.summary)) {
+                        console.log(`[PowerscaleFetch] MediaWiki OK: ${__data.name} stats=${Object.keys(__data.stats).length}`);
+                        return res.json(__data);
+                    }
+                }
+            }
+        }
+    } catch (__e) {
+        console.error('[PowerscaleFetch] MediaWiki path failed, browser fallback:', __e.message);
+    }
 
     try {
         const b = await getBrowser();

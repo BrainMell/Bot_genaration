@@ -267,6 +267,7 @@ type portraitEntry struct {
         Icon  string `json:"icon"`
         Sub   string `json:"sub"`
         Value string `json:"value"`
+        Runes string `json:"runes"` // effect runes (DejaVu-safe symbols, phases 4-6)
 }
 
 // portraitSlot — one equipment plate on the EQUIP armory board.
@@ -349,6 +350,14 @@ type portraitRequest struct {
         SpentLeft    string `json:"spentLeft"`
         // r5 kinds (2026-09-14): SHOP / EQUIP / ABILITIES
         Entries []portraitEntry `json:"entries"`
+        // phase 8 (2026-09-16): player's cardstyle — 1-10, 0/unset = Royal
+        // Decree baked art. RANK/ALLOCATE render through the themed shell.
+        Style       int    `json:"style"`
+        // ABILITIES codex identity + pagination (2026-09-16, phases 4-6)
+        DocTitle    string `json:"docTitle"`
+        DocQuote    string `json:"docQuote"`
+        PageLabel   string `json:"pageLabel"`
+        StartNumber int    `json:"startNumber"`
         Slots   []portraitSlot  `json:"slots"`
         Groups  []portraitGroup `json:"groups"`
 }
@@ -390,24 +399,40 @@ func GeneratePortraitCard(c *gin.Context) {
         }
 
         dc := gg.NewContext(int(portraitW), int(portraitH))
-        bgFile := "bg_DUEL.png"
-        if req.Kind == "QUEST" {
-                bgFile = "bg_QUEST.png"
-        } else if req.Kind == "TRIAL" {
-                bgFile = "bg_TRIAL.png"
-        } else if req.Kind == "RANK" {
-                bgFile = "bg_RANK.png"
-        } else if req.Kind == "ALLOCATE" {
-                bgFile = "bg_ALLOCATE.png"
-        } else if req.Kind == "ABYSS_ENTRY" || req.Kind == "ABYSS_RESULT" {
-                bgFile = "bg_ABYSS.png"
-        }
-        if bgImg, err := utils.LoadImage(portraitAsset(bgFile)); err == nil {
-                dc.DrawImage(bgImg, 0, 0)
+        // phase 8 (2026-09-16): cardstyle theme system. RANK/ALLOCATE render
+        // through drawPortraitShell when the player picked a style (1-6, 8-10);
+        // style 0/7 keeps the canonical Royal Decree baked art. The ink
+        // palette (_th) defaults to the decree values so every existing
+        // literal keeps its exact output.
+        _themed := resolveTheme(req.Style)
+        _useShell := _themed != nil && (req.Kind == "RANK" || req.Kind == "ALLOCATE")
+        if _useShell {
+                drawPortraitShell(dc, _themed, req.Kind)
         } else {
-                dc.SetRGB(0.09, 0.06, 0.04)
-                dc.DrawRectangle(0, 0, portraitW, portraitH)
-                dc.Fill()
+                bgFile := "bg_DUEL.png"
+                if req.Kind == "QUEST" {
+                        bgFile = "bg_QUEST.png"
+                } else if req.Kind == "TRIAL" {
+                        bgFile = "bg_TRIAL.png"
+                } else if req.Kind == "RANK" {
+                        bgFile = "bg_RANK.png"
+                } else if req.Kind == "ALLOCATE" {
+                        bgFile = "bg_ALLOCATE.png"
+                } else if req.Kind == "ABYSS_ENTRY" || req.Kind == "ABYSS_RESULT" {
+                        bgFile = "bg_ABYSS.png"
+                }
+                if bgImg, err := utils.LoadImage(portraitAsset(bgFile)); err == nil {
+                        dc.DrawImage(bgImg, 0, 0)
+                } else {
+                        dc.SetRGB(0.09, 0.06, 0.04)
+                        dc.DrawRectangle(0, 0, portraitW, portraitH)
+                        dc.Fill()
+                }
+                _themed = nil
+        }
+        _th := decreeTheme()
+        if _themed != nil {
+                _th = *_themed
         }
 
         // ── name plate (winner name / party name) ──
@@ -416,14 +441,14 @@ func GeneratePortraitCard(c *gin.Context) {
                 name = "Adventurer"
         }
         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 28, name, 215, 12)
-        dc.SetRGB(214.0/255.0, 170.0/255.0, 82.0/255.0)
+        dc.SetColor(_th.PlateTx)
         dc.DrawStringAnchored(name, 84, 159, 0, 0.5)
 
         if req.Kind == "RANK" {
                 // ── THE RECORD (top section, y266..y492): big level + rank + XP bar ──
                 lvl := fmt.Sprintf("LEVEL %d", req.Level)
                 portraitFitText(dc, portraitAsset("Cinzel.ttf"), 56, lvl, 380, 30)
-                dc.SetRGB(52.0/255.0, 32.0/255.0, 16.0/255.0)
+                dc.SetColor(_th.Ink)
                 dc.DrawStringAnchored(lvl, 300, 306, 0.5, 0.5)
 
                 rankLine := req.RankLine
@@ -432,8 +457,7 @@ func GeneratePortraitCard(c *gin.Context) {
                 }
                 rankLine = strings.ToUpper(portraitSanitize(rankLine))
                 if rankLine != "" {
-                        portraitPillCentred(dc, rankLine, 300, 371,
-                                portraitCol(96, 62, 24, 235), portraitCol(244, 214, 140, 255))
+                        portraitPillCentred(dc, rankLine, 300, 371, _th.PillBg, _th.PillTx)
                 }
 
                 // XP bar: dark track + gold fill by percent + quarter ticks
@@ -444,7 +468,7 @@ func GeneratePortraitCard(c *gin.Context) {
                 if pct > 100 {
                         pct = 100
                 }
-                dc.SetColor(portraitCol(54, 36, 18, 255))
+                dc.SetColor(_th.Track)
                 dc.DrawRoundedRectangle(85, 402, 430, 26, 10)
                 dc.Fill()
                 fillW := 430.0 * float64(pct) / 100.0
@@ -452,18 +476,18 @@ func GeneratePortraitCard(c *gin.Context) {
                         fillW = 430
                 }
                 if fillW > 4 {
-                        dc.SetColor(portraitCol(214, 170, 82, 255))
+                        dc.SetColor(_th.Fill)
                         dc.DrawRoundedRectangle(85, 402, fillW, 26, 10)
                         dc.Fill()
-                        dc.SetColor(portraitCol(240, 205, 120, 90))
+                        dc.SetColor(_th.FillHi)
                         dc.DrawRoundedRectangle(85, 402, fillW, 10, 8)
                         dc.Fill()
                 }
-                dc.SetColor(portraitCol(170, 130, 60, 255))
+                dc.SetColor(_th.Gold)
                 dc.SetLineWidth(2)
                 dc.DrawRoundedRectangle(85, 402, 430, 26, 10)
                 dc.Stroke()
-                dc.SetColor(portraitCol(120, 88, 40, 130))
+                dc.SetColor(alphaN(_th.Muted, 130))
                 dc.SetLineWidth(1)
                 for _, t := range []float64{0.25, 0.5, 0.75} {
                         tx := 85 + 430*t
@@ -474,12 +498,12 @@ func GeneratePortraitCard(c *gin.Context) {
                 // under-bar strings: progress (left) · xp left to progress (right)
                 if req.XPNow != "" {
                         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 18, portraitSanitize(req.XPNow), 200, 10)
-                        dc.SetRGB(84.0/255.0, 96.0/255.0, 44.0/255.0)
+                        dc.SetColor(_th.Sub)
                         dc.DrawStringAnchored(portraitSanitize(req.XPNow), 85, 452, 0, 0.5)
                 }
                 if req.XPLeft != "" {
                         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 18, portraitSanitize(req.XPLeft), 240, 10)
-                        dc.SetRGB(52.0/255.0, 32.0/255.0, 16.0/255.0)
+                        dc.SetColor(_th.Ink)
                         dc.DrawStringAnchored(portraitSanitize(req.XPLeft), 515, 452, 1, 0.5)
                 }
 
@@ -501,10 +525,10 @@ func GeneratePortraitCard(c *gin.Context) {
                                         lx, vx = 320.0, 515.0
                                 }
                                 portraitFitText(dc, portraitAsset("Cinzel.ttf"), 14, portraitSanitize(sr.Label), 118, 9)
-                                dc.SetRGB(120.0/255.0, 88.0/255.0, 40.0/255.0)
+                                dc.SetColor(_th.Muted)
                                 dc.DrawStringAnchored(portraitSanitize(sr.Label), lx, yy, 0, 0.5)
                                 portraitFitText(dc, portraitAsset("Cinzel.ttf"), 14, portraitSanitize(sr.Value), vx-lx-12, 9)
-                                dc.SetRGB(52.0/255.0, 32.0/255.0, 16.0/255.0)
+                                dc.SetColor(_th.Ink)
                                 dc.DrawStringAnchored(portraitSanitize(sr.Value), vx, yy, 1, 0.5)
                         }
                 }
@@ -519,7 +543,7 @@ func GeneratePortraitCard(c *gin.Context) {
                 if title == "" {
                         title = "PROGRESSION"
                 }
-                dc.SetColor(portraitCol(170, 130, 60, 110))
+                dc.SetColor(alphaN(_th.Gold, 110))
                 dc.SetLineWidth(1.5)
                 dc.DrawLine(85, 646, 515, 646)
                 dc.Stroke()
@@ -528,10 +552,10 @@ func GeneratePortraitCard(c *gin.Context) {
                 if ctw > 360 {
                         ctw = 360
                 }
-                dc.SetColor(portraitCol(96, 62, 24, 235))
+                dc.SetColor(_th.PillBg)
                 dc.DrawRoundedRectangle(85, 658, ctw+26, 26, 11)
                 dc.Fill()
-                dc.SetRGB(244.0/255.0, 214.0/255.0, 140.0/255.0)
+                dc.SetColor(_th.PillTx)
                 dc.DrawStringAnchored(title, 98, 671, 0, 0.5)
 
                 barY := 698.0
@@ -540,7 +564,7 @@ func GeneratePortraitCard(c *gin.Context) {
                                 break
                         }
                         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 14, portraitSanitize(p.Label), 128, 9)
-                        dc.SetRGB(120.0/255.0, 88.0/255.0, 40.0/255.0)
+                        dc.SetColor(_th.Muted)
                         dc.DrawStringAnchored(portraitSanitize(p.Label), 85, barY, 0, 0.5)
 
                         pct := 0.0
@@ -556,13 +580,13 @@ func GeneratePortraitCard(c *gin.Context) {
                                 pct = 1
                         }
                         trackX, trackW, trackH := 225.0, 220.0, 12.0
-                        dc.SetColor(portraitCol(54, 36, 18, 255))
+                        dc.SetColor(_th.Track)
                         dc.DrawRoundedRectangle(trackX, barY-trackH/2, trackW, trackH, 6)
                         dc.Fill()
                         fillW := trackW * pct
-                        fillCol := portraitCol(214, 170, 82, 255)
+                        fillCol := _th.Fill
                         if p.Done {
-                                fillCol = portraitCol(110, 160, 80, 255)
+                                fillCol = _th.Done
                         }
                         if fillW > 3 {
                                 dc.SetColor(fillCol)
@@ -572,7 +596,7 @@ func GeneratePortraitCard(c *gin.Context) {
                                 dc.DrawRoundedRectangle(trackX, barY-trackH/2, fillW, 5, 5)
                                 dc.Fill()
                         }
-                        dc.SetColor(portraitCol(170, 130, 60, 200))
+                        dc.SetColor(alphaN(_th.Gold, 200))
                         dc.SetLineWidth(1.5)
                         dc.DrawRoundedRectangle(trackX, barY-trackH/2, trackW, trackH, 6)
                         dc.Stroke()
@@ -583,15 +607,20 @@ func GeneratePortraitCard(c *gin.Context) {
                         }
                         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 13, valTxt, 80, 8)
                         if p.Done {
-                                dc.SetRGB(96.0/255.0, 140.0/255.0, 70.0/255.0)
+                                dc.SetColor(_th.Done)
                         } else {
-                                dc.SetRGB(52.0/255.0, 32.0/255.0, 16.0/255.0)
+                                dc.SetColor(_th.Ink)
                         }
                         dc.DrawStringAnchored(valTxt, 515, barY, 1, 0.5)
                         barY += 29
                 }
-                portraitWaxSeal(dc, portraitSanitize(req.SealText))
-                portraitCaption(dc, portraitSanitize(req.Caption))
+                if _useShell {
+                        drawThemedSeal(dc, &_th, portraitSanitize(req.SealText), portraitSealX, portraitSealY, portraitSealR)
+                        drawThemedCaption(dc, &_th, portraitSanitize(req.Caption))
+                } else {
+                        portraitWaxSeal(dc, portraitSanitize(req.SealText))
+                        portraitCaption(dc, portraitSanitize(req.Caption))
+                }
         } else if req.Kind == "ALLOCATE" {
                 // ── THE POINTS (top section, y266..y492) — mirrors RANK's RECORD ──
                 big := strings.ToUpper(portraitSanitize(req.PointsBig))
@@ -599,13 +628,12 @@ func GeneratePortraitCard(c *gin.Context) {
                         big = "0 POINTS"
                 }
                 portraitFitText(dc, portraitAsset("Cinzel.ttf"), 56, big, 380, 30)
-                dc.SetRGB(52.0/255.0, 32.0/255.0, 16.0/255.0)
+                dc.SetColor(_th.Ink)
                 dc.DrawStringAnchored(big, 300, 306, 0.5, 0.5)
 
                 pillTxt := strings.ToUpper(portraitSanitize(req.Pill))
                 if pillTxt != "" {
-                        portraitPillCentred(dc, pillTxt, 300, 371,
-                                portraitCol(96, 62, 24, 235), portraitCol(244, 214, 140, 255))
+                        portraitPillCentred(dc, pillTxt, 300, 371, _th.PillBg, _th.PillTx)
                 }
 
                 // spent bar: same geometry as RANK's XP bar (track (85,402) 430x26)
@@ -616,7 +644,7 @@ func GeneratePortraitCard(c *gin.Context) {
                 if pct > 100 {
                         pct = 100
                 }
-                dc.SetColor(portraitCol(54, 36, 18, 255))
+                dc.SetColor(_th.Track)
                 dc.DrawRoundedRectangle(85, 402, 430, 26, 10)
                 dc.Fill()
                 fillW := 430.0 * float64(pct) / 100.0
@@ -624,18 +652,18 @@ func GeneratePortraitCard(c *gin.Context) {
                         fillW = 430
                 }
                 if fillW > 4 {
-                        dc.SetColor(portraitCol(214, 170, 82, 255))
+                        dc.SetColor(_th.Fill)
                         dc.DrawRoundedRectangle(85, 402, fillW, 26, 10)
                         dc.Fill()
-                        dc.SetColor(portraitCol(240, 205, 120, 90))
+                        dc.SetColor(_th.FillHi)
                         dc.DrawRoundedRectangle(85, 402, fillW, 10, 8)
                         dc.Fill()
                 }
-                dc.SetColor(portraitCol(170, 130, 60, 255))
+                dc.SetColor(_th.Gold)
                 dc.SetLineWidth(2)
                 dc.DrawRoundedRectangle(85, 402, 430, 26, 10)
                 dc.Stroke()
-                dc.SetColor(portraitCol(120, 88, 40, 130))
+                dc.SetColor(alphaN(_th.Muted, 130))
                 dc.SetLineWidth(1)
                 for _, t := range []float64{0.25, 0.5, 0.75} {
                         tx := 85 + 430*t
@@ -644,12 +672,12 @@ func GeneratePortraitCard(c *gin.Context) {
                 }
                 if req.SpentNow != "" {
                         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 18, portraitSanitize(req.SpentNow), 200, 10)
-                        dc.SetRGB(84.0/255.0, 96.0/255.0, 44.0/255.0)
+                        dc.SetColor(_th.Sub)
                         dc.DrawStringAnchored(portraitSanitize(req.SpentNow), 85, 452, 0, 0.5)
                 }
                 if req.SpentLeft != "" {
                         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 18, portraitSanitize(req.SpentLeft), 240, 10)
-                        dc.SetRGB(52.0/255.0, 32.0/255.0, 16.0/255.0)
+                        dc.SetColor(_th.Ink)
                         dc.DrawStringAnchored(portraitSanitize(req.SpentLeft), 515, 452, 1, 0.5)
                 }
 
@@ -660,7 +688,7 @@ func GeneratePortraitCard(c *gin.Context) {
                                 break
                         }
                         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 20, portraitSanitize(row.Label), 200, 11)
-                        dc.SetRGB(120.0/255.0, 88.0/255.0, 40.0/255.0)
+                        dc.SetColor(_th.Muted)
                         dc.DrawStringAnchored(portraitSanitize(row.Label), 85, rowY, 0, 0.5)
                         if row.Sub != "" {
                                 portraitFitText(dc, portraitAsset("Cinzel.ttf"), 16, portraitSanitize(row.Sub), 110, 9)
