@@ -397,12 +397,20 @@ func renderGuildInfoCard(c *gin.Context, req *portraitRequest) {
 // ─────────────────────────────────────────────────────────────────
 func renderSkillUpCard(c *gin.Context, req *portraitRequest) {
         dc := gg.NewContext(600, 1000)
-        if bgImg, err := utils.LoadImage(portraitAsset("bg_SKILLUP.png")); err == nil {
+        // phase 8: themed SKILLUP — same geometry as bg_SKILLUP.png bake.
+        _themed := resolveTheme(req.Style)
+        if _themed != nil {
+                drawPortraitShell(dc, _themed, "SKILLUP")
+        } else if bgImg, err := utils.LoadImage(portraitAsset("bg_SKILLUP.png")); err == nil {
                 dc.DrawImage(bgImg, 0, 0)
         } else {
                 dc.SetRGB(0.09, 0.06, 0.04)
                 dc.DrawRectangle(0, 0, 600, 1000)
                 dc.Fill()
+        }
+        _th := decreeTheme()
+        if _themed != nil {
+                _th = *_themed
         }
 
         // hero name on the plate
@@ -411,7 +419,7 @@ func renderSkillUpCard(c *gin.Context, req *portraitRequest) {
                 name = "Adventurer"
         }
         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 26, name, 215, 12)
-        dc.SetRGB(214.0/255.0, 170.0/255.0, 82.0/255.0)
+        dc.SetColor(_th.PlateTx)
         dc.DrawStringAnchored(name, 84, 159, 0, 0.5)
 
         accent := tierAccent(req.Tier, req.Ascended)
@@ -563,6 +571,51 @@ func paintRpgBoard(dc *gg.Context, w, h float64, banner, nickname string) float6
         }
         portraitFitText(dc, portraitAsset("Cinzel.ttf"), 22, nameTxt, w-220, 12)
         dc.SetRGB(214.0/255.0, 170.0/255.0, 82.0/255.0)
+        dc.DrawStringAnchored(nameTxt, 60, 146, 0, 0.5)
+
+        return 180
+}
+
+// paintRpgBoardThemed — phase 8 (2026-09-16): the same board geometry as
+// paintRpgBoard, driven by a cardTheme. Keep zone positions byte-identical
+// so callers don't need to know which variant ran.
+func paintRpgBoardThemed(dc *gg.Context, w, h float64, banner, nickname string, th *cardTheme) float64 {
+        dc.SetColor(th.Bg2)
+        dc.DrawRectangle(0, 0, w, h)
+        dc.Fill()
+        dc.SetColor(th.PanelEd)
+        for y := 60.0; y < h; y += 60 {
+                dc.SetLineWidth(1)
+                dc.DrawLine(0, y, w, y)
+                dc.Stroke()
+        }
+        dc.SetColor(th.Gold)
+        dc.SetLineWidth(4)
+        dc.DrawRoundedRectangle(14, 14, w-28, h-28, 14)
+        dc.Stroke()
+        dc.SetColor(alphaN(th.Gold, 160))
+        dc.SetLineWidth(2)
+        dc.DrawRoundedRectangle(26, 26, w-52, h-52, 10)
+        dc.Stroke()
+
+        bannerTxt := portraitSanitize(banner)
+        portraitFitText(dc, portraitAsset("Cinzel.ttf"), 34, bannerTxt, w-260, 22)
+        dc.SetColor(th.Banner)
+        dc.DrawRoundedRectangle(w/2-260, 48, 520, 64, 12)
+        dc.Fill()
+        dc.SetColor(th.BannerEdge)
+        dc.SetLineWidth(3)
+        dc.DrawRoundedRectangle(w/2-260, 48, 520, 64, 12)
+        dc.Stroke()
+        dc.SetColor(th.BannerTx)
+        dc.DrawStringAnchored(bannerTxt, w/2, 80, 0.5, 0.5)
+
+        nameTxt := portraitSanitize(nickname)
+        if nameTxt == "" {
+                nameTxt = "Adventurer"
+        }
+        portraitFitText(dc, portraitAsset("Cinzel.ttf"), 22, nameTxt, w-220, 12)
+        dc.SetColor(th.PlateTx)
         dc.DrawStringAnchored(nameTxt, 60, 146, 0, 0.5)
 
         return 180

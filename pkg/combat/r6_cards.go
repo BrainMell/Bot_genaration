@@ -530,7 +530,13 @@ func renderSkillTreeCard(c *gin.Context, req *portraitRequest) {
 
 func renderEquipCard(c *gin.Context, req *portraitRequest) {
         dc := gg.NewContext(1500, 1000)
-        paintRpgBoard(dc, 1500, 1000, "THE ARMORY", req.Nickname)
+        // phase 8: themed armory board (style 0/7 = decree baked look)
+        _eqTh := resolveTheme(req.Style)
+        if _eqTh != nil {
+                paintRpgBoardThemed(dc, 1500, 1000, "THE ARMORY", req.Nickname, _eqTh)
+        } else {
+                paintRpgBoard(dc, 1500, 1000, "THE ARMORY", req.Nickname)
+        }
 
         slots := req.Slots
         filled, tierSum, damaged := 0, 0, 0
@@ -548,14 +554,24 @@ func renderEquipCard(c *gin.Context, req *portraitRequest) {
                 avgTier = float64(tierSum) / float64(filled)
         }
 
-        // ── LEFT hero panel ──
-        dc.SetColor(portraitCol(22, 15, 9, 252))
-        dc.DrawRoundedRectangle(60, 200, 410, 730, 16)
-        dc.Fill()
-        dc.SetColor(portraitCol(214, 170, 82, 255))
-        dc.SetLineWidth(2.5)
-        dc.DrawRoundedRectangle(60, 200, 410, 730, 16)
-        dc.Stroke()
+        // ── LEFT hero panel ── (phase 8: themed plate + accent)
+        if _eqTh != nil {
+                dc.SetColor(darken(_eqTh.Plate, 20))
+                dc.DrawRoundedRectangle(60, 200, 410, 730, 16)
+                dc.Fill()
+                dc.SetColor(_eqTh.Gold)
+                dc.SetLineWidth(2.5)
+                dc.DrawRoundedRectangle(60, 200, 410, 730, 16)
+                dc.Stroke()
+        } else {
+                dc.SetColor(portraitCol(22, 15, 9, 252))
+                dc.DrawRoundedRectangle(60, 200, 410, 730, 16)
+                dc.Fill()
+                dc.SetColor(portraitCol(214, 170, 82, 255))
+                dc.SetLineWidth(2.5)
+                dc.DrawRoundedRectangle(60, 200, 410, 730, 16)
+                dc.Stroke()
+        }
         dc.SetColor(portraitCol(0, 0, 0, 80))
         dc.SetLineWidth(1)
         dc.DrawRoundedRectangle(70, 210, 390, 710, 12)
@@ -613,10 +629,18 @@ func renderEquipCard(c *gin.Context, req *portraitRequest) {
                         dc.DrawRoundedRectangle(500, y, 940, rowH, 10)
                         dc.Stroke()
                 } else {
-                        dc.SetColor(portraitCol(232, 214, 170, 238))
+                        if _eqTh != nil {
+                                dc.SetColor(alphaN(_eqTh.Panel, 238))
+                        } else {
+                                dc.SetColor(portraitCol(232, 214, 170, 238))
+                        }
                         dc.DrawRoundedRectangle(500, y, 940, rowH, 10)
                         dc.Fill()
-                        dc.SetColor(portraitCol(170, 130, 60, 255))
+                        if _eqTh != nil {
+                                dc.SetColor(_eqTh.Gold)
+                        } else {
+                                dc.SetColor(portraitCol(170, 130, 60, 255))
+                        }
                         dc.SetLineWidth(2)
                         dc.DrawRoundedRectangle(500, y, 940, rowH, 10)
                         dc.Stroke()

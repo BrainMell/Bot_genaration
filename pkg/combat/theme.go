@@ -253,6 +253,8 @@ func themeTopLabelFor(kind string) string {
 		return "THE RECORD"
 	case "ALLOCATE":
 		return "THE POINTS"
+	case "SKILLUP":
+		return "THE MASTERY"
 	}
 	return "THE RECORD"
 }
