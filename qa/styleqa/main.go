@@ -74,7 +74,35 @@ func econPayloads() map[string]economy.TransactionCardRequest {
 	d.Details = "B-RANK -> A-RANK"
 	d.SealText = "A"
 	out["DECREE"] = d
+	// money movement kinds (2026-09-16): one flow per direction
+	mv := map[string]struct {
+		amount float64
+		wallet float64
+		bank   float64
+		det    string
+	}{
+		"TRANSFER": {2500, 9950, 4200, "to a fellow adventurer"},
+		"DEPOSIT":  {4000, 8450, 8200, "locked in the vault"},
+		"WITHDRAW": {1500, 13950, 2700, "coin in hand again"},
+	}
+	for t, m := range mv {
+		r := base
+		r.Type = t
+		r.Amount = m.amount
+		r.NewWallet = m.wallet
+		r.NewBank = m.bank
+		r.Details = m.det
+		out[t] = r
+	}
 	return out
+}
+
+// balancePayload - the themed treasury register (econ_style_money.go).
+func balancePayload() economy.EconomyCardRequest {
+	return economy.EconomyCardRequest{
+		Nickname: "Kaelen", Wallet: 12450, Bank: 68000, Total: 80450,
+		Frozen: 0, ZeniSymbol: "Z", Rank: "B", Level: 24, Style: 1,
+	}
 }
 
 func main() {
@@ -110,7 +138,7 @@ func main() {
 			count++
 			fmt.Println(name)
 		}
-		for _, t := range []string{"CRAFT", "BREW", "COOK", "FORGE", "FISH", "DECREE"} {
+		for _, t := range []string{"CRAFT", "BREW", "COOK", "FORGE", "FISH", "DECREE", "TRANSFER", "DEPOSIT", "WITHDRAW"} {
 			req := econPayloads()[t]
 			req.Style = st
 			img := economy.QAStyledEconomy(&req)
@@ -119,6 +147,22 @@ func main() {
 				continue
 			}
 			name := filepath.Join(*out, fmt.Sprintf("S%02d_%s.png", st, t))
+			f, err := os.Create(name)
+			if err != nil {
+				panic(err)
+			}
+			if err := png.Encode(f, img); err != nil {
+				panic(err)
+			}
+			f.Close()
+			count++
+			fmt.Println(name)
+		}
+		// themed balance card
+		b := balancePayload()
+		b.Style = st
+		if img := economy.QAStyledBalance(&b); img != nil {
+			name := filepath.Join(*out, fmt.Sprintf("S%02d_BALANCE.png", st))
 			f, err := os.Create(name)
 			if err != nil {
 				panic(err)

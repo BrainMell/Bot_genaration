@@ -102,6 +102,7 @@ func s09Stele(dc *gg.Context, x, y, w, h float64, p *cardstyle.Palette) (float64
         cardstyle.GlyphCol(dc, x+22, y+apex+30, y+h-30, 54, cardstyle.N(255, 255, 255, 15))
         cardstyle.GlyphCol(dc, x+w-34, y+apex+30, y+h-30, 54, cardstyle.N(255, 255, 255, 15))
         dc.Pop()
+        dc.ResetClip() // gg Pop() keeps the clip mask (found 2026-09-16)
 
         // inner carved groove following the silhouette
         in := 14.0

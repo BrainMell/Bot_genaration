@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"os"
 	"strings"
 
 	"image-service/pkg/utils"
@@ -20,9 +21,21 @@ import (
 )
 
 // ResolveFont maps a kit font token to an absolute path on disk.
+// v3: probes the known font homes so a missing file can never silently
+// fall back to the previously-loaded face (which cascaded into giant
+// wrong-font text across every style).
 func ResolveFont(token string) string {
 	if strings.Contains(token, "/") {
-		return utils.GetAssetPath("rpgasset", "ui", token)
+		p := utils.GetAssetPath("rpgasset", "ui", token)
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	for _, h := range []string{"craft/" + token, "craft/fonts/" + token, token} {
+		p := utils.GetAssetPath("rpgasset", "ui", h)
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
 	}
 	return utils.GetAssetPath("rpgasset", "ui", "craft/"+token)
 }
@@ -774,9 +787,17 @@ func Sanitize(s string) string {
 		if r < 32 {
 			continue
 		}
+		// 2026-09-16: the theme faces (Cinzel/IM Fell/PressStart/Inter) carry
+		// no emoji or misc-symbol glyphs - anything outside the covered
+		// ranges renders as tofu boxes. Drop them so cards never show boxes.
+		if (r >= 0x2190 && r <= 0x2BFF) || // arrows, math symbols, dingbats
+			(r >= 0x1F000) || // emoji planes
+			r == 0xFE0F || r == 0x200D || r == 0x20E3 { // VS16, ZWJ, keycap
+			continue
+		}
 		b.WriteRune(r)
 	}
-	return b.String()
+	return strings.Join(strings.Fields(b.String()), " ")
 }
 
 // TruncateRunes limits a string to n runes with ellipsis.

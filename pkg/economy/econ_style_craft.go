@@ -30,6 +30,11 @@ func renderStyledEconomy(req *TransactionCardRequest) image.Image {
         if req == nil || req.Style <= 0 || req.Style == 7 || req.Style > 10 {
                 return nil
         }
+        // money movement (TRANSFER/DEPOSIT/WITHDRAW) has its own per-style
+        // compositions - see econ_style_money.go
+        if isMoneyKind(req.Type) {
+                return renderStyledMoney(req)
+        }
         if !styledEconomyKinds(req.Type) {
                 return nil
         }
@@ -443,6 +448,7 @@ func econStyle09(req *TransactionCardRequest) image.Image {
         cardstyle.GlyphCol(dc, sx+24, sy+apex+16, sy+sh-18, 44, cardstyle.N(255, 255, 255, 15))
         cardstyle.GlyphCol(dc, sx+sw-36, sy+apex+16, sy+sh-18, 44, cardstyle.N(255, 255, 255, 15))
         dc.Pop()
+        dc.ResetClip() // gg Pop() keeps the clip mask - see econ_style_money.go
         stele(sx+14, sy+10, sw-28, sh-20, apex*0.8)
         dc.SetColor(cardstyle.N(0, 0, 0, 120))
         dc.SetLineWidth(2)

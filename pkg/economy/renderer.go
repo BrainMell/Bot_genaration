@@ -30,6 +30,7 @@ type EconomyCardRequest struct {
         Rank       string  `json:"rank"`
         Level      int     `json:"level"`
         PfpUrl     string  `json:"pfpUrl"`
+        Style      int     `json:"style"` // player cardstyle (1-10; 0/7 = Kenney base)
 }
 
 func GenerateEconomyCard(c *gin.Context) {
@@ -43,6 +44,13 @@ func GenerateEconomyCard(c *gin.Context) {
         }
         if req.Nickname == "" {
                 req.Nickname = "Adventurer"
+        }
+
+        // 2026-09-16: themed vault for styles 1-6, 8-10 (see
+        // econ_style_money.go); styles 0/7 keep the Kenney base art.
+        if img := renderStyledBalance(&req); img != nil {
+                utils.RespondImage(c, img)
+                return
         }
 
         dc := gg.NewContext(CARD_W, CARD_H)
