@@ -111,15 +111,13 @@ func GenerateCombatImage(c *gin.Context) {
 		}
 	}
 
-	// FIX 2026-09-11 R2 (owner directive: montage_E_4 style): the duel
-	// arena is now spark_5.png - the bright open beach arena. The Node
-	// client sends spark_5 for PvP too; this guard covers direct callers. Previously PvP without an
-	// explicit background fell through to getRankBackground(req.Rank) - and the
-	// Node client hardcodes spark_1.png (grassland) when no backgroundPath is
-	// given, so every production duel rendered on the grassland. Node now sends
-	// spark_15 for PvP too; this guard covers direct API callers.
+	// FIX 2026-09-17 (owner directive): the DEFAULT duel arena is now
+	// spark_15.png - the arena with the stone-tiled floor. (spark_5, the
+	// bright beach arena, was the 2026-09-11 pick; the owner picked the
+	// tiled arena on 2026-09-17.) The Node client sends spark_15 for PvP
+	// too; this guard covers direct API callers.
 	if req.CombatType == "PVP" && (bgPath == "" || !fileExists(bgPath)) {
-		bgPath = filepath.Join(assetsPath, "rpgasset", "environment", "spark_5.png")
+		bgPath = filepath.Join(assetsPath, "rpgasset", "environment", "spark_15.png")
 	}
 	// If no background specified or doesn't exist, use a deterministic default.
 	// 💡 FIX: was getRandomEnvironment (random every render). Now uses
@@ -220,8 +218,16 @@ func GenerateCombatImage(c *gin.Context) {
 	// encounter never shows identical twin sprites side by side.
 	// Dead-and-unseen enemies resolve to "" and are ignored by the dedupe.
 	resolvedEnemyFiles := make([]string, len(req.Enemies))
+	summonEnemyPaths := make([]string, len(req.Enemies))
 	for i, enemy := range req.Enemies {
 		if enemy.CurrentHP <= 0 && !enemy.JustDied {
+			continue
+		}
+		if enemy.Mode == "summon" && enemy.Species != "" {
+			// 💡 FIX 2026-09-17: abyss wild summons render their actual
+			// summon species sprite (GetSummonSpritePath returns a full
+			// path - summons live outside rpgasset/enemies).
+			summonEnemyPaths[i] = GetSummonSpritePath(enemy.Species, assetsPath)
 			continue
 		}
 		rotIdx := i
@@ -248,7 +254,10 @@ func GenerateCombatImage(c *gin.Context) {
 			continue
 		}
 
-		spritePath := filepath.Join(assetsPath, "rpgasset", "enemies", resolvedEnemyFiles[i])
+		spritePath := summonEnemyPaths[i]
+		if spritePath == "" {
+			spritePath = filepath.Join(assetsPath, "rpgasset", "enemies", resolvedEnemyFiles[i])
+		}
 		eSprite, err := utils.LoadImage(spritePath)
 		if err != nil {
 			continue

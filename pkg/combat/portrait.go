@@ -983,6 +983,9 @@ type EndCardPayload struct {
 	EnemyLevel  int    `json:"enemyLevel"`
 	EnemyIndex  int    `json:"enemyIndex"`
 	EnemyIsBoss bool   `json:"enemyIsBoss"`
+	// 💡 FIX 2026-09-17: wild summons (abyss) render their species sprite
+	// on the end card instead of a random monster.
+	EnemySpecies string `json:"enemySpecies,omitempty"`
 	Rank        string `json:"rank"`
 	Floor       int    `json:"floor"`
 	Background  string `json:"background"`
@@ -993,8 +996,12 @@ type EndCardPayload struct {
 // scene window. Tiny canvases (beholder-class sprites can be ~30px) are
 // upscaled to at least 60% of the width budget so the enemy READS on the
 // card (QA r1: ABYSS WARDEN rendered ~55px - invisible).
-func portraitEnemySprite(name string, level, index int, isBoss bool, maxW, maxH int) image.Image {
+func portraitEnemySprite(name string, level, index int, isBoss bool, species string, maxW, maxH int) image.Image {
 	path := GetEnemySpritePath(name, level, index, isBoss, "assets")
+	if species != "" {
+		// 💡 FIX 2026-09-17: wild summons use their species sprite.
+		path = GetSummonSpritePath(species, "assets")
+	}
 	img, err := utils.LoadImage(path)
 	if err != nil {
 		return nil
@@ -1075,7 +1082,7 @@ func WriteEndCard(c *gin.Context, req EndCardPayload) {
 		if !req.Victory {
 			maxW, maxH = 250, 270
 		}
-		if eImg := portraitEnemySprite(req.EnemyName, req.EnemyLevel, req.EnemyIndex, req.EnemyIsBoss, maxW, maxH); eImg != nil {
+		if eImg := portraitEnemySprite(req.EnemyName, req.EnemyLevel, req.EnemyIndex, req.EnemyIsBoss, req.EnemySpecies, maxW, maxH); eImg != nil {
 			if req.Victory {
 				eImg = portraitFade(eImg, 0.5)
 			}

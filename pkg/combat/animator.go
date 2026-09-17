@@ -378,8 +378,14 @@ func renderCombatFrame(req *CombatRequest, fs *frameState, assetsPath string) (i
 	// 💡 FIX 2026-09-11 (visual audit): same-family dedupe as the static
 	// renderer - resolves all sprites first, spreads duplicates.
 	animResolved := make([]string, len(req.Enemies))
+	animSummonPaths := make([]string, len(req.Enemies))
 	for i, enemy := range req.Enemies {
 		if enemy.CurrentHP <= 0 && !enemy.JustDied && !isTargetThisAction(req, "enemy", i, fs) {
+			continue
+		}
+		if enemy.Mode == "summon" && enemy.Species != "" {
+			// 💡 FIX 2026-09-17: abyss wild summons use their species sprite.
+			animSummonPaths[i] = GetSummonSpritePath(enemy.Species, assetsPath)
 			continue
 		}
 		animResolved[i] = filepath.Base(GetEnemySpritePath(enemy.Name, avgLevel, i, enemy.IsBoss, assetsPath))
@@ -389,7 +395,10 @@ func renderCombatFrame(req *CombatRequest, fs *frameState, assetsPath string) (i
 		if enemy.CurrentHP <= 0 && !enemy.JustDied && !isTargetThisAction(req, "enemy", i, fs) {
 			continue
 		}
-		spritePath := filepath.Join(assetsPath, "rpgasset", "enemies", animResolved[i])
+		spritePath := animSummonPaths[i]
+		if spritePath == "" {
+			spritePath = filepath.Join(assetsPath, "rpgasset", "enemies", animResolved[i])
+		}
 		eSprite, err := utils.LoadImage(spritePath)
 		if err != nil {
 			continue

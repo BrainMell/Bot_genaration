@@ -31,6 +31,11 @@ type Enemy struct {
         // (enemy sprite ↔ name mismatch). Renderers now use enemy.Level for the
         // element/tier bucket, falling back to party avg for legacy payloads.
         Level int `json:"level,omitempty"`
+        // 💡 FIX 2026-09-17: wild summons sent as enemies (abyss floors) carry
+        // mode="summon" + species so the renderer draws their REAL summon
+        // species sprite instead of a random monster from the level buckets.
+        Mode    string `json:"mode,omitempty"`
+        Species string `json:"species,omitempty"`
 }
 
 // Summon represents a summoned ally in the combat scene.
