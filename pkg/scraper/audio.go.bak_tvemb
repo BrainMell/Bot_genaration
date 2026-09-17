@@ -581,7 +581,7 @@ func ytDownload(id string, mp3Path string, proxy string) error {
         // Overall budget stays under the Node-side 180s HTTP timeout.
         parent, cancelParent := execCtx(45 * time.Second) // v3.1: one candidate's full client loop
         defer cancelParent()
-        clients := []string{"tv_embedded", "android_vr", "tv_simply", "mweb", "web_embedded", "tv"}
+        clients := []string{"tv_simply", "mweb", "web_embedded", "tv"}
         var lastErr error
         for round := 0; round < 2; round++ {
                 for _, cl := range clients {
@@ -732,7 +732,7 @@ func extractYouTubeID(s string) string {
 // format list with two clients; any real mp4/webm/m4a row means the IP can
 // still serve media. ~4-6s per client.
 func ytFormatsHealthy(id string, proxy string) bool {
-	for _, cl := range []string{"tv_embedded", "tv_simply", "mweb"} {
+	for _, cl := range []string{"tv_simply", "mweb"} {
 		ctx, cancel := execCtx(15 * time.Second)
 		args := []string{"--proxy", proxy,
 			"https://www.youtube.com/watch?v=" + id,
