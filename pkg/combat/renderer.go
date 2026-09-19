@@ -126,6 +126,10 @@ func GenerateCombatImage(c *gin.Context) {
 		bgPath = getRankBackground(req.Rank, assetsPath)
 	}
 
+	// 💡 GROUND MAP (2026-09-20): background filename key for the
+	// per-background standable-ground map (see groundmap.go).
+	bgName := filepath.Base(bgPath)
+
 	// Load and composite background
 	if bgPath != "" && fileExists(bgPath) {
 		bgImg, err := utils.LoadImage(bgPath)
@@ -285,6 +289,10 @@ func GenerateCombatImage(c *gin.Context) {
 		slot := slotFor(EnemySlots, i)
 		feetX := slot.X
 		feetY := slot.Y
+		// 💡 GROUND MAP (2026-09-20): re-anchor the depth ladder so every row
+		// stands on THIS background's measured standable ground (env caves:
+		// no more back rows floating over lava; beaches: deepest row on sand).
+		feetY = groundAdjustedY(bgName, "enemy", feetY)
 
 		// Convert feet position to draw position (top-left anchor for DrawImage)
 		spriteW := eSprite.Bounds().Dx()
@@ -379,6 +387,8 @@ func GenerateCombatImage(c *gin.Context) {
 			slot := slotFor(SummonSlots, i)
 			summonFeetX := slot.X
 			summonFeetY := slot.Y
+			// 💡 GROUND MAP (2026-09-20): per-background summon depth rows.
+			summonFeetY = groundAdjustedY(bgName, "summon", summonFeetY)
 
 			// Convert feet to draw position
 			sSpriteW := sSprite.Bounds().Dx()
@@ -531,7 +541,10 @@ func GenerateCombatImage(c *gin.Context) {
 		// Shadow extends 16px below feet (radius_y=18, center at feetY-2).
 		// At Y=465, shadow bottom=481, overlapped panel top (469) by 12px.
 		// At Y=445, shadow bottom=461, 8px clear of panel top. ✅
-		const pvpSummonFeetY = 455
+		// legacy default: const pvpSummonFeetY = 455
+		// 💡 GROUND MAP (2026-09-20): per-background PvP feet line
+		// (defaults to legacy 455 when the background has no entry).
+		pvpSummonFeetY := int(groundPvpFeetY(bgName))
 		pvpSummonPositions := []struct{ x, y int }{
 			{220, pvpSummonFeetY},
 			{800, pvpSummonFeetY},
@@ -837,7 +850,8 @@ func GenerateCombatImage(c *gin.Context) {
 			//   Shadow extends 16px below feet (radius_y=18, center at feetY-2).
 			//   At Y=465, shadow bottom=481, overlapped panel top (469) by 12px.
 			//   At Y=445, shadow bottom=461, 8px clear of panel top. ✅
-			const pvp1v1FeetY = 455
+			// 💡 GROUND MAP (2026-09-20): per-background PvP feet line.
+			pvp1v1FeetY := int(groundPvpFeetY(bgName))
 			var p1Flip bool
 			if p.Mode == "summon" && p.Species != "" {
 				p1SpriteFile := filepath.Base(GetSummonSpritePath(p.Species, assetsPath))
@@ -910,6 +924,8 @@ func GenerateCombatImage(c *gin.Context) {
 				cpSlot := slotFor(PlayerSlots, pi)
 				cpFeetX := cpSlot.X
 				cpFeetY := cpSlot.Y
+				// 💡 GROUND MAP (2026-09-20): per-background player depth rows.
+				cpFeetY = groundAdjustedY(bgName, "player", cpFeetY)
 				cpSpriteW := cpSprite.Bounds().Dx()
 				cpSpriteH := cpSprite.Bounds().Dy()
 				cpX := cpFeetX - float64(cpSpriteW)/2

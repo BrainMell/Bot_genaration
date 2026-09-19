@@ -1,0 +1,565 @@
+{
+  "version": 1,
+  "generated": "2026-09-20",
+  "method": "vision-measured per-background standable ground (canvas 1024x687, imaging.Fill cover+center-crop, 31% dark overlay applied before measurement)",
+  "canvas": {
+    "w": 1024,
+    "h": 687
+  },
+  "constraints": {
+    "pveMaxFeetY": 440,
+    "panelTopPlayer": 469,
+    "panelTopOptions": 455,
+    "rowGapMax": 50,
+    "rowGapMin": 4
+  },
+  "defaults": {
+    "playerRows": [
+      440,
+      390,
+      340,
+      290
+    ],
+    "enemyRows": [
+      440,
+      390,
+      340,
+      290
+    ],
+    "summonRows": [
+      345,
+      305
+    ],
+    "pvpFeetY": 455
+  },
+  "backgrounds": {
+    "spark_1.png": {
+      "groundStartY": {
+        "player": 295,
+        "enemy": 295
+      },
+      "playerRows": [
+        440,
+        392,
+        344,
+        296
+      ],
+      "enemyRows": [
+        440,
+        392,
+        344,
+        296
+      ],
+      "summonRows": [
+        349,
+        311
+      ],
+      "pvpFeetY": 455,
+      "note": "dirt field (F rank default)"
+    },
+    "spark_1-night.png": {
+      "groundStartY": {
+        "player": 295,
+        "enemy": 295
+      },
+      "playerRows": [
+        440,
+        392,
+        344,
+        296
+      ],
+      "enemyRows": [
+        440,
+        392,
+        344,
+        296
+      ],
+      "summonRows": [
+        349,
+        311
+      ],
+      "pvpFeetY": 455,
+      "note": "corrupted night plains (ABYSS rank + zone)"
+    },
+    "spark_2.png": {
+      "groundStartY": {
+        "player": 295,
+        "enemy": 295
+      },
+      "playerRows": [
+        440,
+        392,
+        344,
+        296
+      ],
+      "enemyRows": [
+        440,
+        392,
+        344,
+        296
+      ],
+      "summonRows": [
+        349,
+        311
+      ],
+      "pvpFeetY": 455,
+      "note": "crimson plains (E rank + zone)"
+    },
+    "spark_2-night.png": {
+      "groundStartY": {
+        "player": 275,
+        "enemy": 275
+      },
+      "playerRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "enemyRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "summonRows": [
+        345,
+        305
+      ],
+      "pvpFeetY": 455,
+      "note": "dark ocean night (zone: void)"
+    },
+    "spark_3.png": {
+      "groundStartY": {
+        "player": 250,
+        "enemy": 250
+      },
+      "playerRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "enemyRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "summonRows": [
+        345,
+        305
+      ],
+      "pvpFeetY": 455,
+      "note": "golden dunes (D rank + zone)"
+    },
+    "spark_3-night.png": {
+      "groundStartY": {
+        "player": 310,
+        "enemy": 310
+      },
+      "playerRows": [
+        440,
+        397,
+        354,
+        311
+      ],
+      "enemyRows": [
+        440,
+        397,
+        354,
+        311
+      ],
+      "summonRows": [
+        359,
+        326
+      ],
+      "pvpFeetY": 455,
+      "note": "night beach (TRIAL rank)"
+    },
+    "spark_4.png": {
+      "groundStartY": {
+        "player": 275,
+        "enemy": 275
+      },
+      "playerRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "enemyRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "summonRows": [
+        345,
+        305
+      ],
+      "pvpFeetY": 455,
+      "note": "dark ocean (C rank)"
+    },
+    "spark_5.png": {
+      "groundStartY": {
+        "player": 300,
+        "enemy": 300
+      },
+      "playerRows": [
+        440,
+        394,
+        348,
+        302
+      ],
+      "enemyRows": [
+        440,
+        394,
+        348,
+        302
+      ],
+      "summonRows": [
+        353,
+        317
+      ],
+      "pvpFeetY": 455,
+      "note": "beach arena (B rank)"
+    },
+    "spark_6.png": {
+      "groundStartY": {
+        "player": 310,
+        "enemy": 310
+      },
+      "playerRows": [
+        440,
+        397,
+        354,
+        311
+      ],
+      "enemyRows": [
+        440,
+        397,
+        354,
+        311
+      ],
+      "summonRows": [
+        359,
+        326
+      ],
+      "pvpFeetY": 455,
+      "note": "night beach (A rank)"
+    },
+    "spark_7.png": {
+      "groundStartY": {
+        "player": 230,
+        "enemy": 230
+      },
+      "playerRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "enemyRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "summonRows": [
+        345,
+        305
+      ],
+      "pvpFeetY": 455,
+      "note": "snowy peaks (S rank + zone)"
+    },
+    "spark_8.png": {
+      "groundStartY": {
+        "player": 235,
+        "enemy": 235
+      },
+      "playerRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "enemyRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "summonRows": [
+        345,
+        305
+      ],
+      "pvpFeetY": 455,
+      "note": "abyss night plain (SSS rank + zone)"
+    },
+    "spark_10.png": {
+      "groundStartY": {
+        "player": 255,
+        "enemy": 255
+      },
+      "playerRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "enemyRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "summonRows": [
+        345,
+        305
+      ],
+      "pvpFeetY": 455,
+      "note": "dark stone floor (GOD rank + zone)"
+    },
+    "spark_15.png": {
+      "groundStartY": {
+        "player": 330,
+        "enemy": 330
+      },
+      "playerRows": [
+        440,
+        404,
+        368,
+        332
+      ],
+      "enemyRows": [
+        440,
+        404,
+        368,
+        332
+      ],
+      "summonRows": [
+        373,
+        347
+      ],
+      "pvpFeetY": 455,
+      "note": "tiled colosseum (PvP arena)"
+    },
+    "env1.png": {
+      "groundStartY": {
+        "player": 452,
+        "enemy": 412
+      },
+      "playerRows": [
+        440,
+        436,
+        432,
+        428
+      ],
+      "enemyRows": [
+        440,
+        431,
+        422,
+        413
+      ],
+      "summonRows": [
+        432,
+        420
+      ],
+      "pvpFeetY": 455,
+      "note": "lava cave - stone platform (zone)"
+    },
+    "env2.png": {
+      "groundStartY": {
+        "player": 452,
+        "enemy": 408
+      },
+      "playerRows": [
+        440,
+        436,
+        432,
+        428
+      ],
+      "enemyRows": [
+        440,
+        430,
+        420,
+        410
+      ],
+      "summonRows": [
+        432,
+        420
+      ],
+      "pvpFeetY": 455,
+      "note": "ice cave - stone platform (zone)"
+    },
+    "env3.png": {
+      "groundStartY": {
+        "player": 452,
+        "enemy": 408
+      },
+      "playerRows": [
+        440,
+        436,
+        432,
+        428
+      ],
+      "enemyRows": [
+        440,
+        430,
+        420,
+        410
+      ],
+      "summonRows": [
+        432,
+        420
+      ],
+      "pvpFeetY": 455,
+      "note": "toxic cave - stone platform (zone)"
+    },
+    "forest.png": {
+      "groundStartY": {
+        "player": 215,
+        "enemy": 215
+      },
+      "playerRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "enemyRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "summonRows": [
+        345,
+        305
+      ],
+      "pvpFeetY": 455,
+      "note": "grass field (fallback)"
+    },
+    "background1.png": {
+      "groundStartY": {
+        "player": 215,
+        "enemy": 215
+      },
+      "playerRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "enemyRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "summonRows": [
+        345,
+        305
+      ],
+      "pvpFeetY": 455,
+      "note": "grass field (fallback)"
+    },
+    "ice.png": {
+      "groundStartY": {
+        "player": 240,
+        "enemy": 240
+      },
+      "playerRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "enemyRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "summonRows": [
+        345,
+        305
+      ],
+      "pvpFeetY": 455,
+      "note": "snow field (legacy)"
+    },
+    "background3.png": {
+      "groundStartY": {
+        "player": 240,
+        "enemy": 240
+      },
+      "playerRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "enemyRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "summonRows": [
+        345,
+        305
+      ],
+      "pvpFeetY": 455,
+      "note": "snow field (legacy)"
+    },
+    "sand.png": {
+      "groundStartY": {
+        "player": 230,
+        "enemy": 230
+      },
+      "playerRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "enemyRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "summonRows": [
+        345,
+        305
+      ],
+      "pvpFeetY": 455,
+      "note": "sand dunes (legacy)"
+    },
+    "background2.png": {
+      "groundStartY": {
+        "player": 230,
+        "enemy": 230
+      },
+      "playerRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "enemyRows": [
+        440,
+        390,
+        340,
+        290
+      ],
+      "summonRows": [
+        345,
+        305
+      ],
+      "pvpFeetY": 455,
+      "note": "sand dunes (legacy)"
+    }
+  }
+}
