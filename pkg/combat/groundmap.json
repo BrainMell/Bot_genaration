@@ -1,7 +1,7 @@
 {
-  "version": 1,
+  "version": 2,
   "generated": "2026-09-20",
-  "method": "vision-measured per-background standable ground (canvas 1024x687, imaging.Fill cover+center-crop, 31% dark overlay applied before measurement)",
+  "method": "vision-measured per-background standable ground + formation zones (canvas 1024x687, imaging.Fill cover+center-crop, 31% dark overlay; 50px ruler overlays read per background). v2 adds formation: per-side standable X zones + row ladders for width-aware packing, sizeClass, and overflowBackground for stages too small for big parties.",
   "canvas": {
     "w": 1024,
     "h": 687
@@ -30,128 +30,450 @@
       345,
       305
     ],
-    "pvpFeetY": 455
+    "pvpFeetY": 455,
+    "unitWidths": {
+      "player": 120,
+      "enemy": 155,
+      "boss": 205,
+      "summon": 85
+    }
   },
   "backgrounds": {
+    "env1.png": {
+      "groundStartY": {
+        "player": 375,
+        "enemy": 375
+      },
+      "playerRows": [
+        440,
+        430,
+        420,
+        410
+      ],
+      "enemyRows": [
+        440,
+        430,
+        420,
+        410
+      ],
+      "summonRows": [
+        412,
+        392
+      ],
+      "pvpFeetY": 455,
+      "note": "lava cave - stone platform (zone)",
+      "formation": {
+        "sizeClass": "s",
+        "playerZone": {
+          "x0": 160,
+          "x1": 470,
+          "rows": [
+            440,
+            396
+          ]
+        },
+        "enemyZone": {
+          "x0": 620,
+          "x1": 950,
+          "rows": [
+            440,
+            396
+          ]
+        },
+        "summonZone": {
+          "x0": 180,
+          "x1": 520,
+          "rows": [
+            412,
+            388
+          ]
+        },
+        "overflowBackground": "spark_2.png"
+      }
+    },
+    "env2.png": {
+      "groundStartY": {
+        "player": 360,
+        "enemy": 360
+      },
+      "playerRows": [
+        440,
+        430,
+        420,
+        410
+      ],
+      "enemyRows": [
+        440,
+        430,
+        420,
+        410
+      ],
+      "summonRows": [
+        412,
+        392
+      ],
+      "pvpFeetY": 455,
+      "note": "ice cave - stone platform (zone)",
+      "formation": {
+        "sizeClass": "s",
+        "playerZone": {
+          "x0": 170,
+          "x1": 470,
+          "rows": [
+            440,
+            396
+          ]
+        },
+        "enemyZone": {
+          "x0": 620,
+          "x1": 950,
+          "rows": [
+            440,
+            396
+          ]
+        },
+        "summonZone": {
+          "x0": 190,
+          "x1": 520,
+          "rows": [
+            412,
+            388
+          ]
+        },
+        "overflowBackground": "spark_7.png"
+      }
+    },
+    "env3.png": {
+      "groundStartY": {
+        "player": 355,
+        "enemy": 355
+      },
+      "playerRows": [
+        440,
+        430,
+        420,
+        410
+      ],
+      "enemyRows": [
+        440,
+        430,
+        420,
+        410
+      ],
+      "summonRows": [
+        412,
+        392
+      ],
+      "pvpFeetY": 455,
+      "note": "toxic cave - stone platform (zone)",
+      "formation": {
+        "sizeClass": "s",
+        "playerZone": {
+          "x0": 160,
+          "x1": 470,
+          "rows": [
+            440,
+            396
+          ]
+        },
+        "enemyZone": {
+          "x0": 610,
+          "x1": 950,
+          "rows": [
+            440,
+            396
+          ]
+        },
+        "summonZone": {
+          "x0": 180,
+          "x1": 520,
+          "rows": [
+            412,
+            388
+          ]
+        },
+        "overflowBackground": "spark_4.png"
+      }
+    },
     "spark_1.png": {
       "groundStartY": {
-        "player": 295,
-        "enemy": 295
+        "player": 285,
+        "enemy": 285
       },
       "playerRows": [
         440,
         392,
-        344,
-        296
+        346,
+        302
       ],
       "enemyRows": [
         440,
         392,
-        344,
-        296
+        346,
+        302
       ],
       "summonRows": [
-        349,
-        311
+        352,
+        312
       ],
       "pvpFeetY": 455,
-      "note": "dirt field (F rank default)"
+      "note": "dirt field (F rank default)",
+      "formation": {
+        "sizeClass": "xl",
+        "playerZone": {
+          "x0": 40,
+          "x1": 380,
+          "rows": [
+            440,
+            392,
+            346,
+            302
+          ]
+        },
+        "enemyZone": {
+          "x0": 640,
+          "x1": 990,
+          "rows": [
+            440,
+            392,
+            346,
+            302
+          ]
+        },
+        "summonZone": {
+          "x0": 60,
+          "x1": 420,
+          "rows": [
+            352,
+            312
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "spark_1-night.png": {
       "groundStartY": {
-        "player": 295,
-        "enemy": 295
+        "player": 300,
+        "enemy": 300
       },
       "playerRows": [
         440,
-        392,
-        344,
-        296
+        394,
+        350,
+        308
       ],
       "enemyRows": [
         440,
-        392,
-        344,
-        296
+        394,
+        350,
+        308
       ],
       "summonRows": [
-        349,
-        311
+        354,
+        314
       ],
       "pvpFeetY": 455,
-      "note": "corrupted night plains (ABYSS rank + zone)"
+      "note": "corrupted night plains (ABYSS rank + zone)",
+      "formation": {
+        "sizeClass": "xl",
+        "playerZone": {
+          "x0": 40,
+          "x1": 380,
+          "rows": [
+            440,
+            394,
+            350,
+            308
+          ]
+        },
+        "enemyZone": {
+          "x0": 640,
+          "x1": 990,
+          "rows": [
+            440,
+            394,
+            350,
+            308
+          ]
+        },
+        "summonZone": {
+          "x0": 60,
+          "x1": 420,
+          "rows": [
+            354,
+            314
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "spark_2.png": {
       "groundStartY": {
-        "player": 295,
-        "enemy": 295
+        "player": 300,
+        "enemy": 300
       },
       "playerRows": [
         440,
         392,
-        344,
-        296
+        346,
+        304
       ],
       "enemyRows": [
         440,
         392,
-        344,
-        296
+        346,
+        304
       ],
       "summonRows": [
-        349,
-        311
+        352,
+        312
       ],
       "pvpFeetY": 455,
-      "note": "crimson plains (E rank + zone)"
+      "note": "crimson plains (E rank + zone)",
+      "formation": {
+        "sizeClass": "xl",
+        "playerZone": {
+          "x0": 40,
+          "x1": 380,
+          "rows": [
+            440,
+            392,
+            346,
+            304
+          ]
+        },
+        "enemyZone": {
+          "x0": 640,
+          "x1": 990,
+          "rows": [
+            440,
+            392,
+            346,
+            304
+          ]
+        },
+        "summonZone": {
+          "x0": 60,
+          "x1": 420,
+          "rows": [
+            352,
+            312
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "spark_2-night.png": {
       "groundStartY": {
-        "player": 275,
-        "enemy": 275
+        "player": 265,
+        "enemy": 265
       },
       "playerRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "enemyRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "summonRows": [
-        345,
-        305
+        348,
+        308
       ],
       "pvpFeetY": 455,
-      "note": "dark ocean night (zone: void)"
+      "note": "dark ocean night (zone: void)",
+      "formation": {
+        "sizeClass": "xl",
+        "playerZone": {
+          "x0": 40,
+          "x1": 380,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "enemyZone": {
+          "x0": 640,
+          "x1": 990,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "summonZone": {
+          "x0": 60,
+          "x1": 420,
+          "rows": [
+            348,
+            308
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "spark_3.png": {
       "groundStartY": {
-        "player": 250,
-        "enemy": 250
+        "player": 255,
+        "enemy": 255
       },
       "playerRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "enemyRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "summonRows": [
-        345,
-        305
+        348,
+        308
       ],
       "pvpFeetY": 455,
-      "note": "golden dunes (D rank + zone)"
+      "note": "golden dunes (D rank + zone)",
+      "formation": {
+        "sizeClass": "xl",
+        "playerZone": {
+          "x0": 40,
+          "x1": 380,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "enemyZone": {
+          "x0": 640,
+          "x1": 990,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "summonZone": {
+          "x0": 60,
+          "x1": 420,
+          "rows": [
+            348,
+            308
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "spark_3-night.png": {
       "groundStartY": {
@@ -160,70 +482,166 @@
       },
       "playerRows": [
         440,
-        397,
-        354,
-        311
+        398,
+        356,
+        316
       ],
       "enemyRows": [
         440,
-        397,
-        354,
-        311
+        398,
+        356,
+        316
       ],
       "summonRows": [
-        359,
-        326
+        360,
+        320
       ],
       "pvpFeetY": 455,
-      "note": "night beach (TRIAL rank)"
+      "note": "night beach (TRIAL rank)",
+      "formation": {
+        "sizeClass": "l",
+        "playerZone": {
+          "x0": 40,
+          "x1": 380,
+          "rows": [
+            440,
+            398,
+            356,
+            316
+          ]
+        },
+        "enemyZone": {
+          "x0": 640,
+          "x1": 990,
+          "rows": [
+            440,
+            398,
+            356,
+            316
+          ]
+        },
+        "summonZone": {
+          "x0": 60,
+          "x1": 420,
+          "rows": [
+            360,
+            320
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "spark_4.png": {
       "groundStartY": {
-        "player": 275,
-        "enemy": 275
+        "player": 265,
+        "enemy": 265
       },
       "playerRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "enemyRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "summonRows": [
-        345,
-        305
+        348,
+        308
       ],
       "pvpFeetY": 455,
-      "note": "dark ocean (C rank)"
+      "note": "dark ocean (C rank)",
+      "formation": {
+        "sizeClass": "xl",
+        "playerZone": {
+          "x0": 40,
+          "x1": 380,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "enemyZone": {
+          "x0": 640,
+          "x1": 990,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "summonZone": {
+          "x0": 60,
+          "x1": 420,
+          "rows": [
+            348,
+            308
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "spark_5.png": {
       "groundStartY": {
-        "player": 300,
-        "enemy": 300
+        "player": 310,
+        "enemy": 310
       },
       "playerRows": [
         440,
-        394,
-        348,
-        302
+        396,
+        352,
+        314
       ],
       "enemyRows": [
         440,
-        394,
-        348,
-        302
+        396,
+        352,
+        314
       ],
       "summonRows": [
-        353,
-        317
+        356,
+        318
       ],
       "pvpFeetY": 455,
-      "note": "beach arena (B rank)"
+      "note": "beach arena (B rank)",
+      "formation": {
+        "sizeClass": "l",
+        "playerZone": {
+          "x0": 40,
+          "x1": 380,
+          "rows": [
+            440,
+            396,
+            352,
+            314
+          ]
+        },
+        "enemyZone": {
+          "x0": 640,
+          "x1": 990,
+          "rows": [
+            440,
+            396,
+            352,
+            314
+          ]
+        },
+        "summonZone": {
+          "x0": 60,
+          "x1": 420,
+          "rows": [
+            356,
+            318
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "spark_6.png": {
       "groundStartY": {
@@ -232,22 +650,54 @@
       },
       "playerRows": [
         440,
-        397,
-        354,
-        311
+        396,
+        352,
+        314
       ],
       "enemyRows": [
         440,
-        397,
-        354,
-        311
+        396,
+        352,
+        314
       ],
       "summonRows": [
-        359,
-        326
+        356,
+        318
       ],
       "pvpFeetY": 455,
-      "note": "night beach (A rank)"
+      "note": "night beach (A rank)",
+      "formation": {
+        "sizeClass": "l",
+        "playerZone": {
+          "x0": 40,
+          "x1": 380,
+          "rows": [
+            440,
+            396,
+            352,
+            314
+          ]
+        },
+        "enemyZone": {
+          "x0": 640,
+          "x1": 990,
+          "rows": [
+            440,
+            396,
+            352,
+            314
+          ]
+        },
+        "summonZone": {
+          "x0": 60,
+          "x1": 420,
+          "rows": [
+            356,
+            318
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "spark_7.png": {
       "groundStartY": {
@@ -258,164 +708,220 @@
         440,
         390,
         340,
-        290
+        292
       ],
       "enemyRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "summonRows": [
-        345,
-        305
+        348,
+        308
       ],
       "pvpFeetY": 455,
-      "note": "snowy peaks (S rank + zone)"
+      "note": "snowy peaks (S rank + zone)",
+      "formation": {
+        "sizeClass": "xl",
+        "playerZone": {
+          "x0": 60,
+          "x1": 380,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "enemyZone": {
+          "x0": 670,
+          "x1": 990,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "summonZone": {
+          "x0": 70,
+          "x1": 420,
+          "rows": [
+            348,
+            308
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "spark_8.png": {
       "groundStartY": {
-        "player": 235,
-        "enemy": 235
+        "player": 245,
+        "enemy": 245
       },
       "playerRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "enemyRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "summonRows": [
-        345,
-        305
+        348,
+        308
       ],
       "pvpFeetY": 455,
-      "note": "abyss night plain (SSS rank + zone)"
+      "note": "abyss night plain (SSS rank + zone)",
+      "formation": {
+        "sizeClass": "xl",
+        "playerZone": {
+          "x0": 40,
+          "x1": 380,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "enemyZone": {
+          "x0": 640,
+          "x1": 990,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "summonZone": {
+          "x0": 60,
+          "x1": 420,
+          "rows": [
+            348,
+            308
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "spark_10.png": {
       "groundStartY": {
-        "player": 255,
-        "enemy": 255
+        "player": 265,
+        "enemy": 265
       },
       "playerRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "enemyRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "summonRows": [
-        345,
-        305
+        348,
+        308
       ],
       "pvpFeetY": 455,
-      "note": "dark stone floor (GOD rank + zone)"
+      "note": "dark stone floor (GOD rank + zone)",
+      "formation": {
+        "sizeClass": "l",
+        "playerZone": {
+          "x0": 100,
+          "x1": 380,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "enemyZone": {
+          "x0": 680,
+          "x1": 970,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "summonZone": {
+          "x0": 110,
+          "x1": 420,
+          "rows": [
+            348,
+            308
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "spark_15.png": {
       "groundStartY": {
-        "player": 330,
-        "enemy": 330
+        "player": 315,
+        "enemy": 315
       },
       "playerRows": [
         440,
-        404,
-        368,
-        332
+        400,
+        360,
+        322
       ],
       "enemyRows": [
         440,
-        404,
-        368,
-        332
+        400,
+        360,
+        322
       ],
       "summonRows": [
-        373,
-        347
+        364,
+        324
       ],
       "pvpFeetY": 455,
-      "note": "tiled colosseum (PvP arena)"
-    },
-    "env1.png": {
-      "groundStartY": {
-        "player": 452,
-        "enemy": 412
-      },
-      "playerRows": [
-        440,
-        436,
-        432,
-        428
-      ],
-      "enemyRows": [
-        440,
-        431,
-        422,
-        413
-      ],
-      "summonRows": [
-        432,
-        420
-      ],
-      "pvpFeetY": 455,
-      "note": "lava cave - stone platform (zone)"
-    },
-    "env2.png": {
-      "groundStartY": {
-        "player": 452,
-        "enemy": 408
-      },
-      "playerRows": [
-        440,
-        436,
-        432,
-        428
-      ],
-      "enemyRows": [
-        440,
-        430,
-        420,
-        410
-      ],
-      "summonRows": [
-        432,
-        420
-      ],
-      "pvpFeetY": 455,
-      "note": "ice cave - stone platform (zone)"
-    },
-    "env3.png": {
-      "groundStartY": {
-        "player": 452,
-        "enemy": 408
-      },
-      "playerRows": [
-        440,
-        436,
-        432,
-        428
-      ],
-      "enemyRows": [
-        440,
-        430,
-        420,
-        410
-      ],
-      "summonRows": [
-        432,
-        420
-      ],
-      "pvpFeetY": 455,
-      "note": "toxic cave - stone platform (zone)"
+      "note": "tiled colosseum (PvP arena)",
+      "formation": {
+        "sizeClass": "xl",
+        "playerZone": {
+          "x0": 40,
+          "x1": 380,
+          "rows": [
+            440,
+            400,
+            360,
+            322
+          ]
+        },
+        "enemyZone": {
+          "x0": 640,
+          "x1": 990,
+          "rows": [
+            440,
+            400,
+            360,
+            322
+          ]
+        },
+        "summonZone": {
+          "x0": 60,
+          "x1": 420,
+          "rows": [
+            364,
+            324
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "forest.png": {
       "groundStartY": {
@@ -426,44 +932,108 @@
         440,
         390,
         340,
-        290
+        292
       ],
       "enemyRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "summonRows": [
-        345,
-        305
+        348,
+        308
       ],
       "pvpFeetY": 455,
-      "note": "grass field (fallback)"
+      "note": "grass field (fallback)",
+      "formation": {
+        "sizeClass": "xl",
+        "playerZone": {
+          "x0": 40,
+          "x1": 380,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "enemyZone": {
+          "x0": 640,
+          "x1": 990,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "summonZone": {
+          "x0": 60,
+          "x1": 420,
+          "rows": [
+            348,
+            308
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "background1.png": {
       "groundStartY": {
-        "player": 215,
-        "enemy": 215
+        "player": 220,
+        "enemy": 220
       },
       "playerRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "enemyRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "summonRows": [
-        345,
-        305
+        348,
+        308
       ],
       "pvpFeetY": 455,
-      "note": "grass field (fallback)"
+      "note": "grass field (fallback)",
+      "formation": {
+        "sizeClass": "xl",
+        "playerZone": {
+          "x0": 40,
+          "x1": 380,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "enemyZone": {
+          "x0": 640,
+          "x1": 990,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "summonZone": {
+          "x0": 60,
+          "x1": 420,
+          "rows": [
+            348,
+            308
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "ice.png": {
       "groundStartY": {
@@ -474,20 +1044,52 @@
         440,
         390,
         340,
-        290
+        292
       ],
       "enemyRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "summonRows": [
-        345,
-        305
+        348,
+        308
       ],
       "pvpFeetY": 455,
-      "note": "snow field (legacy)"
+      "note": "snow field (legacy)",
+      "formation": {
+        "sizeClass": "xl",
+        "playerZone": {
+          "x0": 40,
+          "x1": 380,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "enemyZone": {
+          "x0": 640,
+          "x1": 990,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "summonZone": {
+          "x0": 60,
+          "x1": 420,
+          "rows": [
+            348,
+            308
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "background3.png": {
       "groundStartY": {
@@ -498,68 +1100,164 @@
         440,
         390,
         340,
-        290
+        292
       ],
       "enemyRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "summonRows": [
-        345,
-        305
+        348,
+        308
       ],
       "pvpFeetY": 455,
-      "note": "snow field (legacy)"
+      "note": "snow field (legacy)",
+      "formation": {
+        "sizeClass": "xl",
+        "playerZone": {
+          "x0": 40,
+          "x1": 380,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "enemyZone": {
+          "x0": 640,
+          "x1": 990,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "summonZone": {
+          "x0": 60,
+          "x1": 420,
+          "rows": [
+            348,
+            308
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "sand.png": {
       "groundStartY": {
-        "player": 230,
-        "enemy": 230
+        "player": 235,
+        "enemy": 235
       },
       "playerRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "enemyRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "summonRows": [
-        345,
-        305
+        348,
+        308
       ],
       "pvpFeetY": 455,
-      "note": "sand dunes (legacy)"
+      "note": "sand dunes (legacy)",
+      "formation": {
+        "sizeClass": "xl",
+        "playerZone": {
+          "x0": 40,
+          "x1": 380,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "enemyZone": {
+          "x0": 640,
+          "x1": 990,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "summonZone": {
+          "x0": 60,
+          "x1": 420,
+          "rows": [
+            348,
+            308
+          ]
+        },
+        "overflowBackground": ""
+      }
     },
     "background2.png": {
       "groundStartY": {
-        "player": 230,
-        "enemy": 230
+        "player": 235,
+        "enemy": 235
       },
       "playerRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "enemyRows": [
         440,
         390,
         340,
-        290
+        292
       ],
       "summonRows": [
-        345,
-        305
+        348,
+        308
       ],
       "pvpFeetY": 455,
-      "note": "sand dunes (legacy)"
+      "note": "sand dunes (legacy)",
+      "formation": {
+        "sizeClass": "xl",
+        "playerZone": {
+          "x0": 40,
+          "x1": 380,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "enemyZone": {
+          "x0": 640,
+          "x1": 990,
+          "rows": [
+            440,
+            390,
+            340,
+            292
+          ]
+        },
+        "summonZone": {
+          "x0": 60,
+          "x1": 420,
+          "rows": [
+            348,
+            308
+          ]
+        },
+        "overflowBackground": ""
+      }
     }
   }
 }
