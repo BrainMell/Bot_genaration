@@ -243,6 +243,7 @@ func main() {
         scrape.GET("/powerscale/fetch", proxyToScraper)
         scrape.GET("/pornpics", proxyToScraper)
         scrape.GET("/audio", scraper.ScrapeAudio)
+        scrape.GET("/verify/image", scraper.VerifyImage)
         scrape.GET("/anikai", proxyToScraper)
         scrape.GET("/news", proxyToScraper)
 
