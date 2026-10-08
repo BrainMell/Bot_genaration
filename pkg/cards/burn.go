@@ -227,7 +227,9 @@ func GenerateBurnGif(c *gin.Context) {
         defer os.RemoveAll(tempDir)
 
         // 1. Card image -> 800x800 flattened RGBA
-        cardImg, err := utils.DownloadImage(req.ImageUrl)
+        // (bounded 45s download + local decode: utils.DownloadImage uses a raw
+        // http.Get with NO timeout — a stalled fetch would hang a worker forever)
+        cardImg, err := downloadAndDecodeCard(req.ImageUrl, tempDir)
         if err != nil {
                 // Fallback for exotic formats: download raw + ffmpeg-extract frame 1
                 cardImg, err = downloadAndExtractFirstFrame(req.ImageUrl, tempDir)
@@ -307,6 +309,23 @@ func GenerateBurnGif(c *gin.Context) {
 
         setCachedBurn(req.ImageUrl, data)
         c.Data(200, burnFmt, data)
+}
+
+// downloadAndDecodeCard fetches the card (45s cap) and decodes it with the
+// globally-registered codecs (png/jpeg/gif-first-frame/webp via gif.go imports).
+func downloadAndDecodeCard(url, tempDir string) (image.Image, error) {
+        client := &http.Client{Timeout: 45 * time.Second}
+        raw := filepath.Join(tempDir, "card_raw")
+        if err := downloadFile(client, url, raw); err != nil {
+                return nil, err
+        }
+        fh, err := os.Open(raw)
+        if err != nil {
+                return nil, err
+        }
+        defer fh.Close()
+        img, _, err := image.Decode(fh)
+        return img, err
 }
 
 // downloadAndExtractFirstFrame handles card formats Go can't decode natively:
