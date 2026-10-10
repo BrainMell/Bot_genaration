@@ -59,20 +59,20 @@ var CharacterSprites = map[string][]string{
 // The renderer uses this to decide whether to flip a sprite so
 // ALL players face RIGHT (toward enemies) in PvE.
 var SpriteFacing = map[string]string{
-        // ── ROUND-18 RE-AUDIT 2026-10-10 (owner: "Some player Sprites like ninja
-        // facing the wrong way across regular dungeons and pvp") ──
-        // METHOD: all 130 class sprites pulled from assets; full-body 4-6x bisector
-        // sheets first, then a 10x head-zoom pass with a mirrored twin beside every
-        // disputed sprite (original vs FlipH side by side). Highest-zoom read wins.
-        // ANCHOR CHECK: scout1-4 kept RIGHT (owner-verified in production post-R4) —
-        // the reading methodology reproduces the known-good anchor.
-        // 49 rows change: 42 L/R corrections (whole ART FAMILIES were inverted:
-        // fighter/apprentice/rogue/ninja(1)/zenmaster/archmage(2,9,12)/druid(1,2)/
-        // archdruid(3,4,6,9)/timelord(1,3,5)/samuri(2,5,6,7)/cleric(2,5)/saint(4)/
-        // Templar(9) were natively LEFT but registered RIGHT; warrior1/DoomSlayer1/
-        // Nightblade(6)/merchant/samuri(2,7)/God_hand(2) the reverse) + 7 masked or
-        // sub-readable sprites moved to CENTER (never flips — the only verdict that
-        // cannot face the wrong way on symmetric art).
+	// ── ROUND-18 RE-AUDIT 2026-10-10 (owner: "Some player Sprites like ninja
+	// facing the wrong way across regular dungeons and pvp") ──
+	// METHOD: all 130 class sprites pulled from assets; full-body 4-6x bisector
+	// sheets first, then a 10x head-zoom pass with a mirrored twin beside every
+	// disputed sprite (original vs FlipH side by side). Highest-zoom read wins.
+	// ANCHOR CHECK: scout1-4 kept RIGHT (owner-verified in production post-R4) —
+	// the reading methodology reproduces the known-good anchor.
+	// 49 rows change: 42 L/R corrections (whole ART FAMILIES were inverted:
+	// fighter/apprentice/rogue/ninja(1)/zenmaster/archmage(2,9,12)/druid(1,2)/
+	// archdruid(3,4,6,9)/timelord(1,3,5)/samuri(2,5,6,7)/cleric(2,5)/saint(4)/
+	// Templar(9) were natively LEFT but registered RIGHT; warrior1/DoomSlayer1/
+	// Nightblade(6)/merchant/samuri(2,7)/God_hand(2) the reverse) + 7 masked or
+	// sub-readable sprites moved to CENTER (never flips — the only verdict that
+	// cannot face the wrong way on symmetric art).
 	// 💡 ROUND-4 RE-AUDIT 2026-09-11 - FULL REPLACEMENT of the round-3 table.
 	// WHY: the owner proved round 3 was wrong IN PRODUCTION (his Scout stood
 	// back-to-the-opponent in live PvP). Root cause: round 3 systematically
@@ -209,22 +209,47 @@ var SpriteFacing = map[string]string{
 	"timelord (4).png":     "LEFT",
 	"timelord (5).png":     "LEFT",
 	"tycoon.png":           "LEFT",
-	"voidwalker (1).png":   "LEFT",
-	"voidwalker (2).png":   "RIGHT",
-	"voidwalker (3).png":   "RIGHT",
-	"voidwalker (4).png":   "LEFT",
-	"voidwalker (5).png":   "CENTER",
-	"voidwalker (6).png":   "CENTER",
-	"voidwalker (7).png":   "LEFT",
-	"voidwalker (8).png":   "RIGHT",
-	"voidwalker (9).png":   "RIGHT",
-	"warlord2.png":         "LEFT",
-	"warlord3.png":         "LEFT",
-	"warrior1.png":         "RIGHT",
-	"warrior2.png":         "LEFT",
-	"warrior3.png":         "LEFT",
-	"warrior4.png":         "LEFT",
-	"zenmaster.png":        "LEFT",
+	// 💡 ROUND-19: dusk-bestiary boss art (owner 2026-10-10 14:06Z "robot
+	// enemies as the only boss sprites … where's the diverse boss sprite
+	// tree??") — native facing from the abyss pipeline audits (round-15
+	// bisector zoom + round-17 re-audit). 'R' rows flip on the right enemy
+	// wing via flipForSide; CENTER never flips.
+	"abyss_weaver.png":       "LEFT",
+	"abyssal_god.png":        "LEFT",
+	"blood_reaver.png":       "LEFT",
+	"corrupted_guardian.png": "LEFT",
+	"crimson_devourer.png":   "LEFT",
+	"dusk_crawler.png":       "LEFT",
+	"infected_colossus.png":  "LEFT",
+	"mutated_hound.png":      "LEFT",
+	"shadow_stalker.png":     "LEFT",
+	"void_harbinger.png":     "LEFT",
+	"void_titan.png":         "LEFT",
+	"elemental_archon.png":   "RIGHT",
+	"gloom_brute.png":        "RIGHT",
+	"mutated_overseer.png":   "RIGHT",
+	"elder_chaos.png":        "CENTER",
+	"hollow_seraph.png":      "CENTER",
+	"night_wraith.png":       "CENTER",
+	"primordial_chaos.png":   "CENTER",
+	"venom_spider.png":       "CENTER",
+	"void_corrupted.png":     "CENTER",
+	"voidwalker (1).png":     "LEFT",
+	"voidwalker (2).png":     "RIGHT",
+	"voidwalker (3).png":     "RIGHT",
+	"voidwalker (4).png":     "LEFT",
+	"voidwalker (5).png":     "CENTER",
+	"voidwalker (6).png":     "CENTER",
+	"voidwalker (7).png":     "LEFT",
+	"voidwalker (8).png":     "RIGHT",
+	"voidwalker (9).png":     "RIGHT",
+	"warlord2.png":           "LEFT",
+	"warlord3.png":           "LEFT",
+	"warrior1.png":           "RIGHT",
+	"warrior2.png":           "LEFT",
+	"warrior3.png":           "LEFT",
+	"warrior4.png":           "LEFT",
+	"zenmaster.png":          "LEFT",
 
 	// ── Boss N/S pairs. The _S variants are MIRRORED art of the _N variants,
 	// so their facing is OPPOSITE. Verified visually on contact sheets:
@@ -570,74 +595,90 @@ var BossSprites = map[string][]string{
 //   - High bosses (A) → highlevelbosses sprites
 //   - Trial bosses → assigned thematically (fire→fire, water→water, etc.)
 //   - Special bosses (dragon→fire-themed, undead→mutated, etc.)
+//
+// BossNameSprites maps a boss's display name (UPPERCASED) to a specific
+// sprite filename. Lookup is case-insensitive. When a boss name matches,
+// this specific sprite is used instead of the level-based CALAMITY bucket
+// rotation - so each named boss always renders with the same distinct image.
+//
+// 💡 ROUND-19 2026-10-10 (owner: "These robot enemies keep being used as the
+// only boss Sprites … Where's the diverse boss sprite tree??"): the old map
+// pointed nearly every boss at the boss_N mecha-spider family — Mutation
+// Prime (C) and Primordial Chaos (A) rendered as near-twin robot spiders.
+// The map now draws from the 20-creature dusk bestiary (owner-approved
+// round-13/14 style, committed as real bytes) with THEMATIC assignments:
+// namesakes stay namesakes (ELDER CHAOS → elder_chaos, VOID TITAN →
+// void_titan, SHADOW STALKER → shadow_stalker …), fire bosses burn red,
+// wraiths haunt frost, seraphs take the heavens — and ONLY the genuinely
+// mechanical bosses (CLOCKWORK TITAN, MECH GOD) keep robot art. Mirrored 1:1
+// by BOSS_SPLASH_SPRITES in guildAdventure.js (combat scene = source of truth).
 var BossNameSprites = map[string]string{
-	// ═══ S/SS/SSS-rank dungeon bosses - use new boss_N sprites from SpriteAssets ═══
-	"PRIMORDIAL CHAOS": "boss_0_N.png",
-	"ELDER CHAOS":      "boss_1_N.png",
-	"VOID TITAN":       "boss_2_N.png",
-	"ABYSSAL GOD":      "boss_3_N.png",
-	"MUTATION PRIME":   "boss_4_N.png",
-	"ELEMENTAL ARCHON": "boss_5_N.png",
+	// ═══ S/SS/SSS-rank dungeon bosses ═══
+	"PRIMORDIAL CHAOS": "primordial_chaos.png",
+	"ELDER CHAOS":      "elder_chaos.png",
+	"VOID TITAN":       "void_titan.png",
+	"ABYSSAL GOD":      "abyssal_god.png",
+	"MUTATION PRIME":   "venom_spider.png",
+	"ELEMENTAL ARCHON": "elemental_archon.png",
 
-	// ═══ Mid-level bosses - use new boss sprites ═══
-	"THE INFECTED COLOSSUS": "boss_6_N.png",
-	"INFECTED COLOSSUS":     "boss_6_N.png",
-	// 💡 FIX 2026-09-11: F-tier abyss boss had NO mapping - always fell to the
-	// generic level rotation (same blob as every other unmapped low boss).
-	"MUTATED OVERSEER":   "midlevelbosses (4).png",
-	"CORRUPTED GUARDIAN": "boss_7_N.png",
-	"STONE HULK":         "boss_9_N.png",
-	"CRYSTAL CORRUPTED":  "boss_10_N.png",
-	"EARTH WARDEN":       "boss_11_N.png",
-	"FROST GHOUL":        "boss_12_N.png",
-	"GLACIAL BEAST":      "boss_13_N.png",
+	// ═══ Mid-level bosses ═══
+	"THE INFECTED COLOSSUS": "infected_colossus.png",
+	"INFECTED COLOSSUS":     "infected_colossus.png",
+	"MUTATED OVERSEER":      "mutated_overseer.png",
+	"CORRUPTED GUARDIAN":    "corrupted_guardian.png",
+	"STONE HULK":            "gloom_brute.png",
+	"CRYSTAL CORRUPTED":     "void_corrupted.png",
+	"EARTH WARDEN":          "abyss_weaver.png",
+	"FROST GHOUL":           "night_wraith.png",
+	"GLACIAL BEAST":         "mutated_hound.png",
 
-	// ═══ High-level bosses - use new boss sprites + old highlevelbosses ═══
-	"MAGMA BRUTE":     "boss_0_S.png",
-	"HELLFIRE DEMON":  "boss_1_S.png",
-	"ABYSSAL HORROR":  "boss_2_S.png",
-	"TSUNAMI WALKER":  "boss_3_S.png",
-	"BLIZZARD WRAITH": "boss_4_S.png",
-	"GRAVEYARD LORD":  "boss_5_S.png",
-	"SHADOW LORD":     "boss_6_S.png",
+	// ═══ High-level bosses ═══
+	"MAGMA BRUTE":     "crimson_devourer.png",
+	"HELLFIRE DEMON":  "void_harbinger.png",
+	"ABYSSAL HORROR":  "shadow_stalker.png",
+	"TSUNAMI WALKER":  "dusk_crawler.png",
+	"BLIZZARD WRAITH": "night_wraith.png",
+	"GRAVEYARD LORD":  "void_harbinger.png",
+	"SHADOW LORD":     "shadow_stalker.png",
 
 	// ═══ Dragon bosses ═══
-	"IGNEEL THE FIRE KING": "boss_7_S.png",
-	"ANCIENT DRAGON":       "boss_7_S.png",
-	"ETERNAL DRAGON":       "boss_9_S.png",
-	"ELDER FLAME":          "boss_10_S.png",
+	"IGNEEL THE FIRE KING": "crimson_devourer.png",
+	"ANCIENT DRAGON":       "crimson_devourer.png",
+	"ETERNAL DRAGON":       "void_harbinger.png",
+	"ELDER FLAME":          "elemental_archon.png",
 
 	// ═══ Trial bosses ═══
-	"ARCANE SENTINEL":       "boss_11_S.png",
-	"LICH KING":             "boss_12_S.png",
-	"SHADOW STALKER":        "boss_13_S.png",
-	"VOID ASSASSIN":         "highlevelbosses (9).png",
-	"IRON BODY GRANDMASTER": "midlevelbosses (3).png",
-	"ANCIENT WURM":          "boss_7_S.png",
-	"SOUL EATER":            "mutated (3).png",
-	"ABYSSAL WHISPER":       "boss_3_S.png",
-	"ELEMENTAL PRIMORDIAL":  "boss_5_N.png",
-	"PRIME ELEMENT":         "boss_5_N.png",
-	"VOID NECROMANCER":      "mutated (5).png",
-	"CHRONOS WARDEN":        "boss_4_S.png",
-	"TIME EATER":            "mutated (7).png",
-	"HEAVENLY GUARDIAN":     "boss_3_N.png",
-	"SERAPHIM PRIME":        "boss_0_S.png",
-	"FOREST ANCESTOR":       "midlevelbosses (5).png",
-	"GAIA SENTINEL":         "midlevelbosses (5).png",
-	"GOLDEN GOLEM":          "midlevelbosses (3).png",
-	"TREASURE HOARDER":      "boss_7_S.png",
-	"SOUND REAPER":          "mutated (4).png",
-	"MAESTRO OF VOID":       "boss_2_N.png",
+	"ARCANE SENTINEL":       "corrupted_guardian.png",
+	"LICH KING":             "night_wraith.png",
+	"SHADOW STALKER":        "shadow_stalker.png",
+	"VOID ASSASSIN":         "void_harbinger.png",
+	"IRON BODY GRANDMASTER": "blood_reaver.png",
+	"ANCIENT WURM":          "dusk_crawler.png",
+	"SOUL EATER":            "hollow_seraph.png",
+	"ABYSSAL WHISPER":       "abyss_weaver.png",
+	"ELEMENTAL PRIMORDIAL":  "elemental_archon.png",
+	"PRIME ELEMENT":         "elemental_archon.png",
+	"VOID NECROMANCER":      "void_corrupted.png",
+	"CHRONOS WARDEN":        "corrupted_guardian.png",
+	"TIME EATER":            "crimson_devourer.png",
+	"HEAVENLY GUARDIAN":     "hollow_seraph.png",
+	"SERAPHIM PRIME":        "hollow_seraph.png",
+	"FOREST ANCESTOR":       "abyss_weaver.png",
+	"GAIA SENTINEL":         "infected_colossus.png",
+	"GOLDEN GOLEM":          "gloom_brute.png",
+	"TREASURE HOARDER":      "abyss_weaver.png",
+	"SOUND REAPER":          "void_harbinger.png",
+	"MAESTRO OF VOID":       "void_corrupted.png",
+	// genuinely mechanical bosses keep the mecha family
 	"CLOCKWORK TITAN":       "boss_0_S.png",
 	"MECH GOD":              "boss_3_S.png",
-	"DEMON LORD":            "boss_4_S.png",
-	"PRIMORDIAL EVIL":       "boss_0_N.png",
-	"LEVIATHAN":             "boss_3_N.png",
-	"LEVIATHAN SPAWN ALPHA": "boss_3_N.png",
-	"INFERNAL OVERLORD":     "boss_1_S.png",
-	"PRIMORDIAL FLAME":      "boss_7_S.png",
-	"PERMAFROST TITAN":      "boss_4_S.png",
+	"DEMON LORD":            "void_harbinger.png",
+	"PRIMORDIAL EVIL":       "primordial_chaos.png",
+	"LEVIATHAN":             "crimson_devourer.png",
+	"LEVIATHAN SPAWN ALPHA": "dusk_crawler.png",
+	"INFERNAL OVERLORD":     "crimson_devourer.png",
+	"PRIMORDIAL FLAME":      "elemental_archon.png",
+	"PERMAFROST TITAN":      "void_titan.png",
 }
 
 func GetCharacterSpritePath(class string, index int, assetsPath string) string {
