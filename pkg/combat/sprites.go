@@ -59,6 +59,20 @@ var CharacterSprites = map[string][]string{
 // The renderer uses this to decide whether to flip a sprite so
 // ALL players face RIGHT (toward enemies) in PvE.
 var SpriteFacing = map[string]string{
+        // ── ROUND-18 RE-AUDIT 2026-10-10 (owner: "Some player Sprites like ninja
+        // facing the wrong way across regular dungeons and pvp") ──
+        // METHOD: all 130 class sprites pulled from assets; full-body 4-6x bisector
+        // sheets first, then a 10x head-zoom pass with a mirrored twin beside every
+        // disputed sprite (original vs FlipH side by side). Highest-zoom read wins.
+        // ANCHOR CHECK: scout1-4 kept RIGHT (owner-verified in production post-R4) —
+        // the reading methodology reproduces the known-good anchor.
+        // 49 rows change: 42 L/R corrections (whole ART FAMILIES were inverted:
+        // fighter/apprentice/rogue/ninja(1)/zenmaster/archmage(2,9,12)/druid(1,2)/
+        // archdruid(3,4,6,9)/timelord(1,3,5)/samuri(2,5,6,7)/cleric(2,5)/saint(4)/
+        // Templar(9) were natively LEFT but registered RIGHT; warrior1/DoomSlayer1/
+        // Nightblade(6)/merchant/samuri(2,7)/God_hand(2) the reverse) + 7 masked or
+        // sub-readable sprites moved to CENTER (never flips — the only verdict that
+        // cannot face the wrong way on symmetric art).
 	// 💡 ROUND-4 RE-AUDIT 2026-09-11 - FULL REPLACEMENT of the round-3 table.
 	// WHY: the owner proved round 3 was wrong IN PRODUCTION (his Scout stood
 	// back-to-the-opponent in live PvP). Root cause: round 3 systematically
@@ -76,18 +90,18 @@ var SpriteFacing = map[string]string{
 	"Berserker1.png":       "LEFT",
 	"Berserker2.png":       "LEFT",
 	"Berserker3.png":       "CENTER",
-	"DoomSlayer1.png":      "LEFT",
+	"DoomSlayer1.png":      "RIGHT",
 	"DoomSlayer2.png":      "LEFT",
-	"Fighter1.png":         "RIGHT",
+	"Fighter1.png":         "LEFT",
 	"God_hand (1).png":     "LEFT",
-	"God_hand (2).png":     "LEFT",
-	"Monk.png":             "RIGHT",
+	"God_hand (2).png":     "RIGHT",
+	"Monk.png":             "LEFT",
 	"Nightblade (1).png":   "LEFT",
-	"Nightblade (2).png":   "LEFT",
-	"Nightblade (3).png":   "RIGHT",
+	"Nightblade (2).png":   "CENTER",
+	"Nightblade (3).png":   "CENTER",
 	"Nightblade (4).png":   "RIGHT",
 	"Nightblade (5).png":   "RIGHT",
-	"Nightblade (6).png":   "LEFT",
+	"Nightblade (6).png":   "RIGHT",
 	"Paladin (1).png":      "RIGHT",
 	"Paladin (2).png":      "CENTER",
 	"Paladin (3).png":      "RIGHT",
@@ -96,10 +110,10 @@ var SpriteFacing = map[string]string{
 	"Paladin (6).png":      "LEFT",
 	"Paladin (7).png":      "RIGHT",
 	"Paladin (8).png":      "RIGHT",
-	"Rogue (1).png":        "RIGHT",
-	"Rogue (2).png":        "RIGHT",
-	"Rogue (3).png":        "RIGHT",
-	"Rogue (4).png":        "RIGHT",
+	"Rogue (1).png":        "LEFT",
+	"Rogue (2).png":        "LEFT",
+	"Rogue (3).png":        "LEFT",
+	"Rogue (4).png":        "LEFT",
 	"Templar (1).png":      "LEFT",
 	"Templar (2).png":      "LEFT",
 	"Templar (3).png":      "RIGHT",
@@ -108,47 +122,47 @@ var SpriteFacing = map[string]string{
 	"Templar (6).png":      "LEFT",
 	"Templar (7).png":      "LEFT",
 	"Templar (8).png":      "LEFT",
-	"Templar (9).png":      "RIGHT",
+	"Templar (9).png":      "LEFT",
 	"Warlord1.png":         "CENTER",
-	"acolyte.png":          "RIGHT",
+	"acolyte.png":          "LEFT",
 	"apprentice1 copy.png": "RIGHT",
-	"apprentice1.png":      "RIGHT",
-	"apprentice2.png":      "RIGHT",
-	"apprentice3.png":      "RIGHT",
-	"apprentice4.png":      "RIGHT",
+	"apprentice1.png":      "LEFT",
+	"apprentice2.png":      "LEFT",
+	"apprentice3.png":      "LEFT",
+	"apprentice4.png":      "LEFT",
 	"archdruid (1).png":    "RIGHT",
 	"archdruid (2).png":    "CENTER",
-	"archdruid (3).png":    "RIGHT",
-	"archdruid (4).png":    "RIGHT",
+	"archdruid (3).png":    "LEFT",
+	"archdruid (4).png":    "LEFT",
 	"archdruid (5).png":    "CENTER",
-	"archdruid (6).png":    "RIGHT",
+	"archdruid (6).png":    "LEFT",
 	"archdruid (7).png":    "RIGHT",
 	"archdruid (8).png":    "RIGHT",
-	"archdruid (9).png":    "RIGHT",
+	"archdruid (9).png":    "LEFT",
 	"archmage (1).png":     "LEFT",
 	"archmage (10).png":    "RIGHT",
 	"archmage (11).png":    "RIGHT",
-	"archmage (12).png":    "RIGHT",
-	"archmage (2).png":     "RIGHT",
+	"archmage (12).png":    "LEFT",
+	"archmage (2).png":     "LEFT",
 	"archmage (3).png":     "CENTER",
 	"archmage (4).png":     "LEFT",
-	"archmage (5).png":     "RIGHT",
+	"archmage (5).png":     "CENTER",
 	"archmage (6).png":     "CENTER",
 	"archmage (7).png":     "RIGHT",
 	"archmage (8).png":     "RIGHT",
-	"archmage (9).png":     "RIGHT",
+	"archmage (9).png":     "LEFT",
 	"cleric (1).png":       "LEFT",
-	"cleric (2).png":       "RIGHT",
+	"cleric (2).png":       "LEFT",
 	"cleric (3).png":       "CENTER",
 	"cleric (4).png":       "LEFT",
-	"cleric (5).png":       "RIGHT",
+	"cleric (5).png":       "LEFT",
 	"cleric (6).png":       "LEFT",
-	"druid (1).png":        "RIGHT",
+	"druid (1).png":        "LEFT",
 	"druid (10).png":       "LEFT",
 	"druid (11).png":       "CENTER",
 	"druid (12).png":       "RIGHT",
 	"druid (13).png":       "LEFT",
-	"druid (2).png":        "RIGHT",
+	"druid (2).png":        "LEFT",
 	"druid (3).png":        "LEFT",
 	"druid (4).png":        "LEFT",
 	"druid (5).png":        "LEFT",
@@ -159,13 +173,13 @@ var SpriteFacing = map[string]string{
 	"elementalist (1).png": "LEFT",
 	"elementalist (2).png": "RIGHT",
 	"elementalist (3).png": "LEFT",
-	"elementalist (4).png": "RIGHT",
-	"fighter2.png":         "RIGHT",
-	"fighter3.png":         "RIGHT",
+	"elementalist (4).png": "CENTER",
+	"fighter2.png":         "LEFT",
+	"fighter3.png":         "LEFT",
 	"lich.png":             "LEFT",
-	"merchant.png":         "LEFT",
-	"necromancer.png":      "RIGHT",
-	"ninja (1).png":        "RIGHT",
+	"merchant.png":         "RIGHT",
+	"necromancer.png":      "CENTER",
+	"ninja (1).png":        "LEFT",
 	"ninja (2).png":        "LEFT",
 	"ninja (3).png":        "LEFT",
 	"ninja (4).png":        "LEFT",
@@ -173,44 +187,44 @@ var SpriteFacing = map[string]string{
 	"saint (1).png":        "LEFT",
 	"saint (2).png":        "LEFT",
 	"saint (3).png":        "LEFT",
-	"saint (4).png":        "RIGHT",
+	"saint (4).png":        "LEFT",
 	"samuri (1).png":       "LEFT",
 	"samuri (10).png":      "LEFT",
 	"samuri (11).png":      "LEFT",
-	"samuri (2).png":       "LEFT",
+	"samuri (2).png":       "RIGHT",
 	"samuri (3).png":       "RIGHT",
 	"samuri (4).png":       "LEFT",
-	"samuri (5).png":       "RIGHT",
-	"samuri (6).png":       "RIGHT",
-	"samuri (7).png":       "LEFT",
+	"samuri (5).png":       "LEFT",
+	"samuri (6).png":       "LEFT",
+	"samuri (7).png":       "RIGHT",
 	"samuri (8).png":       "LEFT",
 	"samuri (9).png":       "LEFT",
 	"scout1.png":           "RIGHT",
 	"scout2.png":           "RIGHT",
 	"scout3.png":           "RIGHT",
 	"sout4.png":            "RIGHT",
-	"timelord (1).png":     "RIGHT",
+	"timelord (1).png":     "LEFT",
 	"timelord (2).png":     "RIGHT",
-	"timelord (3).png":     "RIGHT",
+	"timelord (3).png":     "LEFT",
 	"timelord (4).png":     "LEFT",
-	"timelord (5).png":     "RIGHT",
-	"tycoon.png":           "RIGHT",
+	"timelord (5).png":     "LEFT",
+	"tycoon.png":           "LEFT",
 	"voidwalker (1).png":   "LEFT",
 	"voidwalker (2).png":   "RIGHT",
 	"voidwalker (3).png":   "RIGHT",
-	"voidwalker (4).png":   "CENTER",
-	"voidwalker (5).png":   "RIGHT",
-	"voidwalker (6).png":   "RIGHT",
+	"voidwalker (4).png":   "LEFT",
+	"voidwalker (5).png":   "CENTER",
+	"voidwalker (6).png":   "CENTER",
 	"voidwalker (7).png":   "LEFT",
 	"voidwalker (8).png":   "RIGHT",
 	"voidwalker (9).png":   "RIGHT",
 	"warlord2.png":         "LEFT",
 	"warlord3.png":         "LEFT",
-	"warrior1.png":         "LEFT",
+	"warrior1.png":         "RIGHT",
 	"warrior2.png":         "LEFT",
 	"warrior3.png":         "LEFT",
 	"warrior4.png":         "LEFT",
-	"zenmaster.png":        "RIGHT",
+	"zenmaster.png":        "LEFT",
 
 	// ── Boss N/S pairs. The _S variants are MIRRORED art of the _N variants,
 	// so their facing is OPPOSITE. Verified visually on contact sheets:
@@ -1179,7 +1193,7 @@ var spriteFamilies = map[string][]string{
 // mapped file; each later duplicate moves to the first unused family file.
 // Empty entries (dead/skipped enemies) and non-family files pass through.
 // resolved is aligned 1:1 with the request's enemy slice.
-func DedupeEnemySprites(resolved []string) []string {
+func DedupeEnemySprites(resolved []string, seeds []int) []string {
 	out := make([]string, len(resolved))
 	copy(out, resolved)
 	used := map[string]bool{}
@@ -1203,6 +1217,19 @@ func DedupeEnemySprites(resolved []string) []string {
 			continue
 		}
 		swapped := false
+		// OWNER BRIEF 2026-10-09 (enemy sprite swap): the variant pick is
+		// seeded by the enemy's STABLE per-instance SpriteIndex, so a death
+		// elsewhere can never reshuffle a survivor's sprite. The old
+		// first-free-in-order walk made duplicates swap sprites whenever an
+		// earlier twin died (position-shifted dedupe order).
+		if i < len(seeds) && seeds[i] > 0 {
+			cand := family[seeds[i]%len(family)]
+			if !used[cand] {
+				out[i] = cand
+				used[cand] = true
+				swapped = true
+			}
+		}
 		for _, cand := range family {
 			if !used[cand] {
 				out[i] = cand
