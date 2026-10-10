@@ -258,11 +258,16 @@ var SpriteFacing = map[string]string{
 	"voidwalker (9).png":     "LEFT",
 	"warlord2.png":           "LEFT",
 	"warlord3.png":           "LEFT",
-	"warrior1.png":           "LEFT",
-	"warrior2.png":           "LEFT",
-	"warrior3.png":           "RIGHT",
-	"warrior4.png":           "LEFT",
-	"zenmaster.png":          "RIGHT",
+	// round-20 vision audit (owner: 'the warrior was already facing right you
+	// inverted him to left'): 12x bisector head zooms on the real bytes prove
+	// the WHOLE warrior family is natively RIGHT — warrior1/2/4 were wrongly
+	// re-filed LEFT in round-19, mirroring them to face away from the enemy
+	// wing in PvE and away from p1 in PvP. warrior3 stays RIGHT.
+	"warrior1.png":  "RIGHT",
+	"warrior2.png":  "RIGHT",
+	"warrior3.png":  "RIGHT",
+	"warrior4.png":  "RIGHT",
+	"zenmaster.png": "RIGHT",
 
 	// ── Boss N/S pairs. The _S variants are MIRRORED art of the _N variants,
 	// so their facing is OPPOSITE. Verified visually on contact sheets:
@@ -322,35 +327,44 @@ var SpriteFacing = map[string]string{
 	// CENTER (no flip is a visual no-op on symmetric art). hybrides (1) has a
 	// readable left profile and keeps LEFT.
 	"hybrides (1).png": "LEFT",
+	// round-20 enemy audit: 6-sheet bisector pass over all 113 single-frame
+	// combat files — every element/tier-boss/boss-pair/frame row re-verified;
+	// hybrides (7) is the only file with a real directional bias (eye glint
+	// + face sit right of the bisector at 8x, back-crystals left) → RIGHT.
+	"hybrides (7).png": "RIGHT",
 
-	// ── summon pngs (sparklinlabs). Round-4 fixes: dragon.png head is on the
-	// LEFT (was RIGHT - visually verified); rest re-confirmed.
-	"bat.png":          "LEFT",
+	// ── summon pngs (sparklinlabs). ROUND-20 SYNC to the owner-approved
+	// round-17 bisector audit (Node SUMMON_FACES_*): 13 species natively
+	// RIGHT, 13 frontal, ZERO natively-left. The stale round-4 rows here
+	// (dragon/boglurk/frostpeep/yeti/reptile LEFT) flipped ally summons
+	// toward the hero's back via flipForSide(...,true) — same defect class
+	// the owner rejected in rounds 16/17. bat/tidalmaw are frontal now.
+	"bat.png":          "CENTER",
 	"boar.png":         "RIGHT",
-	"boglurk.png":      "LEFT",
+	"boglurk.png":      "RIGHT",
 	"chest.png":        "CENTER",
 	"dino.png":         "RIGHT",
-	"dragon.png":       "LEFT",
+	"dragon.png":       "RIGHT",
 	"emberwick.png":    "CENTER",
-	"fireguard.png":    "CENTER",
-	"frostpeep.png":    "CENTER",
+	"fireguard.png":    "RIGHT",
+	"frostpeep.png":    "RIGHT",
 	"ghost.png":        "CENTER",
 	"giant.png":        "RIGHT",
-	"lumenmoth.png":    "CENTER",
+	"lumenmoth.png":    "RIGHT",
 	"mimic.png":        "CENTER",
 	"mushroom.png":     "CENTER",
 	"octopus.png":      "CENTER",
-	"plaguefang.png":   "CENTER",
-	"reptile.png":      "LEFT",
+	"plaguefang.png":   "RIGHT",
+	"reptile.png":      "RIGHT",
 	"ship_cruiser.png": "CENTER",
 	"ship_fighter.png": "CENTER",
 	"ship_squid.png":   "CENTER",
 	"skitterswarm.png": "CENTER",
 	"slime.png":        "CENTER",
 	"snake.png":        "RIGHT",
-	"starnail.png":     "CENTER",
-	"tidalmaw.png":     "LEFT",
-	"yeti.png":         "LEFT",
+	"starnail.png":     "RIGHT",
+	"tidalmaw.png":     "CENTER",
+	"yeti.png":         "RIGHT",
 }
 
 var EnemySprites = map[string][]string{
@@ -1005,27 +1019,30 @@ func GetSpriteFacing(filename string) string {
 // RIGHT = more content on right side (sprite faces right)
 // CENTER = roughly symmetric
 var SummonSpriteFacing = map[string]string{
-	"bat_idle.gif":          "RIGHT",
-	"boar_idle.gif":         "LEFT",
-	"boglurk_idle.gif":      "CENTER",
+	// ROUND-20 SYNC to the owner-approved round-17 verdicts (13 RIGHT, 13
+	// frontal, 0 LEFT) — mirrored-twin bisector audit, both pipelines in
+	// lockstep. Frontal species never flip (ally + PvP-right safe).
+	"bat_idle.gif":          "CENTER",
+	"boar_idle.gif":         "RIGHT",
+	"boglurk_idle.gif":      "RIGHT",
 	"chest_idle.gif":        "CENTER",
 	"dino_idle.gif":         "RIGHT",
-	"dragon_idle.gif":       "LEFT",
-	"emberwick_idle.gif":    "LEFT",
+	"dragon_idle.gif":       "RIGHT",
+	"emberwick_idle.gif":    "CENTER",
 	"fireguard_idle.gif":    "RIGHT",
-	"frostpeep_idle.gif":    "LEFT",
+	"frostpeep_idle.gif":    "RIGHT",
 	"ghost_idle.gif":        "CENTER",
-	"giant_idle.gif":        "LEFT",
-	"lumenmoth_idle.gif":    "CENTER",
-	"mimic_idle.gif":        "LEFT",
-	"mushroom_idle.gif":     "LEFT",
+	"giant_idle.gif":        "RIGHT",
+	"lumenmoth_idle.gif":    "RIGHT",
+	"mimic_idle.gif":        "CENTER",
+	"mushroom_idle.gif":     "CENTER",
 	"octopus_idle.gif":      "CENTER",
 	"plaguefang_idle.gif":   "RIGHT",
-	"reptile_idle.gif":      "CENTER",
+	"reptile_idle.gif":      "RIGHT",
 	"skitterswarm_idle.gif": "CENTER",
-	"slime_idle.gif":        "RIGHT",
+	"slime_idle.gif":        "CENTER",
 	"snake_idle.gif":        "RIGHT",
-	"starnail_idle.gif":     "CENTER",
+	"starnail_idle.gif":     "RIGHT",
 	"tidalmaw_idle.gif":     "CENTER",
 	"yeti_idle.gif":         "RIGHT",
 
