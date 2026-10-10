@@ -388,9 +388,19 @@ func renderCombatFrame(req *CombatRequest, fs *frameState, assetsPath string) (i
 			animSummonPaths[i] = GetSummonSpritePath(enemy.Species, assetsPath)
 			continue
 		}
-		animResolved[i] = filepath.Base(GetEnemySpritePath(enemy.Name, avgLevel, i, enemy.IsBoss, assetsPath))
+		// OWNER BRIEF 2026-10-09: stable per-instance rotation index (position
+		// shifted when filtered arrays changed, swapping same-type sprites)
+		animRot := i
+		if enemy.SpriteIndex > 0 {
+			animRot = enemy.SpriteIndex
+		}
+		animResolved[i] = filepath.Base(GetEnemySpritePath(enemy.Name, avgLevel, animRot, enemy.IsBoss, assetsPath))
 	}
-	animResolved = DedupeEnemySprites(animResolved)
+	animSeeds := make([]int, len(req.Enemies))
+	for i := range req.Enemies {
+		animSeeds[i] = req.Enemies[i].SpriteIndex
+	}
+	animResolved = DedupeEnemySprites(animResolved, animSeeds)
 	for i, enemy := range req.Enemies {
 		if enemy.CurrentHP <= 0 && !enemy.JustDied && !isTargetThisAction(req, "enemy", i, fs) {
 			continue

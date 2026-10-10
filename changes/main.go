@@ -90,7 +90,7 @@ func main() {
 
 	api := r.Group("/api")
 
-	// ── RENDER routes (lightweight — no Chrome) ───────────────────────────────
+	// ── RENDER routes (lightweight - no Chrome) ───────────────────────────────
 	if mode == "render" || mode == "full" {
 		api.POST("/combat", combat.GenerateCombatImage)
 		api.POST("/combat/endscreen", combat.GenerateEndScreen)
@@ -101,12 +101,12 @@ func main() {
 		api.POST("/cards/burn", cards.GenerateBurnGif)
 		api.POST("/cards/convert", cards.ConvertCard)
 
-		// Lightweight scrapers (no Chrome — API/HTTP only)
+		// Lightweight scrapers (no Chrome - API/HTTP only)
 		api.GET("/scrape/stickers", scraper.SearchStickers)
 		api.GET("/scrape/rule34", scraper.SearchRule34) // uses Gelbooru DAPI
 	}
 
-	// ── CODESPACE routes (heavy — Chrome required) ────────────────────────────
+	// ── CODESPACE routes (heavy - Chrome required) ────────────────────────────
 	if mode == "codespace" || mode == "full" {
 		api.POST("/cards/gif", cards.GenerateCardGif)
 
@@ -119,7 +119,7 @@ func main() {
 			scrape.GET("/audio", scraper.ScrapeAudio)
 			scrape.GET("/anikai", scraper.ScrapeAnikai)
 			scrape.GET("/news", scraper.ScrapeAnimeNews)
-			// Deep Chrome rule34 — overrides the Gelbooru-only version when
+			// Deep Chrome rule34 - overrides the Gelbooru-only version when
 			// running in codespace/full mode (registered last so it wins)
 			scrape.GET("/rule34/deep", scraper.ScrapeRule34)
 		}
