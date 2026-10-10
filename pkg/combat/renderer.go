@@ -268,7 +268,11 @@ func GenerateCombatImage(c *gin.Context) {
                 }
                 resolvedEnemyFiles[i] = filepath.Base(GetEnemySpritePath(enemy.Name, lvl, rotIdx, enemy.IsBoss, assetsPath))
         }
-        resolvedEnemyFiles = DedupeEnemySprites(resolvedEnemyFiles)
+        enemySeeds := make([]int, len(req.Enemies))
+        for i := range req.Enemies {
+                enemySeeds[i] = req.Enemies[i].SpriteIndex
+        }
+        resolvedEnemyFiles = DedupeEnemySprites(resolvedEnemyFiles, enemySeeds)
 
         // 💀 FORMATION (2026-09-20): resolve ALL enemy sprites BEFORE assigning
         // positions, so the ground-map formation can pack them by REAL post-resize
@@ -1480,34 +1484,11 @@ func getRankBackground(rank string, assetsPath string) string {
 }
 
 func getRandomEnvironment(assetsPath string) string {
-        envPath := filepath.Join(assetsPath, "rpgasset", "environment")
-
-        entries, err := os.ReadDir(envPath)
-        if err != nil {
-                return ""
-        }
-
-        var files []string
-        for _, entry := range entries {
-                if !entry.IsDir() {
-                        name := entry.Name()
-                        ext := filepath.Ext(name)
-                        if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
-                                files = append(files, filepath.Join(envPath, name))
-                        }
-                }
-        }
-
-        if len(files) == 0 {
-                return ""
-        }
-
-        // Actually randomize using current time (not crypto-secure, fine for visual variety)
-        // Using a simple LCG seeded by time so we don't add math/rand import overhead.
-        // Falls back to first file if randomization fails.
-        idx := int(timeNow().UnixNano()) % len(files)
-        if idx < 0 {
-                idx = -idx
-        }
-        return files[idx]
+	// OWNER BRIEF 2026-10-09 (encounter background consistency / mid-battle
+	// background changes): the fallback used to return a RANDOM environment
+	// on EVERY call, so any render whose requested background asset was
+	// missing or empty saw a different room on the start card, each turn
+	// card and the end card. The fallback is now DETERMINISTIC: the same
+	// new-style lava cavern every time, stable within and across encounters.
+	return filepath.Join(assetsPath, "rpgasset", "environment", "env1.png")
 }

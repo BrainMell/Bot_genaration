@@ -7,6 +7,7 @@ import (
         "io"
         "log"
         "net/http"
+	"net/http/httputil"
         "net/url"
         "os"
         "strings"
@@ -243,7 +244,6 @@ func main() {
         scrape.GET("/powerscale/fetch", proxyToScraper)
         scrape.GET("/pornpics", proxyToScraper)
         scrape.GET("/audio", scraper.ScrapeAudio)
-        scrape.GET("/verify/image", scraper.VerifyImage)
         scrape.GET("/anikai", proxyToScraper)
         scrape.GET("/news", proxyToScraper)
 
@@ -263,6 +263,18 @@ func main() {
                         }
                 }()
         })
+
+        // 💡 VISION WORKER (2026-09-27): reverse-proxy /vision/* to the local
+        // vision-worker (127.0.0.1:7870) - the Oracle security list only
+        // allows this port cross-box, so NSFW verification rides this facade.
+        visionTarget, errVP := url.Parse("http://127.0.0.1:7870")
+        if errVP == nil {
+                visionProxy := httputil.NewSingleHostReverseProxy(visionTarget)
+                r.Any("/vision/*path", func(c *gin.Context) {
+                        c.Request.URL.Path = c.Param("path")
+                        visionProxy.ServeHTTP(c.Writer, c.Request)
+                })
+        }
 
 log.Printf("🚀 Microservice starting on port %s [MODE=%s]", port, mode)
         if err := r.Run("0.0.0.0:" + port); err != nil {
