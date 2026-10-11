@@ -341,9 +341,52 @@ api.get('/powerscale', async (req, res) => {
         const urls = data[3] || [];
 
         const junk = ['Special:', 'Category:', 'Talk:', 'User:', 'File:', 'Template:'];
-        const characters = titles
+        let characters = titles
             .map((name, i) => ({ id: i + 1, name, url: urls[i] }))
             .filter(c => c.url && c.url.includes('/wiki/') && !junk.some(j => c.url.includes(j)));
+
+        // ── FIX 2026-10-11: drop disambiguation pages from results ──────
+        // Picking one used to return "This article is a disambiguation page"
+        // with zero stats. One batched api.php categories call covers the
+        // whole result set.
+        try {
+            if (characters.length) {
+                const __wikiTitles = characters.map(c => {
+                    try { return decodeURIComponent(c.url.split('/wiki/')[1]).replace(/_/g, ' '); }
+                    catch (e) { return (c.name || '').replace(/_/g, ' '); }
+                });
+                const catURL = 'https://vsbattles.fandom.com/api.php?action=query&prop=categories&cllimit=max&clshow=!hidden&format=json&titles=' + encodeURIComponent(__wikiTitles.join('|'));
+                const catRes = await fetch(catURL, {
+                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0 Safari/537.36 wa-jake-bot/1.0', 'Accept': 'application/json' },
+                    signal: AbortSignal.timeout(10000),
+                });
+                if (catRes.ok) {
+                    const catData = await catRes.json();
+                    const disambig = new Set();
+                    for (const p of Object.values((catData && catData.query && catData.query.pages) || {})) {
+                        if ((p.categories || []).some(c => /disambiguation/i.test(c.title || ''))) {
+                            disambig.add((p.title || '').toLowerCase());
+                        }
+                    }
+                    if (disambig.size) {
+                        const before = characters.length;
+                        characters = characters.filter(c => !disambig.has((c.name || '').toLowerCase()));
+                        console.log('[Powerscale] Disambiguation filter: ' + (before - characters.length) + ' dropped, ' + characters.length + ' left');
+                    }
+                }
+            }
+        } catch (catErr) {
+            console.error('[Powerscale] Category check failed (keeping unfiltered):', catErr.message);
+        }
+        if (!characters.length) {
+            // every hit was a disambiguation page — restore the raw list;
+            // the Node side now answers with a friendly pick-again prompt
+            characters = titles
+                .map((name, i) => ({ id: i + 1, name, url: urls[i] }))
+                .filter(c => c.url && c.url.includes('/wiki/') && !junk.some(j => c.url.includes(j)));
+        } else {
+            characters = characters.map((c, i) => ({ ...c, id: i + 1 }));
+        }
 
         console.log(`[Powerscale] Found ${characters.length} results`);
 
@@ -460,6 +503,7 @@ api.get('/powerscale/fetch', async (req, res) => {
                 const __html = __j && __j.parse && __j.parse.text && __j.parse.text['*'];
                 if (__html && __html.length > 2000) {
                     const __data = vsbExtractFromHtml(__html, (__j.parse && __j.parse.title) || __title, url);
+                    if (__data) __data.isDisambiguation = /may refer to|disambiguation page/i.test(__data.summary || '');
                     if (__data && __data.name && (Object.keys(__data.stats).length > 0 || __data.summary)) {
                         console.log(`[PowerscaleFetch] MediaWiki OK: ${__data.name} stats=${Object.keys(__data.stats).length}`);
                         return res.json(__data);
@@ -542,6 +586,7 @@ api.get('/powerscale/fetch', async (req, res) => {
         }, url);
 
         await page.close();
+        if (data) data.isDisambiguation = /may refer to|disambiguation page/i.test(data.summary || '');
         res.json(data);
     } catch (err) {
         console.error('[PowerscaleFetch] Error:', err.message);
