@@ -342,7 +342,24 @@ func s02Skillup(req *portraitRequest) *gg.Context {
 	}
 	dc.Stroke()
 	initials := initialLetters(cardstyle.Sanitize(req.SkillName))
-	cardstyle.GlowText(dc, cardstyle.FtCinzelDec, 54, initials, cx, cy-8, cardstyle.WithA(cardstyle.Hex(0xffe9a8), 220), p.Accent, 0.5, 0.5, 130, 22)
+	if art := LoadSkillIcon(req.Icon); art != nil {
+		DrawIconDisc(dc, art, cx, cy, 92, nil)
+		// re-stroke the inscribed triangle so it stays crisp over the art
+		dc.SetColor(cardstyle.WithA(p.Accent, 110))
+		dc.SetLineWidth(1.2)
+		for i := 0; i <= 3; i++ {
+			a := -math.Pi/2 + float64(i)*2*math.Pi/3
+			xx, yy := cx+96*math.Cos(a), cy+96*math.Sin(a)
+			if i == 0 {
+				dc.MoveTo(xx, yy)
+			} else {
+				dc.LineTo(xx, yy)
+			}
+		}
+		dc.Stroke()
+	} else {
+		cardstyle.GlowText(dc, cardstyle.FtCinzelDec, 54, initials, cx, cy-8, cardstyle.WithA(cardstyle.Hex(0xffe9a8), 220), p.Accent, 0.5, 0.5, 130, 22)
+	}
 
 	// mastery ARC around the seal
 	maxPips := req.SkillMax
@@ -540,6 +557,10 @@ func s02Skilltree(req *portraitRequest) *gg.Context {
 				a := mid + off
 				x, yy := cx+r*math.Cos(a), cy+r*math.Sin(a)
 				s02Node(dc, x, yy, s.State, p)
+				// 2026-10-11 styled icon wiring: art bead on the orbit node
+				if art := LoadSkillIcon(s.Icon); art != nil {
+					DrawIconDisc(dc, art, x, yy, 13, nodeArtTint(s.State))
+				}
 				// skill name + progress beside the node, flipped near card edges
 				lx := x + 38*math.Cos(a)
 				ly := yy + 38*math.Sin(a)

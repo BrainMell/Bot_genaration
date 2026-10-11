@@ -400,7 +400,11 @@ func s05Skillup(req *portraitRequest) *gg.Context {
 	by, bh := 122.0, H-122-84
 	s05Band(dc, bx, by, bw, bh, p)
 	initials := initialLetters(cardstyle.Sanitize(req.SkillName))
-	s05Monogram(dc, bx+bw/2, by+120, initials, 58, p)
+	if art := LoadSkillIcon(req.Icon); art != nil {
+		DrawIconDisc(dc, art, bx+bw/2, by+120, 52, nil)
+	} else {
+		s05Monogram(dc, bx+bw/2, by+120, initials, 58, p)
+	}
 	cardstyle.Spaced(dc, cardstyle.FtInter, 9, "SUBJECT", bx+bw/2, by+172, p.Muted, 0.5, 5)
 	tierLabel := fmt.Sprintf("TIER %d", req.Tier)
 	if req.Ascended {
@@ -672,6 +676,10 @@ func s05Node(dc *gg.Context, x, y float64, s portraitNode, p *cardstyle.Palette)
 		cardstyle.DiamondOutline(dc, x, y, r+6, cardstyle.WithA(col, 110), 1)
 	} else {
 		cardstyle.DiamondOutline(dc, x, y, r-4, col, 1.4)
+	}
+	// 2026-10-11 styled icon wiring: art core inside the diamond
+	if art := LoadSkillIcon(s.Icon); art != nil {
+		DrawIconDisc(dc, art, x, y, 11, nodeArtTint(s.State))
 	}
 	cardstyle.Text(dc, cardstyle.FtInterSemi, 11, cardstyle.TruncateRunes(strings.ToUpper(cardstyle.Sanitize(s.Name)), 12), x, y+r+16, p.Ink, 0.5, 0.5, 140, 8)
 	cardstyle.Text(dc, cardstyle.FtInter, 10, fmt.Sprintf("%d/%d", s.Cur, s.Max), x, y+r+33, p.Muted, 0.5, 0.5, 60, 7)

@@ -145,3 +145,74 @@ func DrawIconDisc(dc *gg.Context, img image.Image, x, y, r float64, tint *color.
 	dc.DrawImage(disc.Image(), int(x-float64(W)/2), int(y-float64(W)/2))
 	return true
 }
+
+// ── styled-variant wiring (2026-10-11, styles 01-09) ─────────────────────
+// nodeArtTint mirrors the r6 default-style state language: locked dims
+// heavy, open dims light, learned/maxed stay full bright (nil tint).
+func nodeArtTint(state string) *color.NRGBA {
+	switch state {
+	case "locked":
+		c := color.NRGBA{R: 10, G: 6, B: 4, A: 150}
+		return &c
+	case "open":
+		c := color.NRGBA{R: 12, G: 8, B: 6, A: 60}
+		return &c
+	}
+	return nil
+}
+
+// DrawNodeArtTile cover-fits skill art into a rectangular node tile with a
+// readability scrim so the style's own name/level text stays legible over
+// busy art. Composed OFFSCREEN - never Clip the caller's context (gg leak).
+func DrawNodeArtTile(dc *gg.Context, art image.Image, x, y, w, h float64, state string) bool {
+	if dc == nil || art == nil || w < 10 || h < 10 {
+		return false
+	}
+	W, H := int(w+1), int(h+1)
+	if W < 2 || H < 2 {
+		return false
+	}
+	b := art.Bounds()
+	sw, sh := float64(b.Dx()), float64(b.Dy())
+	if sw < 1 || sh < 1 {
+		return false
+	}
+	tile := gg.NewContext(W, H)
+	scale := w / sw
+	if h/sh > scale {
+		scale = h / sh
+	}
+	tw, th := sw*scale, sh*scale
+	tile.Push()
+	tile.Translate((w-tw)/2, (h-th)/2)
+	tile.Scale(scale, scale)
+	tile.DrawImage(art, 0, 0)
+	tile.Pop()
+	tile.SetColor(color.NRGBA{R: 10, G: 6, B: 4, A: 92})
+	tile.DrawRectangle(0, 0, w, h)
+	tile.Fill()
+	g := gg.NewLinearGradient(0, h*0.26, 0, h)
+	g.AddColorStop(0, color.NRGBA{R: 10, G: 6, B: 4, A: 0})
+	g.AddColorStop(1, color.NRGBA{R: 10, G: 6, B: 4, A: 185})
+	tile.SetFillStyle(g)
+	tile.DrawRectangle(0, h*0.26, w, h*0.74)
+	tile.Fill()
+	if tint := nodeArtTint(state); tint != nil {
+		tile.SetColor(*tint)
+		tile.DrawRectangle(0, 0, w, h)
+		tile.Fill()
+	}
+	dc.DrawImage(tile.Image(), int(x), int(y))
+	return true
+}
+
+// DrawArtChip - small dark circular chip with centered text (the r6
+// progress-chip pattern), keeps station labels readable on top of node art.
+func DrawArtChip(dc *gg.Context, x, y, r float64, text string) {
+	dc.SetColor(portraitCol(16, 10, 5, 225))
+	dc.DrawCircle(x, y, r)
+	dc.Fill()
+	dc.SetColor(portraitCol(226, 182, 96, 255))
+	portraitFitText(dc, portraitAsset("Cinzel.ttf"), 12, text, r*1.7, 7)
+	dc.DrawStringAnchored(text, x, y, 0.5, 0.5)
+}

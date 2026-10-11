@@ -278,7 +278,11 @@ func s01Skillup(req *portraitRequest) *gg.Context {
 	s01Slab(dc, 150, 150, 300, 300, p)
 	cardstyle.Shield(dc, W/2, 296, 190, 220, cardstyle.Darken(p.Track, 16), cardstyle.Lighten(p.Track, 44), 3)
 	initials := initialLetters(cardstyle.Sanitize(req.SkillName))
-	cardstyle.Engrave(dc, cardstyle.FtCinzelDec, 64, initials, W/2, 292, cardstyle.Lighten(p.Panel, 66), cardstyle.Darken(p.Panel, 60), 0.5, 0.5, 150, 24)
+	if art := LoadSkillIcon(req.Icon); art != nil {
+		DrawIconDisc(dc, art, W/2, 292, 74, nil)
+	} else {
+		cardstyle.Engrave(dc, cardstyle.FtCinzelDec, 64, initials, W/2, 292, cardstyle.Lighten(p.Panel, 66), cardstyle.Darken(p.Panel, 60), 0.5, 0.5, 150, 24)
+	}
 	cardstyle.Text(dc, cardstyle.FtCinzelDec, 24, strings.ToUpper(cardstyle.Sanitize(req.SkillName)), W/2, 496, p.Ink, 0.5, 0.5, W-100, 12)
 	tierLabel := fmt.Sprintf("TIER %d", req.Tier)
 	if req.Ascended {
@@ -473,6 +477,14 @@ func s01Skilltree(req *portraitRequest) *gg.Context {
 					dc.SetColor(cardstyle.N(255, 179, 64, 34))
 					dc.DrawRectangle(bxx, yy, cw, chh)
 					dc.Fill()
+				}
+				// 2026-10-11 styled icon wiring: skill art fills the block
+				if art := LoadSkillIcon(s.Icon); art != nil {
+					DrawNodeArtTile(dc, art, bxx, yy, cw, chh, s.State)
+					dc.SetColor(cardstyle.Darken(base, 66))
+					dc.SetLineWidth(1.6)
+					dc.DrawRoundedRectangle(bxx, yy, cw, chh, 4)
+					dc.Stroke()
 				}
 				for _, c := range [][2]float64{{bxx + 8, yy + 8}, {bxx + cw - 8, yy + 8}, {bxx + 8, yy + chh - 8}, {bxx + cw - 8, yy + chh - 8}} {
 					cardstyle.Rivet(dc, c[0], c[1], 3.6, p.Track)

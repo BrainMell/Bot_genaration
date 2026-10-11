@@ -228,7 +228,11 @@ func s08Skillup(req *portraitRequest) *gg.Context {
 	// big skill readout panel
 	s08HUDPanel(dc, 46, y, W-92, 190, p, "SKILL")
 	initials := initialLetters(cardstyle.Sanitize(req.SkillName))
-	cardstyle.GlowText(dc, cardstyle.FtPS2P, 44, initials, W/2, y+86, cardstyle.HexA(0x40e0ff, 130), cardstyle.Hex(0x40e0ff), 0.5, 0.5, 200, 16)
+	if art := LoadSkillIcon(req.Icon); art != nil {
+		DrawIconDisc(dc, art, W/2, y+86, 56, nil)
+	} else {
+		cardstyle.GlowText(dc, cardstyle.FtPS2P, 44, initials, W/2, y+86, cardstyle.HexA(0x40e0ff, 130), cardstyle.Hex(0x40e0ff), 0.5, 0.5, 200, 16)
+	}
 	cardstyle.Text(dc, cardstyle.FtPS2P, 11, strings.ToUpper(cardstyle.Sanitize(req.SkillName)), W/2, y+142, cardstyle.Hex(0xff9ecb), 0.5, 0.5, W-130, 8)
 	y += 206
 
@@ -418,9 +422,18 @@ func s08Skilltree(req *portraitRequest) *gg.Context {
 				dc.SetLineWidth(2.4)
 				dc.DrawCircle(nx, ty, 24)
 				dc.Stroke()
-				dc.SetColor(pad)
-				dc.DrawCircle(nx, ty, 6)
-				dc.Fill()
+				if art := LoadSkillIcon(s.Icon); art != nil {
+					// 2026-10-11 styled icon wiring: art on the solder pad
+					DrawIconDisc(dc, art, nx, ty, 20, nodeArtTint(s.State))
+					dc.SetColor(pad)
+					dc.SetLineWidth(2.4)
+					dc.DrawCircle(nx, ty, 24)
+					dc.Stroke()
+				} else {
+					dc.SetColor(pad)
+					dc.DrawCircle(nx, ty, 6)
+					dc.Fill()
+				}
 				cardstyle.Text(dc, cardstyle.FtPS2P, 8, cardstyle.TruncateRunes(strings.ToUpper(cardstyle.Sanitize(s.Name)), 10), nx, ty-42, cardstyle.Hex(0xe0f2ff), 0.5, 0.5, 120, 6)
 				valCol := cardstyle.HexA(0x80a8d0, 235)
 				if s.State == "maxed" {

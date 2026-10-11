@@ -244,7 +244,11 @@ func s06Skillup(req *portraitRequest) *gg.Context {
 	// sigil circle + glowing initials
 	cardstyle.MagicCircle(dc, W/2, 300, 92, p.Accent)
 	initials := initialLetters(cardstyle.Sanitize(req.SkillName))
-	cardstyle.GlowText(dc, cardstyle.FtCinzelDec, 66, initials, W/2, 296, p.Accent2, p.Accent2, 0.5, 0.5, 150, 30)
+	if art := LoadSkillIcon(req.Icon); art != nil {
+		DrawIconDisc(dc, art, W/2, 300, 64, nil)
+	} else {
+		cardstyle.GlowText(dc, cardstyle.FtCinzelDec, 66, initials, W/2, 296, p.Accent2, p.Accent2, 0.5, 0.5, 150, 30)
+	}
 	// orbit pips (skill level)
 	maxPips := req.SkillMax
 	if maxPips < 1 {
@@ -429,6 +433,10 @@ func s06Skilltree(req *portraitRequest) *gg.Context {
 			cardstyle.Text(dc, cardstyle.FtCinzel, 12, tierRoman(s.Tier), tx-40, sy, cardstyle.WithA(p.Muted, 210), 1, 0.5, 40, 8)
 			// the bead
 			s06StarNode(dc, tx, sy, s.State, p)
+			// 2026-10-11 styled icon wiring: art bead on the thread
+			if art := LoadSkillIcon(s.Icon); art != nil {
+				DrawIconDisc(dc, art, tx, sy, 15, nodeArtTint(s.State))
+			}
 			if s.State == "maxed" {
 				cardstyle.GlowText(dc, cardstyle.FtCinzel, 13, fmt.Sprintf("%d/%d", s.Cur, s.Max), tx+30, sy+22, p.Accent, p.Accent, 0, 0.5, 90, 8)
 			} else {

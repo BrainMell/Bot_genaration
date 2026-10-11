@@ -480,7 +480,21 @@ func s03Skilltree(req *portraitRequest) *gg.Context {
 		dc.SetLineWidth(2)
 		dc.DrawCircle(st.x, st.y, r)
 		dc.Stroke()
-		cardstyle.Text(dc, cardstyle.FtIMFell, 15, st.label, st.x, st.y-2, p.Ink, 0.5, 0.5, 40, 9)
+		if art := LoadSkillIcon(st.node.Icon); art != nil {
+			// 2026-10-11 styled icon wiring: art disc + number chip at rim
+			DrawIconDisc(dc, art, st.x, st.y, 22, nodeArtTint(st.node.State))
+			DrawArtChip(dc, st.x, st.y+16, 10, st.label)
+			if lit {
+				dc.SetColor(cardstyle.Hex(0xf4e2c4))
+			} else {
+				dc.SetColor(p.Accent)
+			}
+			dc.SetLineWidth(2)
+			dc.DrawCircle(st.x, st.y, 26)
+			dc.Stroke()
+		} else {
+			cardstyle.Text(dc, cardstyle.FtIMFell, 15, st.label, st.x, st.y-2, p.Ink, 0.5, 0.5, 40, 9)
+		}
 		cardstyle.Text(dc, cardstyle.FtIMFell, 12, cardstyle.TruncateRunes(strings.ToUpper(cardstyle.Sanitize(st.node.Name)), 14), st.x, st.y+r+14, p.Ink, 0.5, 0.5, cellW-14, 8)
 		if st.node.State == "maxed" {
 			cardstyle.Fleuron(dc, st.x+r-4, st.y-r+4, 3, p.Accent)

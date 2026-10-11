@@ -355,7 +355,11 @@ func s09Skillup(req *portraitRequest) *gg.Context {
 	dc.DrawCircle(rcx, rcy, 62)
 	dc.Fill()
 	cardstyle.EmberGlow(dc, rcx, rcy, 60, p.Accent)
-	cardstyle.Engrave(dc, cardstyle.FtCinzelDec, 44, initials, rcx, rcy-2, cardstyle.Lighten(p.Ink, 16), cardstyle.Darken(p.Panel, 70), 0.5, 0.5, 100, 18)
+	if art := LoadSkillIcon(req.Icon); art != nil {
+		DrawIconDisc(dc, art, rcx, rcy, 53, nil)
+	} else {
+		cardstyle.Engrave(dc, cardstyle.FtCinzelDec, 44, initials, rcx, rcy-2, cardstyle.Lighten(p.Ink, 16), cardstyle.Darken(p.Panel, 70), 0.5, 0.5, 100, 18)
+	}
 	dc.SetColor(cardstyle.Lighten(p.Panel, 26))
 	cardstyle.Ring(dc, rcx, rcy, 66, cardstyle.Lighten(p.Panel, 26), 1.4)
 	cardstyle.Ring(dc, rcx, rcy, 58, cardstyle.N(0, 0, 0, 120), 1.6)
@@ -593,14 +597,19 @@ func s09Skilltree(req *portraitRequest) *gg.Context {
 					glyphCol = cardstyle.Hex(0xffdca0)
 					cardstyle.Ring(dc, nx, sy, 30, cardstyle.HexA(0xffdca0, 150), 1.4)
 				}
-				dc.SetColor(glyphCol)
-				dc.SetLineWidth(2.4)
-				dc.DrawLine(nx-7, sy-9, nx+7, sy-9)
-				dc.Stroke()
-				dc.DrawLine(nx+7, sy-9, nx-7, sy)
-				dc.Stroke()
-				dc.DrawLine(nx-7, sy, nx+7, sy+9)
-				dc.Stroke()
+				if art := LoadSkillIcon(s.Icon); art != nil {
+					// 2026-10-11 styled icon wiring: art replaces rune glyph
+					DrawIconDisc(dc, art, nx, sy, 22, nodeArtTint(s.State))
+				} else {
+					dc.SetColor(glyphCol)
+					dc.SetLineWidth(2.4)
+					dc.DrawLine(nx-7, sy-9, nx+7, sy-9)
+					dc.Stroke()
+					dc.DrawLine(nx+7, sy-9, nx-7, sy)
+					dc.Stroke()
+					dc.DrawLine(nx-7, sy, nx+7, sy+9)
+					dc.Stroke()
+				}
 				// 2026-09-17: node labels used maxW=colW-10 (up to ~990px) while
 				// adjacent tier-mates sit only 74px apart - names collided into
 				// garble ("WAR MARCHSERENADE OF"). Cap each label to the 148px

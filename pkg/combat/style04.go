@@ -291,7 +291,11 @@ func s04Skillup(req *portraitRequest) *gg.Context {
 	dc.DrawCircle(W/2, cy, 96)
 	dc.Stroke()
 	initials := initialLetters(cardstyle.Sanitize(req.SkillName))
-	cardstyle.Text(dc, cardstyle.FtCinzelDec, 58, initials, W/2, cy-6, cardstyle.N(240, 202, 130, 255), 0.5, 0.5, 140, 22)
+	if art := LoadSkillIcon(req.Icon); art != nil {
+		DrawIconDisc(dc, art, W/2, cy, 92, nil)
+	} else {
+		cardstyle.Text(dc, cardstyle.FtCinzelDec, 58, initials, W/2, cy-6, cardstyle.N(240, 202, 130, 255), 0.5, 0.5, 140, 22)
+	}
 	tierLabel := fmt.Sprintf("TIER %d", req.Tier)
 	if req.Ascended {
 		tierLabel = "ASCENDED"
@@ -486,6 +490,10 @@ func s04Skilltree(req *portraitRequest) *gg.Context {
 				dc.SetLineWidth(1.4)
 				dc.DrawLine(tx, ty-34, tx, ty-12)
 				dc.Stroke()
+				// 2026-10-11 styled icon wiring: art bead on the tag string
+				if art := LoadSkillIcon(s.Icon); art != nil {
+					DrawIconDisc(dc, art, tx, ty-23, 13.5, nodeArtTint(s.State))
+				}
 				cardstyle.Tag(dc, tx-76, ty-12, 152, 40, base, edge, txt, cardstyle.TruncateRunes(strings.ToUpper(cardstyle.Sanitize(s.Name)), 14), cardstyle.FtCinzel, 11)
 				lvlCol := cardstyle.N(216, 170, 104, 240)
 				if s.State == "maxed" {
