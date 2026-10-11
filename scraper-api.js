@@ -113,12 +113,21 @@ app.use('/api/scrape', api);
 // no external key, ~1s latency. Response shape is unchanged
 // ({ images: [url...], count }) so the Go proxy and bot code need
 // no edits.
+//
+// 2026-10-11 UPDATE (owner: "shuffle it around a bit so that each search
+// doesn't look the same like the old system used to"): fetch ~3x the
+// requested count, then Fisher-Yates shuffle and slice. The old browser
+// scrape had natural run-to-run variety (live page timing/personalization);
+// Bing serves a stable ranked list, so without the shuffle every ".j s goku"
+// returned the SAME stickers every time. Now each search mixes fresh picks.
 api.get('/pinterest', async (req, res) => {
     const { query, count = 10 } = req.query;
     if (!query) return res.status(400).json({ error: 'Query required' });
 
     const maxCount = Math.min(parseInt(count) || 10, 60);
-    console.log(`[Pinterest-via-Bing] Searching: \`${query}\` (count=${maxCount})`);
+    // Fetch a surplus so the shuffle has material: 3x, clamped to a sane band
+    const fetchTarget = Math.min(Math.max(maxCount * 3, 25), 90);
+    console.log(`[Pinterest-via-Bing] Searching: \`${query}\` (count=${maxCount}, pool=${fetchTarget})`);
 
     const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
     const HEADERS = {
@@ -148,10 +157,10 @@ api.get('/pinterest', async (req, res) => {
     try {
         const images = [];
         const seen = new Set();
-        const MAX_PAGES = 3;          // ~35 murls per page; .j s caps at 30
+        const MAX_PAGES = 4;
         const PER_PAGE = 35;
 
-        for (let page = 0; page < MAX_PAGES && images.length < maxCount; page++) {
+        for (let page = 0; page < MAX_PAGES && images.length < fetchTarget; page++) {
             const first = page * PER_PAGE + 1;
             const searchURL = `https://www.bing.com/images/search?q=${encodeURIComponent(query)}&first=${first}&count=${PER_PAGE}&form=HDRSC2`;
             const response = await fetch(searchURL, {
@@ -165,14 +174,22 @@ api.get('/pinterest', async (req, res) => {
                 if (!seen.has(u)) {
                     seen.add(u);
                     images.push(u);
-                    if (images.length >= maxCount) break;
+                    if (images.length >= fetchTarget) break;
                 }
             }
             if (murls.length === 0) break; // no more results
         }
 
-        console.log(`[Pinterest-via-Bing] Found ${images.length} images`);
-        res.json({ images, count: images.length });
+        // Fisher-Yates shuffle over the whole pool, then slice. The response
+        // size stays `count`, but WHICH images you get rotates per search.
+        for (let i = images.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [images[i], images[j]] = [images[j], images[i]];
+        }
+        const picked = images.slice(0, maxCount);
+
+        console.log(`[Pinterest-via-Bing] Pool ${images.length} -> picked ${picked.length} (shuffled)`);
+        res.json({ images: picked, count: picked.length });
     } catch (err) {
         console.error('[Pinterest-via-Bing] Error:', err.message);
         res.status(500).json({ error: err.message });
