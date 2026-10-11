@@ -131,13 +131,18 @@ func GenerateCombatImage(c *gin.Context) {
         // platforms) cannot host a large party: probe the counted formation with
         // unit widths and swap to the stage's declared overflow arena when a side
         // cannot stand everyone. PvE only (PvP arenas are fixed wide stages).
+        // 💀 FIX 2026-10-11 (owner fight-card audit): probe the FULL ROSTER
+        // counts, not the visible ones. The old per-render visible count made
+        // the arena swap TOGGLE mid-fight as enemies died ("the background
+        // changes between turns and then returns to normal"). Roster counts are
+        // constant for the whole fight, so the arena is chosen ONCE.
         if req.CombatType != "PVP" {
-                visP, visE, visS, hasBoss := countVisibleCombatants(req)
-                if suggest := groundOverflowIfNeeded(filepath.Base(bgPath), visP, visE, visS, hasBoss); suggest != "" {
+                visP, _, visS, hasBoss := countVisibleCombatants(req)
+                if suggest := groundOverflowIfNeeded(filepath.Base(bgPath), visP, len(req.Enemies), visS, hasBoss); suggest != "" {
                         cand := filepath.Join(assetsPath, "rpgasset", "environment", suggest)
                         if fileExists(cand) {
                                 log.Printf("[groundmap] capacity: %s cannot hold %dv%d (+%d summons, boss=%v) -> overflow to %s",
-                                        filepath.Base(bgPath), visP, visE, visS, hasBoss, suggest)
+                                        filepath.Base(bgPath), visP, len(req.Enemies), visS, hasBoss, suggest)
                                 bgPath = cand
                         }
                 }
@@ -237,14 +242,16 @@ func GenerateCombatImage(c *gin.Context) {
         // 💡 FIX 2026-09-11 (visual audit): resolve every enemy sprite up front,
         // then spread same-family duplicates across the family pool so one
         // encounter never shows identical twin sprites side by side.
-        // Dead-and-unseen enemies resolve to "" and are ignored by the dedupe.
+        // 💀 FIX 2026-10-11 (owner fight-card audit): resolve the FULL ROSTER —
+        // dead enemies included. Previously dead entries resolved to "" and were
+        // skipped by the dedupe, so every death reshuffled the surviving
+        // twins' family variants ("enemy sprites swap when another dies").
+        // Reserving variants for the whole roster makes the assignment stable
+        // for the entire fight; dead entries are simply not DRAWN later.
         resolvedEnemyFiles := make([]string, len(req.Enemies))
         summonEnemyPaths := make([]string, len(req.Enemies))
         for i, enemy := range req.Enemies {
-                if enemy.CurrentHP <= 0 && !enemy.JustDied {
-                        continue
-                }
-                if enemy.Mode == "summon" && enemy.Species != "" {
+                if enemy.Mode == "summon" && enemy.Species != "" && enemy.CurrentHP > 0 {
                         // 💡 FIX 2026-09-17: abyss wild summons render their actual
                         // summon species sprite (GetSummonSpritePath returns a full
                         // path - summons live outside rpgasset/enemies).
@@ -286,12 +293,16 @@ func GenerateCombatImage(c *gin.Context) {
                 name      string
         }
         var eItems []enemySpriteItem
-        var eWidths []float64
+        // 💀 FIX 2026-10-11 (owner fight-card audit): positions are pinned per
+        // ORIGINAL roster index. The formation is packed from the FULL roster
+        // width sequence — INCLUDING dead members, whose sprite is loaded just
+        // to measure its real width (never drawn) — so the pack result is
+        // byte-identical to the all-alive case and each surviving enemy draws
+        // at ITS OWN roster slot. A death clears that enemy's position WITHOUT
+        // shifting the survivors ("dead enemies disappear from their actual
+        // positions; survivors keep their sprites and positions").
+        packWidths := make([]float64, len(req.Enemies))
         for i, enemy := range req.Enemies {
-                if enemy.CurrentHP <= 0 && !enemy.JustDied {
-                        continue
-                }
-
                 spritePath := summonEnemyPaths[i]
                 if spritePath == "" {
                         spritePath = filepath.Join(assetsPath, "rpgasset", "enemies", resolvedEnemyFiles[i])
@@ -309,14 +320,17 @@ func GenerateCombatImage(c *gin.Context) {
                 }
                 eSprite = imaging.Resize(eSprite, 0, targetH, imaging.NearestNeighbor)
 
+                // 💀 FIX 2026-10-11: dead enemies are MEASURED but never drawn —
+                // the old justDied exception rendered a red-tinted "purple"
+                // corpse that read as a different monster still standing there.
+                if enemy.CurrentHP <= 0 {
+                        packWidths[i] = float64(eSprite.Bounds().Dx())
+                        continue
+                }
+
                 // Side-based facing - enemies on RIGHT side face LEFT
                 if flipForSide(filepath.Base(spritePath), false) {
                         eSprite = imaging.FlipH(eSprite)
-                }
-
-                // Tint Red if dead
-                if enemy.CurrentHP <= 0 {
-                        eSprite = utils.TintImage(eSprite, color.RGBA{80, 0, 80, 180})
                 }
 
                 hpPerc := 0.0
@@ -325,20 +339,23 @@ func GenerateCombatImage(c *gin.Context) {
                 }
                 w, h := eSprite.Bounds().Dx(), eSprite.Bounds().Dy()
                 eItems = append(eItems, enemySpriteItem{img: eSprite, w: w, h: h, hpPerc: hpPerc, origIndex: i, name: enemy.Name})
-                eWidths = append(eWidths, float64(w))
+                packWidths[i] = float64(w)
         }
 
         // 💀 GROUND MAP formation plan: width-aware packing into THIS background's
         // standable enemy zone. Falls back to the legacy slot table (still
         // ground-adjusted) when the background has no formation data.
-        enemySlots := groundPlanFormation(bgName, "enemy", eWidths)
-        for idx, it := range eItems {
+        // 💀 FIX 2026-10-11: packed from the FULL roster width sequence, and each
+        // drawn enemy takes the slot of its ORIGINAL roster index (origIndex),
+        // not its position among the visible survivors.
+        enemySlots := groundPlanFormation(bgName, "enemy", packWidths)
+        for _, it := range eItems {
                 var feetX, feetY float64
-                if enemySlots != nil && idx < len(enemySlots) {
-                        feetX, feetY = enemySlots[idx].X, enemySlots[idx].Y
+                if enemySlots != nil && it.origIndex < len(enemySlots) {
+                        feetX, feetY = enemySlots[it.origIndex].X, enemySlots[it.origIndex].Y
                 } else {
                         // Position from EnemySlots table - no inline math.
-                        slot := slotFor(EnemySlots, idx)
+                        slot := slotFor(EnemySlots, it.origIndex)
                         feetX = slot.X
                         // 💡 GROUND MAP (2026-09-20): re-anchor the depth ladder so every row
                         // stands on THIS background's measured standable ground (env caves:
@@ -411,12 +428,11 @@ func GenerateCombatImage(c *gin.Context) {
                         curHP     int
                 }
                 var sItems []summonSpriteItem
-                var sWidths []float64
+                // 💀 FIX 2026-10-11: full-roster width sequence (dead summons
+                // measured, never drawn) + slot per ORIGINAL index — same
+                // treatment as enemies.
+                packSummonWidths := make([]float64, len(req.Summons))
                 for i, summon := range req.Summons {
-                        if summon.CurrentHP <= 0 && !summon.JustDied {
-                                continue
-                        }
-
                         spritePath := GetSummonSpritePath(summon.Species, assetsPath)
                         sSprite, err := utils.LoadImage(spritePath)
                         if err != nil {
@@ -426,6 +442,13 @@ func GenerateCombatImage(c *gin.Context) {
                         // Crop FIRST, then resize by fixed HEIGHT (75px).
                         sSprite = cropToVisibleBounds(sSprite)
                         sSprite = imaging.Resize(sSprite, 0, pveSummonSpriteH, imaging.NearestNeighbor)
+
+                        // 💀 FIX 2026-10-11: dead summons are measured but never
+                        // drawn (the old justDied corpse tint is gone).
+                        if summon.CurrentHP <= 0 {
+                                packSummonWidths[i] = float64(sSprite.Bounds().Dx())
+                                continue
+                        }
 
                         // Summon facing via flipForSide.
                         if strings.Contains(summon.Species, "ship_") {
@@ -437,29 +460,24 @@ func GenerateCombatImage(c *gin.Context) {
                                 }
                         }
 
-                        // Tint red if dead
-                        if summon.CurrentHP <= 0 {
-                                sSprite = utils.TintImage(sSprite, color.RGBA{80, 0, 80, 180})
-                        }
-
                         summonName := summon.Name
                         if summonName == "" {
                                 summonName = summon.Species
                         }
                         w, h := sSprite.Bounds().Dx(), sSprite.Bounds().Dy()
                         sItems = append(sItems, summonSpriteItem{img: sSprite, w: w, h: h, origIndex: i, name: summonName, maxHP: summon.MaxHP, curHP: summon.CurrentHP})
-                        sWidths = append(sWidths, float64(w))
+                        packSummonWidths[i] = float64(w)
                 }
 
                 // 💀 GROUND MAP formation plan for the summon zone.
-                summonSlots := groundPlanFormation(bgName, "summon", sWidths)
-                for idx, it := range sItems {
+                summonSlots := groundPlanFormation(bgName, "summon", packSummonWidths)
+                for _, it := range sItems {
                         var summonFeetX, summonFeetY float64
-                        if summonSlots != nil && idx < len(summonSlots) {
-                                summonFeetX, summonFeetY = summonSlots[idx].X, summonSlots[idx].Y
+                        if summonSlots != nil && it.origIndex < len(summonSlots) {
+                                summonFeetX, summonFeetY = summonSlots[it.origIndex].X, summonSlots[it.origIndex].Y
                         } else {
                                 // Position from SummonSlots table - no inline math.
-                                slot := slotFor(SummonSlots, idx)
+                                slot := slotFor(SummonSlots, it.origIndex)
                                 summonFeetX = slot.X
                                 // 💡 GROUND MAP (2026-09-20): per-background summon depth rows.
                                 summonFeetY = groundAdjustedY(bgName, "summon", slot.Y)
@@ -1484,11 +1502,11 @@ func getRankBackground(rank string, assetsPath string) string {
 }
 
 func getRandomEnvironment(assetsPath string) string {
-	// OWNER BRIEF 2026-10-09 (encounter background consistency / mid-battle
-	// background changes): the fallback used to return a RANDOM environment
-	// on EVERY call, so any render whose requested background asset was
-	// missing or empty saw a different room on the start card, each turn
-	// card and the end card. The fallback is now DETERMINISTIC: the same
-	// new-style lava cavern every time, stable within and across encounters.
-	return filepath.Join(assetsPath, "rpgasset", "environment", "env1.png")
+        // OWNER BRIEF 2026-10-09 (encounter background consistency / mid-battle
+        // background changes): the fallback used to return a RANDOM environment
+        // on EVERY call, so any render whose requested background asset was
+        // missing or empty saw a different room on the start card, each turn
+        // card and the end card. The fallback is now DETERMINISTIC: the same
+        // new-style lava cavern every time, stable within and across encounters.
+        return filepath.Join(assetsPath, "rpgasset", "environment", "env1.png")
 }
