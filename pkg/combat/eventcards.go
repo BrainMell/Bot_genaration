@@ -447,12 +447,24 @@ func renderSkillUpCard(c *gin.Context, req *portraitRequest) {
 	dc.DrawCircle(300, 385, 128)
 	dc.Stroke()
 
-	initials := initialLetters(req.SkillName)
-	portraitFitText(dc, portraitAsset("Cinzel.ttf"), 76, initials, 170, 30)
-	dc.SetColor(portraitCol(18, 10, 4, 255))
-	dc.DrawStringAnchored(initials, 302, 368, 0.5, 0.5)
-	dc.SetColor(accent)
-	dc.DrawStringAnchored(initials, 300, 365, 0.5, 0.5)
+	// 2026-10-11 asset overhaul: skill artwork fills the medallion disc;
+	// initials stay as the fallback when no icon rides the payload or the
+	// file is missing (same graceful contract as the Node side).
+	if art := LoadSkillIcon(req.Icon); art != nil {
+		DrawIconDisc(dc, art, 300, 385, 130, nil)
+		// inset ring over the art edge, matching the bake's inner stroke
+		dc.SetColor(portraitCol(0, 0, 0, 80))
+		dc.SetLineWidth(1)
+		dc.DrawCircle(300, 385, 128)
+		dc.Stroke()
+	} else {
+		initials := initialLetters(req.SkillName)
+		portraitFitText(dc, portraitAsset("Cinzel.ttf"), 76, initials, 170, 30)
+		dc.SetColor(portraitCol(18, 10, 4, 255))
+		dc.DrawStringAnchored(initials, 302, 368, 0.5, 0.5)
+		dc.SetColor(accent)
+		dc.DrawStringAnchored(initials, 300, 365, 0.5, 0.5)
+	}
 
 	tierLabel := fmt.Sprintf("TIER %d", req.Tier)
 	if req.Ascended {

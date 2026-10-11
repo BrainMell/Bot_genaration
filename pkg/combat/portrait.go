@@ -248,6 +248,7 @@ type portraitNode struct {
 	Max   int    `json:"max"`
 	State string `json:"state"` // locked | open | learned | maxed
 	Tier  int    `json:"tier"`
+	Icon  string `json:"icon"` // 2026-10-11: skill art basename (core/rpgasset/skills/<icon>.png); "" -> initials fallback
 }
 
 type portraitBranch struct {
@@ -330,6 +331,7 @@ type portraitRequest struct {
 	SkillPoints int                `json:"skillPoints"`
 	SkillName   string             `json:"skillName"`
 	SkillMax    int                `json:"skillMax"`
+	Icon        string             `json:"icon"` // 2026-10-11: SKILLUP medallion art basename; "" -> initials fallback
 	Cur         int                `json:"cur"`
 	Tier        int                `json:"tier"`
 	Ascended    bool               `json:"ascended"`
@@ -986,10 +988,10 @@ type EndCardPayload struct {
 	// 💡 FIX 2026-09-17: wild summons (abyss) render their species sprite
 	// on the end card instead of a random monster.
 	EnemySpecies string `json:"enemySpecies,omitempty"`
-	Rank        string `json:"rank"`
-	Floor       int    `json:"floor"`
-	Background  string `json:"background"`
-	Caption     string `json:"caption"`
+	Rank         string `json:"rank"`
+	Floor        int    `json:"floor"`
+	Background   string `json:"background"`
+	Caption      string `json:"caption"`
 }
 
 // portraitEnemySprite resolves + trims + fits an enemy sprite for the END
