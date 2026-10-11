@@ -99,55 +99,82 @@ app.get('/health', (req, res) => {
 const api = express.Router();
 app.use('/api/scrape', api);
 
-// ── Pinterest Scraper ──────────────────────────────────────────────────
+// ── Pinterest Scraper (Bing Images backend) ───────────────────────────
+// 2026-10-11 REBUILD (owner: ".j s image search is broken"):
+// The old route drove Pinterest's search page through a Browserless.io
+// cloud browser. The BROWSERLESS_TOKEN became INVALID ("Invalid API key"
+// from /meta), puppeteer.connect() loops connect->disconnected forever,
+// and the local-Chrome fallback can't help because Chrome is not
+// installed on this box. Result: every .j s / .j img search returned 0
+// images after a 16-18s stall.
+// Pinterest's own JSON API is 403 for datacenter IPs, but Bing Images
+// serves full-resolution results (including i.pinimg.com originals) to
+// plain HTTP requests. This route now scrapes Bing directly: no browser,
+// no external key, ~1s latency. Response shape is unchanged
+// ({ images: [url...], count }) so the Go proxy and bot code need
+// no edits.
 api.get('/pinterest', async (req, res) => {
     const { query, count = 10 } = req.query;
     if (!query) return res.status(400).json({ error: 'Query required' });
 
-    try {
-        const b = await getBrowser();
-        const page = await setupPage(b);
-        const searchURL = `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(query)}`;
-        
-        console.log(`[Pinterest] Searching: ${searchURL}`);
-        await page.goto(searchURL, { waitUntil: 'networkidle2', timeout: 60000 });
+    const maxCount = Math.min(parseInt(count) || 10, 60);
+    console.log(`[Pinterest-via-Bing] Searching: \`${query}\` (count=${maxCount})`);
 
-        // Scroll loop
-        const scrolls = Math.min(Math.max(Math.floor(count / 10), 2), 5);
-        for (let i = 0; i < scrolls; i++) {
-            await page.evaluate(() => window.scrollBy(0, 1000));
-            try {
-                await page.waitForFunction((expected) => {
-                    return document.querySelectorAll('div[data-test-id="pinWrapper"] img').length >= expected;
-                }, { timeout: 2000 }, parseInt(count));
-            } catch (e) {
-                await new Promise(r => setTimeout(r, 500));
+    const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+    const HEADERS = {
+        'User-Agent': UA,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+    };
+
+    // Bing HTML escapes the embedded JSON with HTML entities. Extract the
+    // full-resolution original image URLs ("murl") from each results page.
+    function extractMurls(html) {
+        const unescaped = html
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>');
+        const urls = [];
+        const re = /"murl":"(https?:\/\/[^"]+?)"/g;
+        let m;
+        while ((m = re.exec(unescaped)) !== null) {
+            urls.push(m[1]);
+        }
+        return urls;
+    }
+
+    try {
+        const images = [];
+        const seen = new Set();
+        const MAX_PAGES = 3;          // ~35 murls per page; .j s caps at 30
+        const PER_PAGE = 35;
+
+        for (let page = 0; page < MAX_PAGES && images.length < maxCount; page++) {
+            const first = page * PER_PAGE + 1;
+            const searchURL = `https://www.bing.com/images/search?q=${encodeURIComponent(query)}&first=${first}&count=${PER_PAGE}&form=HDRSC2`;
+            const response = await fetch(searchURL, {
+                headers: HEADERS,
+                signal: AbortSignal.timeout(20000),
+            });
+            if (!response.ok) throw new Error(`Bing HTTP ${response.status}`);
+            const html = await response.text();
+            const murls = extractMurls(html);
+            for (const u of murls) {
+                if (!seen.has(u)) {
+                    seen.add(u);
+                    images.push(u);
+                    if (images.length >= maxCount) break;
+                }
             }
+            if (murls.length === 0) break; // no more results
         }
 
-        const images = await page.evaluate((maxCount) => {
-            const nodes = document.querySelectorAll('div[data-test-id="pinWrapper"] img');
-            const seen = new Set();
-            const urls = [];
-            
-            for (const img of nodes) {
-                let src = img.src;
-                if (src && src.includes('pinimg.com')) {
-                    const hdURL = src.replace(/(236x|474x)/, '736x');
-                    if (!seen.has(hdURL)) {
-                        seen.add(hdURL);
-                        urls.push(hdURL);
-                    }
-                }
-                if (urls.length >= maxCount) break;
-            }
-            return urls;
-        }, parseInt(count));
-
-        await page.close();
+        console.log(`[Pinterest-via-Bing] Found ${images.length} images`);
         res.json({ images, count: images.length });
     } catch (err) {
-        console.error('[Pinterest] Error:', err.message);
+        console.error('[Pinterest-via-Bing] Error:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
