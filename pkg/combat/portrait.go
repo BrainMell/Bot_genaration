@@ -248,6 +248,13 @@ type portraitNode struct {
 	Max   int    `json:"max"`
 	State string `json:"state"` // locked | open | learned | maxed
 	Tier  int    `json:"tier"`
+	// 💡 ROUND-21 2026-10-20 (owner: "the skill tree icons... you removed
+	// them?"): Node has shipped per-node icon filenames since 2026-10-12
+	// (skillCommands.js → skillArtFile) but the Go side never consumed them —
+	// every medallion degraded to initials. Icon is the Go asset filename
+	// under assets/rpgasset/skills/<icon>.png; empty/invalid → initials
+	// fallback (unchanged).
+	Icon string `json:"icon"`
 }
 
 type portraitBranch struct {

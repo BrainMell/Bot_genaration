@@ -30,6 +30,7 @@ package combat
 import (
         "fmt"
         "image/color"
+        "os"
         "strings"
 
         "image-service/pkg/utils"
@@ -115,8 +116,43 @@ func r6quadLink(dc *gg.Context, x0, y0, x2, y2, bias float64, energized, locked 
         }
 }
 
+// skillIconAssetPath resolves a Node-supplied skill icon filename to the
+// renderer asset assets/rpgasset/skills/<icon>.png. Empty result → caller
+// falls back to the initials medallion. The charset guard mirrors the
+// Node-side skillArtFile contract (bare filenames only, no traversal).
+func skillIconAssetPath(icon string) string {
+        icon = strings.TrimSpace(icon)
+        if icon == "" || len(icon) > 96 {
+                return ""
+        }
+        ok := len(icon) <= 96 && icon[len(icon)-4:] == ".png"
+        if ok {
+                for _, ch := range icon[:len(icon)-4] {
+                        switch {
+                        case ch >= 'a' && ch <= 'z', ch >= 'A' && ch <= 'Z', ch >= '0' && ch <= '9',
+                                ch == '_', ch == '-', ch == ' ', ch == '(', ch == ')':
+                        default:
+                                ok = false
+                                break
+                        }
+                }
+        }
+        if !ok {
+                return ""
+        }
+        p := utils.GetAssetPath("rpgasset", "skills", icon)
+        if _, err := os.Stat(p); err != nil {
+                return ""
+        }
+        return p
+}
+
 // r6medallion - a skill node on the dark panel.
-func r6medallion(dc *gg.Context, x, y, r float64, st treeStyleR6, initials, progress string) {
+// 💡 ROUND-21: when iconPath resolves (assets/rpgasset/skills/<icon>.png) the
+// medallion draws the REAL skill artwork cover-fit inside the ring instead of
+// the initials fallback the owner called out. Any failure (empty, missing
+// file, bad name) degrades to the original initials rendering.
+func r6medallion(dc *gg.Context, x, y, r float64, st treeStyleR6, initials, progress, iconPath string) {
         switch st.glow {
         case 2:
                 for _, g := range []struct {
@@ -147,6 +183,35 @@ func r6medallion(dc *gg.Context, x, y, r float64, st treeStyleR6, initials, prog
         dc.SetLineWidth(1)
         dc.DrawCircle(x, y, r-4)
         dc.Stroke()
+
+        if iconPath != "" {
+                if img, err := utils.LoadImage(iconPath); err == nil && img.Bounds().Dx() > 0 {
+                        rad := r - 3.0
+                        iw, ih := float64(img.Bounds().Dx()), float64(img.Bounds().Dy())
+                        s := (2 * rad) / iw
+                        if ih > iw {
+                                s = (2 * rad) / ih
+                        }
+                        dc.Push()
+                        dc.DrawCircle(x, y, rad)
+                        dc.Clip()
+                        dc.Translate(x, y)
+                        dc.Scale(s, s)
+                        dc.DrawImageAnchored(img, 0, 0, 0.5, 0.5)
+                        dc.Pop()
+                        if progress != "" {
+                                // progress pill rides the icon's bottom edge so x/y stays readable
+                                pillW := float64(len(progress))*8.0 + 18.0
+                                dc.SetColor(portraitCol(12, 9, 6, 210))
+                                dc.DrawRoundedRectangle(x-pillW/2, y+r-13, pillW, 15, 7)
+                                dc.Fill()
+                                portraitFitText(dc, portraitAsset("Cinzel.ttf"), 13, progress, r*1.35, 8)
+                                dc.SetColor(st.ink)
+                                dc.DrawStringAnchored(progress, x, y+r-5.5, 0.5, 0.5)
+                        }
+                        return
+                }
+        }
 
         if progress != "" {
                 portraitFitText(dc, portraitAsset("Cinzel.ttf"), 25, initials, r*1.5, 11)
@@ -461,7 +526,7 @@ func renderSkillTreeCard(c *gin.Context, req *portraitRequest) {
                 if len(rootInitial) > 1 {
                         rootInitial = rootInitial[:1]
                 }
-                r6medallion(dc, 600, 848, 24, treeStyleForR6("learned"), rootInitial, "")
+                r6medallion(dc, 600, 848, 24, treeStyleForR6("learned"), rootInitial, "", "")
 
                 // ── nodes + names ──
                 for i := range req.Branches {
@@ -472,7 +537,7 @@ func renderSkillTreeCard(c *gin.Context, req *portraitRequest) {
                                 if nd.node.Cur > 0 {
                                         progress = fmt.Sprintf("%d/%d", nd.node.Cur, nd.node.Max)
                                 }
-                                r6medallion(dc, nd.x, nd.y, 27, st, initials, progress)
+                                r6medallion(dc, nd.x, nd.y, 27, st, initials, progress, skillIconAssetPath(nd.node.Icon))
                                 nname := portraitSanitize(nd.node.Name)
                                 nameW := 156.0
                                 if nd.count > 1 {
