@@ -199,6 +199,11 @@ func r6medallion(dc *gg.Context, x, y, r float64, st treeStyleR6, initials, prog
                         dc.Scale(s, s)
                         dc.DrawImageAnchored(img, 0, 0, 0.5, 0.5)
                         dc.Pop()
+                        // 💡 gg v1.3.0 gotcha: Pop() explicitly keeps the CURRENT mask
+                        // (dc.mask = before.mask) — without ResetClip() the icon's circle
+                        // clip would leak and silently erase every medallion drawn after
+                        // this one (QA round-1: exactly that, whole tree blank).
+                        dc.ResetClip()
                         if progress != "" {
                                 // progress pill rides the icon's bottom edge so x/y stays readable
                                 pillW := float64(len(progress))*8.0 + 18.0
