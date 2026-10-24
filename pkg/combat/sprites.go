@@ -192,7 +192,7 @@ var SpriteFacing = map[string]string{
 	"elementalist (4).png": "CENTER",
 	"fighter2.png":         "RIGHT",
 	"fighter3.png":         "RIGHT",
-	"lich.png":             "RIGHT",
+	"lich.png":             "CENTER",
 	"merchant.png":         "RIGHT",
 	"necromancer.png":      "CENTER",
 	"ninja (1).png":        "RIGHT",

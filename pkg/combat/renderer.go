@@ -822,9 +822,10 @@ func GenerateCombatImage(c *gin.Context) {
 			manaImg = imaging.Resize(manaImg, 29, 44, imaging.NearestNeighbor)
 			dc.DrawImage(manaImg, normX(-106), normY(256))
 		}
-	} else if req.CombatType != "PVP" {
-		drawImage(uiPath("Options_menu.png"), -97, 99, 443, 258)
 	}
+	// 2026-10-24 (owner): the Options_menu attack-buttons plate is gone from
+	// battle cards (abyss is rendered Node-side and keeps its own UI).
+	// Actions are chosen with chat commands, the drawn buttons were dead art.
 	drawImage(uiPath("banner.png"), -582, -410, 800, 160)
 
 	// 💡 FIX 2026-08-08: Text name labels on ALL PvP panels (1v1 + summon).
@@ -1267,7 +1268,18 @@ func GenerateCombatImage(c *gin.Context) {
 			}
 			img := imaging.Resize(crystalSrc, int(cw), int(ch), imaging.NearestNeighbor)
 			bottom := cq.headTopY - pillH - 22
+			// 2026-10-24 (owner: crystal "broken position-wise"): tall sprites
+			// (bosses) pushed the crystal above the canvas edge and edge-standing
+			// heroes clipped it sideways. Keep the whole crystal + halo on-canvas.
+			if bottom-ch < 8 {
+				bottom = ch + 8
+			}
 			cx := cq.cx
+			if half := cw * 1.1; cx < half {
+				cx = half
+			} else if cx > float64(CANVAS_W)-half {
+				cx = float64(CANVAS_W) - half
+			}
 			cy := bottom - ch/2
 			// Soft glow halo (outer faint, inner brighter)
 			// 💡 color.NRGBA (straight alpha) - color.RGBA with channel > alpha

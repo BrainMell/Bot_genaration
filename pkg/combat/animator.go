@@ -725,7 +725,6 @@ func renderCombatFrame(req *CombatRequest, fs *frameState, assetsPath string) (i
 	drawImage(uiPath("player_state.png"), -716, 113, 453, 244)
 	drawImage(uiPath("heart.png"), -678, 209, 38, 47)
 	drawImage(uiPath("mana.png"), -673, 256, 29, 44)
-	drawImage(uiPath("Options_menu.png"), -97, 99, 443, 258)
 	drawImage(uiPath("banner.png"), -582, -410, 800, 160)
 
 	// Main player HP/energy bars (always uses Players[0])
