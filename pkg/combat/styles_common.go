@@ -5,224 +5,260 @@ package combat
 // Style 7 (Royal Decree) is the baked baseline and never routes here.
 
 import (
-	"bytes"
-	"encoding/base64"
-	"encoding/json"
-	"fmt"
-	"image"
-	_ "image/jpeg"
-	"strings"
+        "bytes"
+        "encoding/base64"
+        "encoding/json"
+        "fmt"
+        "image"
+        _ "image/jpeg"
+        "strings"
 
-	"image-service/pkg/cardstyle"
-	"image-service/pkg/utils"
+        "image-service/pkg/cardstyle"
+        "image-service/pkg/utils"
 
-	"github.com/fogleman/gg"
-	"github.com/gin-gonic/gin"
+        "github.com/fogleman/gg"
+        "github.com/gin-gonic/gin"
 )
+
+// styledSkillIcon paints a skill's PNG art cover-fit inside a circle at
+// (x, y) with radius r. Returns true when art was drawn; false → the caller
+// keeps its initials/pip/name fallback exactly as before.
+// ROUND-22 2026-10-24 (owner: "some cardstyles don't show said skills assets"):
+// node.Icon has shipped in every SKILLTREE/SKILLUP payload since 2026-10-12,
+// but only the r6 baseline (style 0/7) ever consumed it — styles 1-6/8-10
+// degraded every node to initials. This helper is the shared painter for the
+// styled variants; the clip+cover-fit idiom (and the ResetClip() after Pop)
+// mirrors r6medallion's QA-proven round-21 code.
+func styledSkillIcon(dc *gg.Context, icon string, x, y, r float64) bool {
+        p := skillIconAssetPath(icon)
+        if p == "" {
+                return false
+        }
+        img, err := utils.LoadImage(p)
+        if err != nil || img.Bounds().Dx() <= 0 {
+                return false
+        }
+        iw, ih := float64(img.Bounds().Dx()), float64(img.Bounds().Dy())
+        s := (2 * r) / iw
+        if ih > iw {
+                s = (2 * r) / ih
+        }
+        dc.Push()
+        dc.DrawCircle(x, y, r)
+        dc.Clip()
+        dc.Translate(x, y)
+        dc.Scale(s, s)
+        dc.DrawImageAnchored(img, 0, 0, 0.5, 0.5)
+        dc.Pop()
+        // gg v1.3.0 gotcha (round-21 QA): Pop() keeps the CURRENT mask —
+        // without ResetClip() the circle clip leaks into every later draw.
+        dc.ResetClip()
+        return true
+}
 
 // styledKinds - kinds the rebuilt systems render (battle-active kinds are
 // excluded by owner rule and keep the baked combat art).
 func styledKinds() map[string]bool {
-	return map[string]bool{
-		"RANK": true, "ALLOCATE": true, "SKILLUP": true, "ABILITIES": true, "EVOLVE": true,
-		"SKILLTREE": true, "EQUIP": true, "SHOP": true, "GUILDINFO": true,
-	}
+        return map[string]bool{
+                "RANK": true, "ALLOCATE": true, "SKILLUP": true, "ABILITIES": true, "EVOLVE": true,
+                "SKILLTREE": true, "EQUIP": true, "SHOP": true, "GUILDINFO": true,
+        }
 }
 
 // renderStyledImage resolves the per-style composition for kind.
 // Returns nil when the kind/style has no rebuilt composition.
 func renderStyledImage(style int, kind string, req *portraitRequest) image.Image {
-	if style <= 0 || style == 7 || style > 10 || !styledKinds()[kind] {
-		return nil
-	}
-	switch style {
-	case 1:
-		return renderStyle01(kind, req)
-	case 2:
-		return renderStyle02(kind, req)
-	case 3:
-		return renderStyle03(kind, req)
-	case 4:
-		return renderStyle04(kind, req)
-	case 5:
-		return renderStyle05(kind, req)
-	case 6:
-		return renderStyle06(kind, req)
-	case 8:
-		return renderStyle08(kind, req)
-	case 9:
-		return renderStyle09(kind, req)
-	case 10:
-		return renderStyle10(kind, req)
-	}
-	return nil
+        if style <= 0 || style == 7 || style > 10 || !styledKinds()[kind] {
+                return nil
+        }
+        switch style {
+        case 1:
+                return renderStyle01(kind, req)
+        case 2:
+                return renderStyle02(kind, req)
+        case 3:
+                return renderStyle03(kind, req)
+        case 4:
+                return renderStyle04(kind, req)
+        case 5:
+                return renderStyle05(kind, req)
+        case 6:
+                return renderStyle06(kind, req)
+        case 8:
+                return renderStyle08(kind, req)
+        case 9:
+                return renderStyle09(kind, req)
+        case 10:
+                return renderStyle10(kind, req)
+        }
+        return nil
 }
 
 // renderStyledCard renders kind for a rebuilt style (1-6, 8-10).
 // Returns false when the kind/style has no rebuilt composition, so the
 // caller falls back to the canonical baked paths.
 func renderStyledCard(c *gin.Context, req *portraitRequest) bool {
-	if req == nil {
-		return false
-	}
-	img := renderStyledImage(req.Style, req.Kind, req)
-	if img == nil {
-		return false
-	}
-	utils.RespondImage(c, img)
-	return true
+        if req == nil {
+                return false
+        }
+        img := renderStyledImage(req.Style, req.Kind, req)
+        if img == nil {
+                return false
+        }
+        utils.RespondImage(c, img)
+        return true
 }
 
 // QAStyledRender renders a styled card from a raw JSON payload
 // (identical wire format as /api/cards/portrait). QA harness only.
 func QAStyledRender(payload []byte) image.Image {
-	var req portraitRequest
-	if err := json.Unmarshal(payload, &req); err != nil {
-		return nil
-	}
-	decodeEmblem(&req)
-	return renderStyledImage(req.Style, req.Kind, &req)
+        var req portraitRequest
+        if err := json.Unmarshal(payload, &req); err != nil {
+                return nil
+        }
+        decodeEmblem(&req)
+        return renderStyledImage(req.Style, req.Kind, &req)
 }
 
 // decodeEmblem decodes req.Emblem (data URL or bare base64, png/jpeg) into
 // req.EmblemImg. Silently leaves EmblemImg nil on bad input - painters fall
 // back to the initial-letter crest.
 func decodeEmblem(req *portraitRequest) {
-	if req == nil || req.Emblem == "" || req.EmblemImg != nil {
-		return
-	}
-	raw := req.Emblem
-	if strings.HasPrefix(raw, "data:") {
-		if i := strings.Index(raw, ","); i >= 0 {
-			raw = raw[i+1:]
-		}
-	}
-	data, err := base64.StdEncoding.DecodeString(raw)
-	if err != nil {
-		return
-	}
-	img, _, derr := image.Decode(bytes.NewReader(data))
-	if derr != nil {
-		return
-	}
-	// keep memory sane - anything above 2048px is malicious/unwise
-	if b := img.Bounds(); b.Dx() > 2048 || b.Dy() > 2048 {
-		return
-	}
-	req.EmblemImg = img
+        if req == nil || req.Emblem == "" || req.EmblemImg != nil {
+                return
+        }
+        raw := req.Emblem
+        if strings.HasPrefix(raw, "data:") {
+                if i := strings.Index(raw, ","); i >= 0 {
+                        raw = raw[i+1:]
+                }
+        }
+        data, err := base64.StdEncoding.DecodeString(raw)
+        if err != nil {
+                return
+        }
+        img, _, derr := image.Decode(bytes.NewReader(data))
+        if derr != nil {
+                return
+        }
+        // keep memory sane - anything above 2048px is malicious/unwise
+        if b := img.Bounds(); b.Dx() > 2048 || b.Dy() > 2048 {
+                return
+        }
+        req.EmblemImg = img
 }
 
 // ── shared payload helpers ────────────────────────────────────────────
 
 func styledName(req *portraitRequest) string {
-	n := cardstyle.Sanitize(req.Nickname)
-	if n == "" {
-		n = "Adventurer"
-	}
-	return n
+        n := cardstyle.Sanitize(req.Nickname)
+        if n == "" {
+                n = "Adventurer"
+        }
+        return n
 }
 
 // heroImage returns the player class sprite (already trimmed/fitted).
 func heroImage(req *portraitRequest, maxW, maxH int) image.Image {
-	img := portraitFighterSprite(req.PlayerClass, req.PlayerIndex, maxW, maxH, "RIGHT")
-	return img
+        img := portraitFighterSprite(req.PlayerClass, req.PlayerIndex, maxW, maxH, "RIGHT")
+        return img
 }
 
 // drawHeroFitted centers a sprite (or initials fallback) in a box.
 func drawHeroFitted(dc *gg.Context, req *portraitRequest, cx, cy, maxW, maxH float64, ring cardstyle.Palette) {
-	img := heroImage(req, int(maxW), int(maxH))
-	if img != nil {
-		b := img.Bounds()
-		dc.DrawImage(img, int(cx-float64(b.Dx())/2), int(cy-float64(b.Dy())/2))
-		return
-	}
-	// initials medallion fallback
-	initials := initialLetters(styledName(req))
-	cardstyle.Ring(dc, cx, cy, maxW*0.42, ring.Accent, 2)
-	dc.SetColor(cardstyle.WithA(ring.Panel, 200))
-	dc.DrawCircle(cx, cy, maxW*0.42-2)
-	dc.Fill()
-	cardstyle.Fit(dc, cardstyle.FtCinzel, 64, initials, maxW*0.6, 20)
-	dc.SetColor(ring.Ink)
-	dc.DrawStringAnchored(initials, cx, cy, 0.5, 0.5)
+        img := heroImage(req, int(maxW), int(maxH))
+        if img != nil {
+                b := img.Bounds()
+                dc.DrawImage(img, int(cx-float64(b.Dx())/2), int(cy-float64(b.Dy())/2))
+                return
+        }
+        // initials medallion fallback
+        initials := initialLetters(styledName(req))
+        cardstyle.Ring(dc, cx, cy, maxW*0.42, ring.Accent, 2)
+        dc.SetColor(cardstyle.WithA(ring.Panel, 200))
+        dc.DrawCircle(cx, cy, maxW*0.42-2)
+        dc.Fill()
+        cardstyle.Fit(dc, cardstyle.FtCinzel, 64, initials, maxW*0.6, 20)
+        dc.SetColor(ring.Ink)
+        dc.DrawStringAnchored(initials, cx, cy, 0.5, 0.5)
 }
 
 // abilitiesH mirrors the canonical dynamic height so pagination never clips.
 func abilitiesH(req *portraitRequest) int {
-	natH := 246.0
-	if strings.TrimSpace(req.DocQuote) != "" {
-		natH += 26
-	}
-	for gi, g := range req.Groups {
-		if gi >= 6 {
-			break
-		}
-		natH += 46 + float64(len(g.Items))*58 + 10
-	}
-	H := natH + 170.0
-	if H < 700 {
-		H = 700
-	}
-	if H > 1400 {
-		H = 1400
-	}
-	return int(H)
+        natH := 246.0
+        if strings.TrimSpace(req.DocQuote) != "" {
+                natH += 26
+        }
+        for gi, g := range req.Groups {
+                if gi >= 6 {
+                        break
+                }
+                natH += 46 + float64(len(g.Items))*58 + 10
+        }
+        H := natH + 170.0
+        if H < 700 {
+                H = 700
+        }
+        if H > 1400 {
+                H = 1400
+        }
+        return int(H)
 }
 
 // totalAbilityRows counts rendered rows (for numbering).
 func totalAbilityRows(req *portraitRequest) int {
-	total := 0
-	for _, g := range req.Groups {
-		total += len(g.Items)
-	}
-	return total
+        total := 0
+        for _, g := range req.Groups {
+                total += len(g.Items)
+        }
+        return total
 }
 
 // parseLeadingInt extracts the first integer in s ("5 POINTS" -> 5).
 func parseLeadingInt(s string, fallback int) int {
-	num := ""
-	for _, r := range s {
-		if r >= '0' && r <= '9' {
-			num += string(r)
-		} else if num != "" {
-			break
-		}
-	}
-	if num == "" {
-		return fallback
-	}
-	v := 0
-	for _, d := range num {
-		v = v*10 + int(d-'0')
-	}
-	return v
+        num := ""
+        for _, r := range s {
+                if r >= '0' && r <= '9' {
+                        num += string(r)
+                } else if num != "" {
+                        break
+                }
+        }
+        if num == "" {
+                return fallback
+        }
+        v := 0
+        for _, d := range num {
+                v = v*10 + int(d-'0')
+        }
+        return v
 }
 
 // gainFromSub converts "+15/pt" -> "+15".
 func gainFromSub(sub string) string {
-	s := cardstyle.Sanitize(sub)
-	if i := strings.Index(s, "/"); i > 0 {
-		s = s[:i]
-	}
-	if s == "" {
-		return "+1"
-	}
-	return s
+        s := cardstyle.Sanitize(sub)
+        if i := strings.Index(s, "/"); i > 0 {
+                s = s[:i]
+        }
+        if s == "" {
+                return "+1"
+        }
+        return s
 }
 
 // fmtProgressText renders "cur / max".
 func fmtProgressText(cur, max int, vt string) string {
-	if vt != "" {
-		return vt
-	}
-	return fmt.Sprintf("%d / %d", cur, max)
+        if vt != "" {
+                return vt
+        }
+        return fmt.Sprintf("%d / %d", cur, max)
 }
 
 // firstRuneUpper returns the first rune of s uppercased (crest initials).
 func firstRuneUpper(s string) string {
-	r := []rune(strings.ToUpper(cardstyle.Sanitize(s)))
-	if len(r) == 0 {
-		return "G"
-	}
-	return string(r[:1])
+        r := []rune(strings.ToUpper(cardstyle.Sanitize(s)))
+        if len(r) == 0 {
+                return "G"
+        }
+        return string(r[:1])
 }
