@@ -185,15 +185,21 @@ func GenerateCombatImage(c *gin.Context) {
         // Asset: assets/rpgasset/ui/crystal.png (owner-supplied pixel art).
         var crystalQueue []struct {
                 cx, headTopY, spriteH float64
+                hasWorldNameplate bool
         }
         crystalSrc, crystalLoadErr := utils.LoadImage(filepath.Join(assetsPath, "rpgasset", "ui", "crystal.png"))
         if crystalLoadErr != nil {
                 log.Printf("[combat-render] turn crystal asset missing (%v) - turn indicator disabled", crystalLoadErr)
         }
-        queueTurnCrystal := func(cx, headTopY, spriteH float64) {
+        queueTurnCrystal := func(cx, headTopY, spriteH float64, worldNameplate ...bool) {
+                hasWorldNameplate := true
+                if len(worldNameplate) > 0 {
+                        hasWorldNameplate = worldNameplate[0]
+                }
                 crystalQueue = append(crystalQueue, struct {
                         cx, headTopY, spriteH float64
-                }{cx, headTopY, spriteH})
+                        hasWorldNameplate bool
+                }{cx, headTopY, spriteH, hasWorldNameplate})
         }
         // isAttacker checks if the entity at (side, index) is the active attacker.
         // When req.Action is nil (static PvE renders), falls back to highlighting
@@ -573,24 +579,12 @@ func GenerateCombatImage(c *gin.Context) {
                                 queueTurnCrystal(summonFeetX, sy, float64(sSpriteH))
                         }
                         dc.DrawImage(sSprite, int(sx), int(sy))
+                        // Match the PvE overhead-bar geometry: fixed 80px track,
+                        // centered over the sprite and aligned to the same top row.
                         hpBarTopY := sy - 12
                         if summon.MaxHP > 0 && summon.CurrentHP > 0 {
-                                uiPath2 := func(f string) string { return filepath.Join(assetsPath, "rpgasset", "ui", f) }
-                                hpBarImg, err := utils.LoadImage(uiPath2("hp5.png"))
-                                if err == nil {
-                                        barW := 70.0
-                                        barH := 10.0
-                                        hpPerc := float64(summon.CurrentHP) / float64(summon.MaxHP)
-                                        currentBarW := int(barW * hpPerc)
-                                        if currentBarW < 1 {
-                                                currentBarW = 1
-                                        }
-                                        hpBarImg = imaging.Resize(hpBarImg, currentBarW, int(barH), imaging.NearestNeighbor)
-                                        bx := summonFeetX - barW/2
-                                        by := sy - 12
-                                        hpBarTopY = by
-                                        dc.DrawImage(hpBarImg, int(bx), int(by))
-                                }
+                                hpPerc := math.Max(0, math.Min(1, float64(summon.CurrentHP)/float64(summon.MaxHP)))
+                                drawOverheadHPBar(dc, summonFeetX-40, hpBarTopY, 80, 10, hpPerc, nil)
                         }
                         summonName := summon.Name
                         if summonName == "" {
@@ -690,19 +684,17 @@ func GenerateCombatImage(c *gin.Context) {
                         if player.MaxHP > 0 {
                                 hpPercent = math.Max(0, math.Min(1, float64(player.CurrentHP)/float64(player.MaxHP)))
                         }
-                        if hpBarImg, err := utils.LoadImage(filepath.Join(assetsPath, "rpgasset", "ui", "hp5.png")); err == nil && hpPercent > 0 {
-                                barW := int(100 * hpPercent)
-                                if barW < 1 {
-                                        barW = 1
-                                }
-                                hpBarImg = imaging.Resize(hpBarImg, barW, 10, imaging.NearestNeighbor)
-                                dc.DrawImage(hpBarImg, drawX+10, drawY-15)
+                        hpBarTopY := float64(drawY - 12)
+                        if hpPercent > 0 {
+                                drawOverheadHPBar(dc, float64(pos.x)-40, hpBarTopY, 80, 10, hpPercent, nil)
                         }
                         duelName := player.Name
                         if duelName == "" {
                                 duelName = player.Species
                         }
-                        pillQueue = append(pillQueue, pillItem{cx: float64(pos.x), bottomY: float64(drawY) - 18, name: duelName})
+                        // Place the nameplate two pixels above the matched HP bar,
+                        // as the regular encounter renderer does.
+                        pillQueue = append(pillQueue, pillItem{cx: float64(pos.x), bottomY: hpBarTopY - 2, name: duelName})
                 }
         }
 
@@ -916,7 +908,10 @@ func GenerateCombatImage(c *gin.Context) {
                                 utils.DrawShadowEllipse(dc, float64(feetX), float64(feetY)-2, float64(sW)*0.6, 12, 0.85)
 
                                 if isAtk {
-                                        queueTurnCrystal(float64(feetX), float64(drawY), float64(sH))
+                                        // PvP fighter names are in the mirrored HUD panels,
+                                        // not overhead pills. Tell the crystal pass not to
+                                        // reserve an extra nameplate-height gap above them.
+                                        queueTurnCrystal(float64(feetX), float64(drawY), float64(sH), false)
                                 }
 
                                 dc.DrawImage(sprite, drawX, drawY)
@@ -925,11 +920,10 @@ func GenerateCombatImage(c *gin.Context) {
                                 if player.MaxHP > 0 {
                                         hpPercent = math.Max(0, math.Min(1, float64(player.CurrentHP)/float64(player.MaxHP)))
                                 }
-                                hpBarImg, err := utils.LoadImage(uiPath("hp5.png"))
-                                if err == nil && hpPercent > 0 {
-                                        // 💡 FIX 2026-09-11: fixed 100px track + border so the bar
-                                        // no longer collapses to a floating hairline at low HP.
-                                        drawOverheadHPBar(dc, float64(drawX+10), float64(drawY-15), 100, 10, hpPercent, hpBarImg)
+                                if hpPercent > 0 {
+                                        // Match regular PvE fighters: center the fixed 80px HP track
+                                        // directly over the sprite and use the same vertical offset.
+                                        drawOverheadHPBar(dc, float64(feetX)-40, float64(drawY-12), 80, 10, hpPercent, nil)
                                 }
                         }
 
@@ -1182,6 +1176,13 @@ func GenerateCombatImage(c *gin.Context) {
                         }
                         img := imaging.Resize(crystalSrc, int(cw), int(ch), imaging.NearestNeighbor)
                         bottom := cq.headTopY - pillH - 22
+                        if !cq.hasWorldNameplate {
+                                // Duelists have their names in the HUD panels rather
+                                // than above their sprites. Keep the turn crystal clear
+                                // of the overhead HP bar without reserving a nonexistent
+                                // nameplate row.
+                                bottom = cq.headTopY - 20
+                        }
                         cx := cq.cx
                         cy := bottom - ch/2
                         // Soft glow halo (outer faint, inner brighter)
