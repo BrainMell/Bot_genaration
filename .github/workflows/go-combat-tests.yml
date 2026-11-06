@@ -1,0 +1,27 @@
+name: Go combat tests
+
+on:
+  push:
+    branches:
+      - audit/fix-pass-1
+  pull_request:
+    paths:
+      - "pkg/combat/**"
+      - "main.go"
+      - "go.mod"
+
+jobs:
+  combat-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.0"
+          cache: true
+
+      - name: Test combat package
+        run: go test ./pkg/combat -count=1
