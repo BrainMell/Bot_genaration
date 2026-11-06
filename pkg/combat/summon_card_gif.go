@@ -53,6 +53,14 @@ func GenerateSummonCardGIF(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "combat players and enemies are required"})
 		return
 	}
+	if req.Action.AttackerSide != "player" || req.Action.AttackerIndex < 0 || req.Action.AttackerIndex >= len(req.Players) {
+		c.JSON(400, gin.H{"error": "invalid summon-card attacker"})
+		return
+	}
+	if req.Action.TargetSide != "enemy" || req.Action.TargetIndex < 0 || req.Action.TargetIndex >= len(req.Enemies) {
+		c.JSON(400, gin.H{"error": "invalid summon-card target"})
+		return
+	}
 
 	req.CombatType = "PVE"
 	req.Action.Vfx = vfx
