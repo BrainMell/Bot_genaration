@@ -220,6 +220,8 @@ func main() {
         api.POST("/ttt", ttt.RenderBoard)
         api.POST("/ttt/leaderboard", ttt.RenderLeaderboard)
         api.POST("/chess", chess.RenderBoard)
+        api.POST("/chess/themes", chess.RenderThemes)           // 2026-11-12: board/piece theme preview sheets
+        api.POST("/chess/leaderboard", chess.RenderLeaderboard) // 2026-11-12: Elo leaderboard image
         api.POST("/cards/burn", cards.GenerateBurnGif)
         api.POST("/cards/convert", cards.ConvertCard)
         api.POST("/cards/eshop", cards.GenerateEShopDeck)
